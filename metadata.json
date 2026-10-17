@@ -1,0 +1,6 @@
+{
+  "name": "Bánh Trung Thu - Sàn Thương Mại Điện Tử Bánh Trung Thu Chính Hãng",
+  "description": "Nền tảng thương mại điện tử chuyên biệt kết nối trực tiếp các thương hiệu bánh trung thu danh tiếng Việt Nam với khách hàng cá nhân và doanh nghiệp.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
