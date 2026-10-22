@@ -11,6 +11,24 @@ export interface StatusMeta {
 
 type StatusMap = Record<string, StatusMeta>;
 
+export const FINANCE_STATUS: StatusMap = {
+  PENDING: { label: 'Chờ thanh toán', variant: 'warning' },
+  CREATING: { label: 'Đang tạo link', variant: 'warning' },
+  RECONCILING: { label: 'Đang đối soát', variant: 'warning' },
+  SUCCESS: { label: 'Thành công', variant: 'success' },
+  FAILED: { label: 'Thất bại', variant: 'danger' },
+  EXPIRED: { label: 'Hết hạn', variant: 'neutral' },
+  CANCELLED: { label: 'Đã hủy link', variant: 'neutral' },
+  REQUESTED: { label: 'Chờ xét duyệt', variant: 'warning' },
+  MANUAL_REVIEW: { label: 'Chờ xử lý thủ công', variant: 'warning' },
+  APPROVED: { label: 'Đã phê duyệt', variant: 'success' },
+  REJECTED: { label: 'Đã từ chối', variant: 'neutral' },
+  OPEN: { label: 'Đang tranh chấp', variant: 'danger' },
+  RESOLVED: { label: 'Đã phân xử', variant: 'success' },
+  READY: { label: 'Sẵn sàng giải ngân', variant: 'info' },
+  PROCESSING: { label: 'Đang xử lý', variant: 'warning' },
+};
+
 export const ORDER_STATUS: StatusMap = {
   AWAITING_PAYMENT: { label: 'Chờ thanh toán', variant: 'warning' },
   PENDING_CONFIRMATION: { label: 'Chờ nhà bán xác nhận', variant: 'warning' },

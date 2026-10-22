@@ -160,6 +160,9 @@ export default function Navbar({
       </div>
 
       {/* Navigation Links Bar */}
+      <div className="mss-container flex justify-end">
+        <button onClick={() => setActiveTab('payment-settlement')} className="mss-button mss-button--secondary my-2">Thanh toán & đối soát</button>
+      </div>
       <nav className="border-t border-gray-100 bg-white hidden md:block">
         <div className="mss-container flex items-center justify-between text-sm font-medium">
           <div className="flex items-center gap-1">
