@@ -13,6 +13,7 @@ import OrderTracking from './pages/OrderTracking';
 import B2BPortal from './pages/B2BPortal';
 import UserProfile from './pages/UserProfile';
 import SellerCenter from './pages/seller/SellerCenter';
+import { FulfillmentDemoPage } from './features/fulfillment/pages/FulfillmentDemoPage';
 
 import { Product, Brand, CartItem } from './types';
 import { PRODUCTS, BRANDS } from './data/mockData';
@@ -203,6 +204,10 @@ export default function App() {
 
         {activeTab === 'orders' && (
           <OrderTracking setActiveTab={setActiveTab} />
+        )}
+
+        {activeTab === 'fulfillment' && (
+          <FulfillmentDemoPage />
         )}
 
         {activeTab === 'b2b' && <B2BPortal />}
