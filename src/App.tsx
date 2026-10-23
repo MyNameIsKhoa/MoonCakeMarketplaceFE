@@ -111,6 +111,8 @@ export default function App() {
           onOpenAI={() => setIsAIOpen(true)}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
+          setSelectedBrand={setSelectedBrand}
+          setSelectedProduct={setSelectedProduct}
         />
       )}
 
@@ -172,7 +174,7 @@ export default function App() {
                   <img src={brand.logo} alt={brand.name} className="w-20 h-20 aspect-square rounded-xl object-cover border border-gray-200" />
                   <div className="min-w-0">
                     <h3 className="mss-card-title">{brand.name}</h3>
-                    <p className="text-sm text-gray-500 mt-1">{brand.productCount} sản phẩm • Đánh giá {brand.rating} ⭐</p>
+                    <p className="text-sm text-gray-500 mt-1">{brand.categoryLabel || 'Thương hiệu chính hãng'}</p>
                     <span className="inline-block mt-2 text-sm font-semibold text-primary-700">Khám phá gian hàng →</span>
                   </div>
                 </div>

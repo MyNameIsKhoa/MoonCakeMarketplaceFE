@@ -10,10 +10,22 @@ export const BRANDS: Brand[] = [
     logo: 'https://images.unsplash.com/photo-1549488344-cbb6c34cf08b?auto=format&fit=crop&q=80&w=200',
     banner: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=1200',
     description: 'Thương hiệu bánh trung thu quốc dân hàng đầu Việt Nam với hơn 30 năm đồng hành cùng mùa trăng rằm.',
-    rating: 4.9,
-    productCount: 45,
-    responseRate: '99%',
-    joinedYear: 1993
+    categoryType: 'truyen-thong',
+    categoryLabel: 'Truyền Thống Quốc Dân',
+    priceRange: '60.000đ - 2.450.000đ',
+    badges: ['Chính hãng 100%', 'Giao hỏa tốc 2h'],
+    featuredTags: ['Trăng Vàng Hoàng Kim', 'Thượng Uyển Hoàng Gia', 'Thiếu Nhi & Lồng Đèn'],
+    location: 'Toàn quốc',
+    branches: [
+      {
+        id: 'kd-q1', name: 'Kinh Đô Nguyễn Huệ', addressLine: '72 Nguyễn Huệ', ward: 'Bến Nghé',
+        district: 'Quận 1', city: 'TP. Hồ Chí Minh', phone: '028 3829 1234', openingHours: '07:00–22:00', primary: true
+      },
+      {
+        id: 'kd-hk', name: 'Kinh Đô Hoàn Kiếm', addressLine: '25 Hàng Bài', ward: 'Hàng Bài',
+        district: 'Hoàn Kiếm', city: 'Hà Nội', phone: '024 3936 5678', openingHours: '08:00–21:30', primary: false
+      }
+    ]
   },
   {
     id: 'nhu-lan',
@@ -24,10 +36,12 @@ export const BRANDS: Brand[] = [
     logo: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=200',
     banner: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&q=80&w=1200',
     description: 'Hương vị truyền thống Sài Gòn xưa, nổi tiếng với bánh nướng thập cẩm và dẻo hạt sen thơm ngon chuẩn vị.',
-    rating: 4.8,
-    productCount: 28,
-    responseRate: '98%',
-    joinedYear: 1975
+    categoryType: 'truyen-thong',
+    categoryLabel: 'Đặc Sản Sài Gòn Xưa',
+    priceRange: '75.000đ - 980.000đ',
+    badges: ['Chính hãng 100%', 'Giao trong ngày'],
+    featuredTags: ['Gà quay bào ngư', 'Đậu xanh sầu riêng', 'Bánh nướng 2 trứng'],
+    location: 'TP. Hồ Chí Minh'
   },
   {
     id: 'madame-huong',
@@ -38,10 +52,18 @@ export const BRANDS: Brand[] = [
     logo: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&q=80&w=200',
     banner: 'https://images.unsplash.com/photo-1514517517853-eef7d50731a5?auto=format&fit=crop&q=80&w=1200',
     description: 'Sự kết tinh hoàn hảo giữa nghệ thuật ẩm thực Pháp và tinh hoa truyền thống phố cổ Hà Nội.',
-    rating: 4.95,
-    productCount: 32,
-    responseRate: '100%',
-    joinedYear: 2016
+    categoryType: 'cao-cap',
+    categoryLabel: 'Khách Sạn & Sang Trọng',
+    priceRange: '120.000đ - 2.800.000đ',
+    badges: ['Chính hãng 100%', 'Hộp quà VIP'],
+    featuredTags: ['Sơn Thủy Hữu Tình', 'Cốm xanh Hà Nội', 'Sơn mài thủ công'],
+    location: 'Hà Nội',
+    branches: [
+      {
+        id: 'mh-hbt', name: 'Madame Hương Hai Bà Trưng', addressLine: '12 Bà Triệu', ward: 'Lê Đại Hành',
+        district: 'Hai Bà Trưng', city: 'Hà Nội', phone: '024 3974 1122', openingHours: '08:00–21:00', primary: true
+      }
+    ]
   },
   {
     id: 'brodard',
@@ -52,10 +74,12 @@ export const BRANDS: Brand[] = [
     logo: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=200',
     banner: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&q=80&w=1200',
     description: 'Thương hiệu bánh thượng hạng từ năm 1948, kết hợp phong cách Pháp tinh tế và vị ngon truyền thống.',
-    rating: 4.9,
-    productCount: 24,
-    responseRate: '99%',
-    joinedYear: 1948
+    categoryType: 'hien-dai',
+    categoryLabel: 'Phong Cách Pháp & Hiện Đại',
+    priceRange: '95.000đ - 1.850.000đ',
+    badges: ['Chính hãng 100%', 'Lava trứng chảy'],
+    featuredTags: ['Lava sầu riêng Ri6', 'Bơ Pháp hảo hạng', 'Hoàng Gia Dạ Nguyệt'],
+    location: 'TP. Hồ Chí Minh'
   },
   {
     id: 'givral',
@@ -66,10 +90,12 @@ export const BRANDS: Brand[] = [
     logo: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=200',
     banner: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=1200',
     description: 'Bánh trung thu tươi không chất bảo quản, vỏ mỏng nhân đầy, hương vị thanh tao khó quên.',
-    rating: 4.85,
-    productCount: 26,
-    responseRate: '97%',
-    joinedYear: 1950
+    categoryType: 'healthy',
+    categoryLabel: 'Healthy & Bánh Tươi',
+    priceRange: '85.000đ - 1.650.000đ',
+    badges: ['Chính hãng 100%', 'Không bảo quản'],
+    featuredTags: ['Hạt chia & Hạt sen', 'Không đường kiêng', 'Bánh tươi mỗi ngày'],
+    location: 'TP. Hồ Chí Minh'
   }
 ];
 
@@ -324,6 +350,67 @@ export const PRODUCTS: Product[] = [
     salesCount: 4120,
     inStock: true,
     isBestSeller: true
+  },
+  {
+    id: 'prod-9',
+    name: 'Bánh Nướng Thập Cẩm Phố Cổ Hà Thành (1 Trứng) - Madame Hương',
+    brandId: 'madame-huong',
+    brandName: 'Madame Hương Hà Nội',
+    price: 185000,
+    originalPrice: 200000,
+    rating: 4.9,
+    reviewCount: 165,
+    image: 'https://images.unsplash.com/photo-1549488344-cbb6c34cf08b?auto=format&fit=crop&q=80&w=600',
+    gallery: ['https://images.unsplash.com/photo-1549488344-cbb6c34cf08b?auto=format&fit=crop&q=80&w=800'],
+    category: 'truyen-thong',
+    flavor: 'Thập cẩm lạp xưởng nấm hương',
+    weight: '200g',
+    ingredients: ['Bột mì', 'Lạp xưởng Mai Quế Lộ', 'Nấm hương', 'Mứt sen', 'Hạt dưa', 'Trứng muối'],
+    sugarLevel: 'Ít ngọt (Giảm 30%)',
+    description: 'Bánh nướng phong vị đất Tràng An xưa, kết hợp nấm hương thơm lừng cùng lạp xưởng Mai Quế Lộ gia truyền.',
+    salesCount: 940,
+    inStock: true
+  },
+  {
+    id: 'prod-10',
+    name: 'Hộp Quà Hoàng Gia Dạ Nguyệt (Lava & Trà) - Brodard',
+    brandId: 'brodard',
+    brandName: 'Brodard Bakery',
+    price: 1680000,
+    originalPrice: 1850000,
+    rating: 4.95,
+    reviewCount: 380,
+    image: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&q=80&w=600',
+    gallery: ['https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&q=80&w=800'],
+    category: 'cao-cap',
+    flavor: 'Lava sầu riêng, Tiramisu phô mai, Trà xanh matcha Nhật Bản, Chocolate hạnh nhân',
+    weight: '4 bánh lava x 160g + Hộp quà nhung đỏ hoàng gia',
+    ingredients: ['Bơ Pháp', 'Phô mai Mascarpone', 'Sầu riêng Ri6', 'Bột matcha Uji'],
+    sugarLevel: 'Tiêu chuẩn',
+    description: 'Tuyệt phẩm hội tụ phong vị hiện đại châu Âu trên nền tảng bánh nướng Trung Thu. Thiết kế hộp nhung đỏ hoàng gia quý phái.',
+    salesCount: 1380,
+    inStock: true,
+    isBestSeller: true
+  },
+  {
+    id: 'prod-11',
+    name: 'Hộp Quà Sum Vầy Thu Nguyệt (Bánh Tươi 100%) - Givral',
+    brandId: 'givral',
+    brandName: 'Givral Bakery',
+    price: 890000,
+    originalPrice: 980000,
+    rating: 4.88,
+    reviewCount: 290,
+    image: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=600',
+    gallery: ['https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=800'],
+    category: 'cao-cap',
+    flavor: 'Hạt sen đậu biếc, Thập cẩm ngũ nhân yến sào, Đậu xanh hạt chia, Trà xanh hạt dưa',
+    weight: '4 bánh x 200g + Thiệp chúc thu',
+    ingredients: ['Bột nếp tươi', 'Hạt sen Tịnh Tâm', 'Hoa đậu biếc', 'Đường Isomalt'],
+    sugarLevel: 'Ít ngọt (Giảm 30%)',
+    description: 'Hộp quà biếu trang nhã tinh tế mang thông điệp sum vầy an khang, hoàn toàn không sử dụng chất bảo quản hay phụ gia độc hại.',
+    salesCount: 820,
+    inStock: true
   }
 ];
 

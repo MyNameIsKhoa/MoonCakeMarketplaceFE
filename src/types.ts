@@ -60,10 +60,26 @@ export interface Brand {
   logo: string;
   banner: string;
   description: string;
-  rating: number;
-  productCount: number;
-  responseRate: string;
-  joinedYear: number;
+  categoryType?: 'all' | 'truyen-thong' | 'cao-cap' | 'hien-dai' | 'healthy';
+  categoryLabel?: string;
+  priceRange?: string;
+  badges?: string[];
+  featuredTags?: string[];
+  location?: string;
+  /** Chi nhánh đang hoạt động, chi nhánh chính lên đầu (GET /api/stores/{storeId}/branches). */
+  branches?: StoreBranch[];
+}
+
+export interface StoreBranch {
+  id: string;
+  name: string;
+  addressLine: string;
+  ward?: string;
+  district?: string;
+  city: string;
+  phone?: string;
+  openingHours?: string;
+  primary: boolean;
 }
 
 export interface CartItem {
