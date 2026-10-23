@@ -117,3 +117,22 @@ export function cleanParams(params: object): Record<string, string | number | bo
     Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== '')
   );
 }
+
+/** Legacy fetch-based request helper (used by tv5/payos features). */
+export async function request<T>(path: string, options: { body?: unknown; key?: string; method?: string } = {}): Promise<T> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  const token = getAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (options.key) headers['Idempotency-Key'] = options.key;
+  if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+  const response = await fetch(`${baseURL}${path}`, {
+    method: options.method || 'GET', headers, credentials: 'include',
+    signal: AbortSignal.timeout(20000),
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new ApiError(response.status, body.code || `HTTP_${response.status}`);
+  }
+  return response.json();
+}
