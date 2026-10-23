@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Heart, Award, Plus, Building2 } from 'lucide-react';
 import { Address, Product } from '../types';
-import { BRANDS, PRODUCTS, PROMOTIONS } from '../data/mockData';
+import { STORES, PRODUCTS, PROMOTIONS } from '../data/mockData';
 import { addressApi } from '../services/api';
 import { formatAddress, formatDate } from '../utils/format';
 
@@ -247,7 +247,7 @@ export default function UserProfile({
           <div className="mss-grid-3">
             {activePromotions.map((promo) => (
               <div key={promo.promotionId} className="rounded-xl border border-gray-200 p-4 flex flex-col gap-2">
-                <span className="text-sm font-semibold text-primary-700">{BRANDS.find((b) => b.id === promo.storeId)?.name ?? promo.storeId}</span>
+                <span className="text-sm font-semibold text-primary-700">{STORES.find((b) => b.storeId === promo.storeId)?.name ?? promo.storeId}</span>
                 <h3 className="font-semibold text-gray-900">{promo.name}</h3>
                 <p className="text-sm text-gray-500">
                   {formatDate(promo.startAt)} – {formatDate(promo.endAt)}

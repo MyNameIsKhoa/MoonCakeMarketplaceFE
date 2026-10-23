@@ -1,14 +1,15 @@
-import { Product, Brand, Review, Promotion } from '../types';
+import { Product, Store, Review, Promotion } from '../types';
 
-export const BRANDS: Brand[] = [
+export const STORES: Store[] = [
   {
-    id: 'kinh-do',
+    storeId: 'kinh-do',
+    slug: 'kinh-do',
     storeCode: 'STORE-KD',
     name: 'Kinh Đô - Mondelez',
-    supplierId: 'sup-01',
+    supplierIdRef: 'sup-01',
     supplierName: 'Công ty CP Mondelez Kinh Đô Việt Nam',
-    logo: 'https://images.unsplash.com/photo-1549488344-cbb6c34cf08b?auto=format&fit=crop&q=80&w=200',
-    banner: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=1200',
+    logoUrl: 'https://images.unsplash.com/photo-1549488344-cbb6c34cf08b?auto=format&fit=crop&q=80&w=200',
+    bannerUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=1200',
     description: 'Thương hiệu bánh trung thu quốc dân hàng đầu Việt Nam với hơn 30 năm đồng hành cùng mùa trăng rằm.',
     categoryType: 'truyen-thong',
     categoryLabel: 'Truyền Thống Quốc Dân',
@@ -18,23 +19,24 @@ export const BRANDS: Brand[] = [
     location: 'Toàn quốc',
     branches: [
       {
-        id: 'kd-q1', name: 'Kinh Đô Nguyễn Huệ', addressLine: '72 Nguyễn Huệ', ward: 'Bến Nghé',
+        branchId: 'kd-q1', name: 'Kinh Đô Nguyễn Huệ', addressLine: '72 Nguyễn Huệ', ward: 'Bến Nghé',
         district: 'Quận 1', city: 'TP. Hồ Chí Minh', phone: '028 3829 1234', openingHours: '07:00–22:00', primary: true
       },
       {
-        id: 'kd-hk', name: 'Kinh Đô Hoàn Kiếm', addressLine: '25 Hàng Bài', ward: 'Hàng Bài',
+        branchId: 'kd-hk', name: 'Kinh Đô Hoàn Kiếm', addressLine: '25 Hàng Bài', ward: 'Hàng Bài',
         district: 'Hoàn Kiếm', city: 'Hà Nội', phone: '024 3936 5678', openingHours: '08:00–21:30', primary: false
       }
     ]
   },
   {
-    id: 'nhu-lan',
+    storeId: 'nhu-lan',
+    slug: 'nhu-lan',
     storeCode: 'STORE-NL',
     name: 'Đặc Sản Như Lan',
-    supplierId: 'sup-02',
+    supplierIdRef: 'sup-02',
     supplierName: 'Công ty TNHH Thực Phẩm Như Lan',
-    logo: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=200',
-    banner: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&q=80&w=1200',
+    logoUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=200',
+    bannerUrl: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&q=80&w=1200',
     description: 'Hương vị truyền thống Sài Gòn xưa, nổi tiếng với bánh nướng thập cẩm và dẻo hạt sen thơm ngon chuẩn vị.',
     categoryType: 'truyen-thong',
     categoryLabel: 'Đặc Sản Sài Gòn Xưa',
@@ -44,13 +46,14 @@ export const BRANDS: Brand[] = [
     location: 'TP. Hồ Chí Minh'
   },
   {
-    id: 'madame-huong',
+    storeId: 'madame-huong',
+    slug: 'madame-huong',
     storeCode: 'STORE-MH',
     name: 'Madame Hương Hà Nội',
-    supplierId: 'sup-03',
+    supplierIdRef: 'sup-03',
     supplierName: 'Công ty TNHH Madame Hương',
-    logo: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&q=80&w=200',
-    banner: 'https://images.unsplash.com/photo-1514517517853-eef7d50731a5?auto=format&fit=crop&q=80&w=1200',
+    logoUrl: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&q=80&w=200',
+    bannerUrl: 'https://images.unsplash.com/photo-1514517517853-eef7d50731a5?auto=format&fit=crop&q=80&w=1200',
     description: 'Sự kết tinh hoàn hảo giữa nghệ thuật ẩm thực Pháp và tinh hoa truyền thống phố cổ Hà Nội.',
     categoryType: 'cao-cap',
     categoryLabel: 'Khách Sạn & Sang Trọng',
@@ -60,19 +63,20 @@ export const BRANDS: Brand[] = [
     location: 'Hà Nội',
     branches: [
       {
-        id: 'mh-hbt', name: 'Madame Hương Hai Bà Trưng', addressLine: '12 Bà Triệu', ward: 'Lê Đại Hành',
+        branchId: 'mh-hbt', name: 'Madame Hương Hai Bà Trưng', addressLine: '12 Bà Triệu', ward: 'Lê Đại Hành',
         district: 'Hai Bà Trưng', city: 'Hà Nội', phone: '024 3974 1122', openingHours: '08:00–21:00', primary: true
       }
     ]
   },
   {
-    id: 'brodard',
+    storeId: 'brodard',
+    slug: 'brodard',
     storeCode: 'STORE-BD',
     name: 'Brodard Bakery',
-    supplierId: 'sup-04',
+    supplierIdRef: 'sup-04',
     supplierName: 'Công ty TNHH Brodard Bakery',
-    logo: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=200',
-    banner: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&q=80&w=1200',
+    logoUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=200',
+    bannerUrl: 'https://images.unsplash.com/photo-1513151233558-d860c5398176?auto=format&fit=crop&q=80&w=1200',
     description: 'Thương hiệu bánh thượng hạng từ năm 1948, kết hợp phong cách Pháp tinh tế và vị ngon truyền thống.',
     categoryType: 'hien-dai',
     categoryLabel: 'Phong Cách Pháp & Hiện Đại',
@@ -82,13 +86,14 @@ export const BRANDS: Brand[] = [
     location: 'TP. Hồ Chí Minh'
   },
   {
-    id: 'givral',
+    storeId: 'givral',
+    slug: 'givral',
     storeCode: 'STORE-GV',
     name: 'Givral Bakery',
-    supplierId: 'sup-05',
+    supplierIdRef: 'sup-05',
     supplierName: 'Công ty CP Givral',
-    logo: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=200',
-    banner: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=1200',
+    logoUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=200',
+    bannerUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=1200',
     description: 'Bánh trung thu tươi không chất bảo quản, vỏ mỏng nhân đầy, hương vị thanh tao khó quên.',
     categoryType: 'healthy',
     categoryLabel: 'Healthy & Bánh Tươi',
@@ -161,8 +166,8 @@ export const PRODUCTS: Product[] = [
   {
     id: 'prod-1',
     name: 'Hộp Quà Trăng Vàng Hoàng Kim - Kinh Đô',
-    brandId: 'kinh-do',
-    brandName: 'Kinh Đô - Mondelez',
+    storeId: 'kinh-do',
+    storeName: 'Kinh Đô - Mondelez',
     price: 1280000,
     originalPrice: 1500000,
     rating: 4.9,
@@ -188,8 +193,8 @@ export const PRODUCTS: Product[] = [
   {
     id: 'prod-2',
     name: 'Bánh Nướng Thập Cẩm Gà Quay Bào Ngư (2 Trứng) - Như Lan',
-    brandId: 'nhu-lan',
-    brandName: 'Đặc Sản Như Lan',
+    storeId: 'nhu-lan',
+    storeName: 'Đặc Sản Như Lan',
     price: 185000,
     originalPrice: 210000,
     rating: 4.8,
@@ -212,8 +217,8 @@ export const PRODUCTS: Product[] = [
   {
     id: 'prod-3',
     name: 'Hộp Quà Sơn Thủy Hữu Tình - Madame Hương',
-    brandId: 'madame-huong',
-    brandName: 'Madame Hương Hà Nội',
+    storeId: 'madame-huong',
+    storeName: 'Madame Hương Hà Nội',
     price: 950000,
     originalPrice: 1100000,
     rating: 4.95,
@@ -238,8 +243,8 @@ export const PRODUCTS: Product[] = [
   {
     id: 'prod-4',
     name: 'Bánh Nướng Lava Trứng Chảy Sầu Riêng - Brodard',
-    brandId: 'brodard',
-    brandName: 'Brodard Bakery',
+    storeId: 'brodard',
+    storeName: 'Brodard Bakery',
     price: 240000,
     originalPrice: 280000,
     rating: 4.9,
@@ -263,8 +268,8 @@ export const PRODUCTS: Product[] = [
   {
     id: 'prod-5',
     name: 'Bánh Dẻo Hạt Sen Hạt Chia (Không Đường) - Givral',
-    brandId: 'givral',
-    brandName: 'Givral Bakery',
+    storeId: 'givral',
+    storeName: 'Givral Bakery',
     price: 145000,
     originalPrice: 160000,
     rating: 4.75,
@@ -285,8 +290,8 @@ export const PRODUCTS: Product[] = [
   {
     id: 'prod-6',
     name: 'Hộp Quà Thượng Uyển Hoàng Gia - Kinh Đô',
-    brandId: 'kinh-do',
-    brandName: 'Kinh Đô - Mondelez',
+    storeId: 'kinh-do',
+    storeName: 'Kinh Đô - Mondelez',
     price: 2450000,
     originalPrice: 2800000,
     rating: 4.98,
@@ -309,8 +314,8 @@ export const PRODUCTS: Product[] = [
   {
     id: 'prod-7',
     name: 'Bánh Nướng Đậu Xanh Lá Dứa (1 Trứng) - Như Lan',
-    brandId: 'nhu-lan',
-    brandName: 'Đặc Sản Như Lan',
+    storeId: 'nhu-lan',
+    storeName: 'Đặc Sản Như Lan',
     price: 135000,
     originalPrice: 150000,
     rating: 4.8,
@@ -331,8 +336,8 @@ export const PRODUCTS: Product[] = [
   {
     id: 'prod-8',
     name: 'Hộp Thiếu Nhi - Bánh Hình Thú & Lồng Đèn - Kinh Đô',
-    brandId: 'kinh-do',
-    brandName: 'Kinh Đô - Mondelez',
+    storeId: 'kinh-do',
+    storeName: 'Kinh Đô - Mondelez',
     price: 195000,
     originalPrice: 220000,
     rating: 4.9,
@@ -354,8 +359,8 @@ export const PRODUCTS: Product[] = [
   {
     id: 'prod-9',
     name: 'Bánh Nướng Thập Cẩm Phố Cổ Hà Thành (1 Trứng) - Madame Hương',
-    brandId: 'madame-huong',
-    brandName: 'Madame Hương Hà Nội',
+    storeId: 'madame-huong',
+    storeName: 'Madame Hương Hà Nội',
     price: 185000,
     originalPrice: 200000,
     rating: 4.9,
@@ -374,8 +379,8 @@ export const PRODUCTS: Product[] = [
   {
     id: 'prod-10',
     name: 'Hộp Quà Hoàng Gia Dạ Nguyệt (Lava & Trà) - Brodard',
-    brandId: 'brodard',
-    brandName: 'Brodard Bakery',
+    storeId: 'brodard',
+    storeName: 'Brodard Bakery',
     price: 1680000,
     originalPrice: 1850000,
     rating: 4.95,
@@ -395,8 +400,8 @@ export const PRODUCTS: Product[] = [
   {
     id: 'prod-11',
     name: 'Hộp Quà Sum Vầy Thu Nguyệt (Bánh Tươi 100%) - Givral',
-    brandId: 'givral',
-    brandName: 'Givral Bakery',
+    storeId: 'givral',
+    storeName: 'Givral Bakery',
     price: 890000,
     originalPrice: 980000,
     rating: 4.88,
