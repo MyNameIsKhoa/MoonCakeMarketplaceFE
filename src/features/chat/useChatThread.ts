@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getAccessToken } from '../../services/api/session';
-import { errorMessage } from '../../services/api/http';
+import { errorMessage, getAccessToken } from '../../services/api/http';
 import { CHAT_SOCKET_URL, ChatMessage, conversationApi } from './api';
 import { StompConnection } from './stompClient';
 

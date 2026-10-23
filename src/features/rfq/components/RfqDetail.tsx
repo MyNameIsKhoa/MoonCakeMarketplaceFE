@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Ban, Lock, LogIn, MessageSquare, Send } from 'lucide-react';
+import { ArrowLeft, Ban, Lock, MessageSquare, Send } from 'lucide-react';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import { errorMessage } from '../../../services/api/http';
-import type { Session } from '../../../services/api/session';
 import { formatDate, formatDateTime } from '../../../utils/format';
 import { QUOTATION_STATUS, RFQ_STATUS } from '../../../utils/status';
 import { conversationApi } from '../../chat/api';
@@ -19,12 +18,10 @@ import { ErrorBlock, InfoRow, LoadingRows } from './ui';
 
 interface RfqDetailProps {
   rfqId: string;
-  session: Session | null;
   supplier: SupplierProfile | null;
   initialQuotationId?: string | null;
   onBack: () => void;
   onOpenConversation: (conversationId: string) => void;
-  onRequireSignIn: () => void;
 }
 
 type Composer = { kind: 'create'; stores: StoreInfo[] } | { kind: 'revise'; quotation: Quotation } | null;
@@ -39,7 +36,7 @@ function latestByStore(quotations: QuotationSummary[]): Map<string, QuotationSum
   return latest;
 }
 
-export default function RfqDetail({ rfqId, session, supplier, initialQuotationId, onBack, onOpenConversation, onRequireSignIn }: RfqDetailProps) {
+export default function RfqDetail({ rfqId, supplier, initialQuotationId, onBack, onOpenConversation }: RfqDetailProps) {
   const [rfq, setRfq] = useState<Rfq | null>(null);
   const [error, setError] = useState('');
   const [quotations, setQuotations] = useState<QuotationSummary[] | null>(null);
@@ -53,7 +50,7 @@ export default function RfqDetail({ rfqId, session, supplier, initialQuotationId
   const detailRef = useRef<HTMLDivElement>(null);
 
   const owner = !!rfq?.customerId;
-  const isSupplier = !!session && !!supplier && !owner;
+  const isSupplier = !!supplier && !owner;
   const verified = supplier?.verificationStatus === 'VERIFIED';
 
   const loadRfq = useCallback(() => {
@@ -72,12 +69,11 @@ export default function RfqDetail({ rfqId, session, supplier, initialQuotationId
       .catch((e) => setQuotationsError(errorMessage(e)));
   }, [rfqId]);
 
-  useEffect(loadRfq, [loadRfq, session?.user.userId]);
-  // Reset only when the viewer changes; refreshes keep the list (and the open detail/dialog) on screen.
-  useEffect(() => setQuotations(null), [session?.user.userId]);
+  // A different viewer means logout/login, which unmounts the portal, so no per-user reset is needed here.
+  useEffect(loadRfq, [loadRfq]);
   useEffect(() => {
-    if (session && rfq && (owner || isSupplier)) loadQuotations();
-  }, [session, rfq, owner, isSupplier, loadQuotations]);
+    if (rfq && (owner || isSupplier)) loadQuotations();
+  }, [rfq, owner, isSupplier, loadQuotations]);
 
   const storeNames = useStoreNames((quotations ?? []).map((q) => q.storeId));
   const latest = useMemo(() => latestByStore(quotations ?? []), [quotations]);
@@ -278,16 +274,7 @@ export default function RfqDetail({ rfqId, session, supplier, initialQuotationId
         </section>
       )}
 
-      {!session && (
-        <section className="mss-card flex flex-wrap items-center justify-between gap-3">
-          <p className="m-0 text-gray-700">Đăng nhập để gửi báo giá (nhà cung cấp) hoặc quản lý yêu cầu của bạn.</p>
-          <button type="button" className="mss-button mss-button--primary" onClick={onRequireSignIn}>
-            <LogIn className="h-4 w-4" aria-hidden />
-            Đăng nhập
-          </button>
-        </section>
-      )}
-      {session && !owner && !supplier && (
+      {!owner && !supplier && (
         <p className="mss-alert m-0">Chỉ nhà cung cấp đã được xác minh mới có thể gửi báo giá cho yêu cầu này.</p>
       )}
 
