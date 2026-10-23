@@ -12,6 +12,8 @@ import type {
   CreateCategoryRequest,
   CreateProductRequest,
   CreatePromotionRequest,
+  CreateStoreBranchRequest,
+  CreateStoreRequest,
   CreateVariantRequest,
   PageQuery,
   PageResponse,
@@ -21,12 +23,48 @@ import type {
   PromotionQuery,
   PromotionResponse,
   PromotionRuleRequest,
+  StoreBranchResponse,
+  StoreQuery,
+  StoreResponse,
   UpdateCategoryRequest,
   UpdateProductRequest,
   UpdatePromotionRequest,
+  UpdateStoreBranchRequest,
+  UpdateStoreRequest,
   UpdateVariantRequest,
   VariantResponse
 } from './catalogTypes';
+
+export const storeApi = {
+  /** Public: ACTIVE stores; `mine: true` lists the supplier's own stores (login required). */
+  list: async (query: StoreQuery = {}) =>
+    (await http.get<StoreResponse[]>('/api/stores', { params: cleanParams(query) })).data,
+  /** Accepts storeId or slug. Non-ACTIVE stores are visible to the owner only. */
+  get: async (idOrSlug: number | string) =>
+    (await http.get<StoreResponse>(`/api/stores/${idOrSlug}`)).data,
+  /** Verified supplier only. */
+  create: async (body: CreateStoreRequest) =>
+    (await http.post<StoreResponse>('/api/stores', body)).data,
+  /** Store owner (or admin). */
+  update: async (storeId: number, body: UpdateStoreRequest) =>
+    (await http.patch<StoreResponse>(`/api/stores/${storeId}`, body)).data
+};
+
+export const storeBranchApi = {
+  /** Public for ACTIVE stores (ACTIVE branches only); the owner sees every branch. */
+  list: async (storeId: number) =>
+    (await http.get<StoreBranchResponse[]>(`/api/stores/${storeId}/branches`)).data,
+  /** Store owner. */
+  create: async (storeId: number, body: CreateStoreBranchRequest) =>
+    (await http.post<StoreBranchResponse>(`/api/stores/${storeId}/branches`, body)).data,
+  /** Store owner. */
+  update: async (storeId: number, branchId: number, body: UpdateStoreBranchRequest) =>
+    (await http.patch<StoreBranchResponse>(`/api/stores/${storeId}/branches/${branchId}`, body)).data,
+  /** Store owner. */
+  remove: async (storeId: number, branchId: number) => {
+    await http.delete(`/api/stores/${storeId}/branches/${branchId}`);
+  }
+};
 
 export const categoryApi = {
   /** CA01 — public, ACTIVE only. */
@@ -93,6 +131,8 @@ export const promotionApi = {
 };
 
 export const catalogApi = {
+  stores: storeApi,
+  storeBranches: storeBranchApi,
   categories: categoryApi,
   products: productApi,
   variants: variantApi,

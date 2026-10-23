@@ -59,6 +59,7 @@ export class ApiError extends Error {
     this.status = status;
     this.code = code ?? `HTTP_${status}`;
     this.fieldErrors = fieldErrors;
+    this.code = code || message;
   }
 }
 
