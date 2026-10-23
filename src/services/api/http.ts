@@ -50,12 +50,14 @@ export function setAccessToken(token: string | null): void {
  */
 export class ApiError extends Error {
   readonly status: number;
+  readonly code: string;
   readonly fieldErrors: Record<string, string>;
 
-  constructor(status: number, message: string, fieldErrors: Record<string, string> = {}) {
+  constructor(status: number, message: string, fieldErrors: Record<string, string> = {}, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code ?? `HTTP_${status}`;
     this.fieldErrors = fieldErrors;
   }
 }
@@ -69,6 +71,7 @@ const DEFAULT_MESSAGES: Record<number, string> = {
 };
 
 interface ErrorBody {
+  code?: string;
   message?: string;
   errors?: Record<string, string>;
 }
@@ -87,7 +90,7 @@ function toApiError(error: unknown): ApiError {
     ?? (Object.keys(fieldErrors).length > 0 ? Object.values(fieldErrors).join('; ') : undefined)
     ?? DEFAULT_MESSAGES[status]
     ?? (status >= 500 ? 'Máy chủ gặp lỗi, vui lòng thử lại sau.' : `Yêu cầu thất bại (HTTP ${status}).`);
-  return new ApiError(status, message, fieldErrors);
+  return new ApiError(status, message, fieldErrors, body.code);
 }
 
 // ---------------------------------------------------------------------------
@@ -132,7 +135,7 @@ export async function request<T>(path: string, options: { body?: unknown; key?: 
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new ApiError(response.status, body.code || `HTTP_${response.status}`);
+    throw new ApiError(response.status, body.message || body.code || `HTTP_${response.status}`, {}, body.code);
   }
   return response.json();
 }
