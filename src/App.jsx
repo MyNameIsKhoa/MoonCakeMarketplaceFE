@@ -1,4 +1,3 @@
-import React from 'react';
 import { FulfillmentDemoPage } from './features/fulfillment/pages/FulfillmentDemoPage';
 
 function App() {

@@ -1,5 +1,3 @@
-import React from 'react';
-
 const STEPS = [
   { key: 'PLANNED', label: 'Lên kế hoạch', description: 'Shop chuẩn bị bánh và tạo vận đơn' },
   { key: 'SHIPPED', label: 'Đang vận chuyển', description: 'Đã giao cho đơn vị vận chuyển' },

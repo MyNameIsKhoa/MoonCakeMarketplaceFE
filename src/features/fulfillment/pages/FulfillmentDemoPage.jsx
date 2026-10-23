@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ShipmentTracker } from '../components/ShipmentTracker';
 import { OrderAcceptanceCard } from '../components/OrderAcceptanceCard';
 import { ReviewModal } from '../components/ReviewModal';
@@ -180,8 +180,10 @@ export const FulfillmentDemoPage = () => {
           {/* Supplier Management View */}
           <SupplierShipmentManager
             sellerOrderId={sellerOrder.id}
-            onShipmentUpdated={() => {
-              setSellerOrder((prev) => ({ ...prev, status: 'SHIPPING' }));
+            onShipmentUpdated={(newStatus) => {
+              if (newStatus) {
+                handleStatusChange(newStatus);
+              }
             }}
           />
         </div>
