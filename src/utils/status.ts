@@ -88,6 +88,36 @@ export const PROMOTION_RULE: StatusMap = {
   BUY_X_GET_Y: { label: 'Mua X tặng Y', variant: 'neutral' }
 };
 
+// TV4 — RFQ & Negotiation service
+export const RFQ_STATUS: StatusMap = {
+  DRAFT: { label: 'Bản nháp', variant: 'neutral' },
+  OPEN: { label: 'Đang nhận báo giá', variant: 'success' },
+  CLOSED: { label: 'Ngừng nhận báo giá', variant: 'neutral' },
+  CANCELLED: { label: 'Đã hủy', variant: 'danger' }
+};
+
+export const QUOTATION_STATUS: StatusMap = {
+  DRAFT: { label: 'Bản nháp', variant: 'neutral' },
+  SUBMITTED: { label: 'Đang chờ phản hồi', variant: 'info' },
+  REVISED: { label: 'Đã có phiên bản mới', variant: 'neutral' },
+  ACCEPTED: { label: 'Đã chấp nhận', variant: 'success' },
+  REJECTED: { label: 'Bị từ chối', variant: 'danger' },
+  EXPIRED: { label: 'Hết hiệu lực', variant: 'warning' },
+  CANCELLED: { label: 'Nhà cung cấp đã rút', variant: 'neutral' }
+};
+
+export const QUOTATION_CONVERSION_STATUS: StatusMap = {
+  PENDING: { label: 'Đang tạo đơn hàng', variant: 'warning' },
+  COMPLETED: { label: 'Đã tạo đơn hàng', variant: 'success' },
+  FAILED: { label: 'Không tạo được đơn', variant: 'danger' }
+};
+
+export const CONVERSATION_STATUS: StatusMap = {
+  OPEN: { label: 'Đang trao đổi', variant: 'success' },
+  CLOSED: { label: 'Đã đóng', variant: 'neutral' },
+  BLOCKED: { label: 'Bị khóa', variant: 'danger' }
+};
+
 export function getStatusMeta(map: StatusMap, code: string | undefined): StatusMeta {
   if (!code) return { label: '—', variant: 'neutral' };
   return map[code] ?? { label: code, variant: 'neutral' };

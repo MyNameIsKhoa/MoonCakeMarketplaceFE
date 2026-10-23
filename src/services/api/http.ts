@@ -6,14 +6,19 @@
  * Base URL: VITE_API_BASE_URL (default http://localhost:8080 — the Gateway).
  * Auth: the access token from Identity login is attached as `Authorization: Bearer ...`.
  * TODO(TV1): the login screen should call setAccessToken() after POST /api/auth/login.
+ *
+ * `apiRequest` (fetch) is used by the TV4 RFQ/quotation/chat screens; errors are normalised to ApiError
+ * for both Problem Details (RFQ: detail/code/errors) and ErrorResponse (Identity: message/validationErrors).
  */
 import axios, { AxiosError } from 'axios';
+import { clearSession, getAccessToken as getSessionToken } from './session';
 
 const DEFAULT_BASE_URL = 'http://localhost:8080';
 const TOKEN_STORAGE_KEY = 'mooncake.accessToken';
 
 // import.meta.env is undefined outside Vite (e.g. scripts run with tsx); fall back to the Gateway default.
-const baseURL = (import.meta.env?.VITE_API_BASE_URL as string | undefined) ?? DEFAULT_BASE_URL;
+export const API_BASE_URL = ((import.meta.env?.VITE_API_BASE_URL as string | undefined) || DEFAULT_BASE_URL).replace(/\/$/, '');
+const baseURL = API_BASE_URL;
 
 // ---------------------------------------------------------------------------
 // Access token (localStorage can throw in private mode / blocked storage)
@@ -21,7 +26,10 @@ const baseURL = (import.meta.env?.VITE_API_BASE_URL as string | undefined) ?? DE
 
 let memoryToken: string | null = null;
 
+/** The TV4 sign-in session (session.ts) wins; otherwise the token stored via setAccessToken(). */
 export function getAccessToken(): string | null {
+  const sessionToken = getSessionToken();
+  if (sessionToken) return sessionToken;
   if (memoryToken) return memoryToken;
   try {
     return globalThis.localStorage?.getItem(TOKEN_STORAGE_KEY) ?? null;
@@ -137,4 +145,69 @@ export async function request<T>(path: string, options: { body?: unknown; key?: 
     throw new ApiError(response.status, body.code || `HTTP_${response.status}`);
   }
   return response.json();
+}
+
+// ---------------------------------------------------------------------------
+// TV4 fetch helper (RFQ / quotation / chat)
+// ---------------------------------------------------------------------------
+
+export interface RequestOptions {
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+  body?: unknown;
+  contentType?: string;
+  idempotencyKey?: string;
+  signal?: AbortSignal;
+}
+
+const STATUS_MESSAGES: Record<number, string> = {
+  401: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+  403: 'Bạn không có quyền thực hiện thao tác này.',
+  404: 'Không tìm thấy dữ liệu yêu cầu.',
+  409: 'Dữ liệu đã thay đổi hoặc không còn hợp lệ. Hãy tải lại rồi thử lại.',
+  503: 'Dịch vụ tạm thời gián đoạn. Vui lòng thử lại sau ít phút.'
+};
+
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  const token = getAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey;
+  if (options.body !== undefined) headers['Content-Type'] = options.contentType ?? 'application/json';
+
+  let response: Response;
+  try {
+    response = await fetch(API_BASE_URL + path, {
+      method: options.method ?? 'GET',
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      signal: options.signal
+    });
+  } catch (error) {
+    if ((error as Error).name === 'AbortError') throw error;
+    throw new ApiError(0, 'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.', {}, 'NETWORK_ERROR');
+  }
+
+  const text = await response.text();
+  let data: any = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+  }
+  if (!response.ok) {
+    if (response.status === 401 && token) clearSession();
+    throw new ApiError(
+      response.status,
+      data?.detail ?? data?.message ?? STATUS_MESSAGES[response.status] ?? 'Có lỗi xảy ra. Vui lòng thử lại.',
+      data?.errors ?? data?.validationErrors ?? {},
+      data?.code ?? `HTTP_${response.status}`
+    );
+  }
+  return data as T;
+}
+
+export function errorMessage(error: unknown): string {
+  return error instanceof ApiError ? error.message : 'Có lỗi xảy ra. Vui lòng thử lại.';
 }
