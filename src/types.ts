@@ -4,6 +4,7 @@
 
 export interface Product {
   id: string;
+  variantId?: string;
   name: string;
   storeId: string;
   storeName: string;
@@ -89,6 +90,7 @@ export interface StoreBranch {
 
 export interface CartItem {
   id: string;
+  variantId?: string;
   productId: string;
   product: Product;
   quantity: number;

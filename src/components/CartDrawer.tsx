@@ -6,6 +6,7 @@ interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   items: CartItem[];
+  error?: string;
   onUpdateQuantity: (id: string, delta: number) => void;
   onRemoveItem: (id: string) => void;
   onProceedCheckout: () => void;
@@ -15,6 +16,7 @@ export default function CartDrawer({
   isOpen,
   onClose,
   items,
+  error,
   onUpdateQuantity,
   onRemoveItem,
   onProceedCheckout
@@ -49,6 +51,7 @@ export default function CartDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
+          {error && <div role="alert" className="mss-alert mss-alert--danger">{error}</div>}
           {items.length === 0 ? (
             <div className="mss-empty">
               <p className="text-lg font-semibold text-gray-900">Giỏ hàng đang trống</p>

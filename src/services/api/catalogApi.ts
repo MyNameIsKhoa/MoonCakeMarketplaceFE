@@ -70,6 +70,12 @@ export const categoryApi = {
   /** CA01 — public, ACTIVE only. */
   list: async (query: CategoryQuery = {}) =>
     (await http.get<PageResponse<CategoryResponse>>('/api/categories', { params: cleanParams(query) })).data,
+  all: async (): Promise<CategoryResponse[]> => {
+    const first = await categoryApi.list({ size: 100 });
+    const rest = await Promise.all(Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, i) =>
+      categoryApi.list({ page: i + 1, size: 100 })));
+    return [first, ...rest].flatMap((page) => page.items);
+  },
   /** CA02 — public. */
   get: async (categoryId: number) =>
     (await http.get<CategoryResponse>(`/api/categories/${categoryId}`)).data,
@@ -85,6 +91,12 @@ export const productApi = {
   /** CA06 — public search; `mine: true` lists the supplier's own products (login required). */
   search: async (query: ProductQuery = {}) =>
     (await http.get<PageResponse<ProductSummaryResponse>>('/api/products', { params: cleanParams(query) })).data,
+  all: async (query: ProductQuery = {}): Promise<ProductSummaryResponse[]> => {
+    const first = await productApi.search({ ...query, page: 0, size: 100 });
+    const rest = await Promise.all(Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, i) =>
+      productApi.search({ ...query, page: i + 1, size: 100 })));
+    return [first, ...rest].flatMap((page) => page.items);
+  },
   /** CA07 — public for published products; the owner also sees drafts and all variants. */
   get: async (productId: number) =>
     (await http.get<ProductResponse>(`/api/products/${productId}`)).data,

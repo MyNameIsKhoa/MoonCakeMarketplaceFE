@@ -99,7 +99,7 @@ export default function Home({
       />
 
       {/* 3. Flash Sale Section across stores */}
-      <div className="mss-container">
+      {source === 'mock' && <div className="mss-container">
         <div className="bg-gradient-to-r from-primary-900 via-accent-900 to-primary-950 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden border border-accent-400/30">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
             <div className="flex items-center gap-3">
@@ -198,7 +198,7 @@ export default function Home({
             ))}
           </div>
         </div>
-      </div>
+      </div>}
 
       {/* 4. Category / Flavor Navigation (Explore by Taste) */}
       <div className="mss-container">
@@ -240,7 +240,7 @@ export default function Home({
       </div>
 
       {/* 5. Best Sellers Section */}
-      <div className="mss-container">
+      {source === 'mock' && <div className="mss-container">
         <div className="flex justify-between items-end mb-6">
           <div>
             <div className="inline-flex items-center gap-1.5 text-xs text-accent-800 font-bold uppercase tracking-wider mb-1">
@@ -335,7 +335,7 @@ export default function Home({
             </div>
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* 6. Festive Blog & Cultural Guides */}
       <div className="mss-container">

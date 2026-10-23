@@ -26,10 +26,11 @@ import { PRODUCTS, STORES } from './data/mockData';
 import { useCatalog } from './context/CatalogContext';
 import { useAuth } from './context/AuthContext';
 import { accessLevelOf, canAccess } from './utils/permissions';
+import { cartApi, catalogApi, isApiId } from './services/api';
 
 /** Shown on the login screen when a guest opens a protected tab. */
 const LOGIN_NOTICES: Record<string, string> = {
-  checkout: 'Vui lòng đăng nhập để thanh toán. Giỏ hàng của bạn vẫn được giữ nguyên.',
+  checkout: 'Vui lòng đăng nhập rồi thêm sản phẩm để thanh toán.',
   orders: 'Vui lòng đăng nhập để xem đơn hàng của bạn.',
   profile: 'Vui lòng đăng nhập để xem tài khoản.',
   wishlist: 'Vui lòng đăng nhập để xem danh sách yêu thích.',
@@ -48,63 +49,61 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState<Product>(PRODUCTS[0]);
   const [selectedStore, setSelectedStore] = useState<Store>(STORES[0]);
 
-  const [cartItems, setCartItems] = useState<CartItem[]>([
-    {
-      id: 'cart-1',
-      productId: PRODUCTS[0].id,
-      product: PRODUCTS[0],
-      quantity: 1,
-      sugarLevel: 'Ít ngọt (Giảm 30%)'
-    }
-  ]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [cartError, setCartError] = useState('');
 
   const [wishlistIds, setWishlistIds] = useState<string[]>(['prod-1', 'prod-3']);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Cart actions
-  const handleAddToCart = (product: Product, quantity = 1, sugarLevel: string = product.sugarLevel, openCart = true) => {
-    setCartItems(prev => {
-      const existing = prev.find(item => item.productId === product.id && item.sugarLevel === sugarLevel);
-      if (existing) {
-        return prev.map(item =>
-          item.id === existing.id ? { ...item, quantity: item.quantity + quantity } : item
-        );
+  useEffect(() => {
+    if (!auth.isAuthenticated) { setCartItems([]); return; }
+    cartApi.list().then(setCartItems).catch((err: unknown) =>
+      setCartError(err instanceof Error ? err.message : 'Không tải được giỏ hàng.'));
+  }, [auth.isAuthenticated]);
+
+  const refreshCart = async () => setCartItems(await cartApi.list());
+  const handleAddToCart = async (product: Product, quantity = 1, _option: string = product.sugarLevel, openCart = true) => {
+    if (!auth.isAuthenticated) { setActiveTab('login'); return false; }
+    try {
+      setCartError('');
+      if (!isApiId(product.id)) throw new Error('Chỉ có thể mua sản phẩm đang có trên API Catalog.');
+      let variantId = product.variantId;
+      if (!variantId) {
+        const detail = await catalogApi.products.get(Number(product.id));
+        variantId = String(detail.variants.find((v) => v.stockQuantity > 0)?.variantId ?? '');
       }
-      return [
-        ...prev,
-        {
-          id: 'cart-' + Date.now(),
-          productId: product.id,
-          product,
-          quantity,
-          sugarLevel
-        }
-      ];
-    });
-    if (openCart) setIsCartOpen(true);
+      if (!variantId || !isApiId(variantId)) throw new Error('Sản phẩm chưa có phân loại còn hàng.');
+      await cartApi.add(variantId, quantity);
+      await refreshCart();
+      if (openCart) setIsCartOpen(true);
+      return true;
+    } catch (err) {
+      setCartError(err instanceof Error ? err.message : 'Không thêm được vào giỏ hàng.');
+      setIsCartOpen(true);
+      return false;
+    }
   };
 
-  const handleUpdateQuantity = (id: string, delta: number) => {
-    setCartItems(prev =>
-      prev.map(item => {
-        if (item.id === id) {
-          const newQ = item.quantity + delta;
-          return newQ > 0 ? { ...item, quantity: newQ } : item;
-        }
-        return item;
-      })
-    );
+  const handleUpdateQuantity = async (id: string, delta: number) => {
+    try {
+      setCartError('');
+      const item = cartItems.find((line) => line.id === id);
+      if (!item) return;
+      if (item.quantity + delta <= 0) await cartApi.remove(id);
+      else await cartApi.update(id, item.quantity + delta);
+      await refreshCart();
+    } catch (err) { setCartError(err instanceof Error ? err.message : 'Không cập nhật được giỏ hàng.'); }
   };
 
-  const handleRemoveItem = (id: string) => {
-    setCartItems(prev => prev.filter(item => item.id !== id));
+  const handleRemoveItem = async (id: string) => {
+    try { setCartError(''); await cartApi.remove(id); await refreshCart(); }
+    catch (err) { setCartError(err instanceof Error ? err.message : 'Không xóa được sản phẩm.'); }
   };
 
-  const handleBuyNow = (product: Product, quantity = 1, sugarLevel: string = product.sugarLevel) => {
-    handleAddToCart(product, quantity, sugarLevel, false);
-    setActiveTab('checkout');
+  const handleBuyNow = async (product: Product, quantity = 1, option: string = product.sugarLevel) => {
+    if (await handleAddToCart(product, quantity, option, false)) setActiveTab('checkout');
   };
 
   const handleToggleWishlist = (productId: string) => {
@@ -339,6 +338,7 @@ export default function App() {
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
         items={cartItems}
+        error={cartError}
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveItem}
         onProceedCheckout={() => setActiveTab('checkout')}

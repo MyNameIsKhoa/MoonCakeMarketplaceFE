@@ -28,8 +28,6 @@ interface CatalogState {
 }
 
 const USE_MOCK_CATALOG = import.meta.env?.VITE_USE_MOCK_CATALOG === 'true';
-/** Backend PageQuery.MAX_SIZE. */
-const PAGE_SIZE = 100;
 const ALL_CATEGORIES: CategoryOption = { id: 'all', name: 'Tất cả sản phẩm' };
 
 const MOCK_STATE = {
@@ -41,29 +39,21 @@ const MOCK_STATE = {
 const CatalogContext = createContext<CatalogState | null>(null);
 
 async function loadFromApi() {
-  // Products and categories are optional for the storefront: a failure there should not hide the stores.
-  const [storesResult, productsResult, categoriesResult] = await Promise.allSettled([
+  const [stores, productItems, categoryItems] = await Promise.all([
     catalogApi.stores.list(),
-    catalogApi.products.search({ size: PAGE_SIZE }),
-    catalogApi.categories.list({ size: PAGE_SIZE })
+    catalogApi.products.all(),
+    catalogApi.categories.all()
   ]);
-  if (storesResult.status === 'rejected') throw storesResult.reason;
-  // An empty marketplace makes the storefront look broken in a demo: show the mock stores instead.
-  if (storesResult.value.length === 0) throw new Error('Hệ thống chưa có gian hàng nào đang hoạt động.');
-
-  const stores = storesResult.value.map(toStore);
-  const storesById = new Map(stores.map((s) => [s.storeId, s]));
-  const categoryItems = categoriesResult.status === 'fulfilled' ? categoriesResult.value.items : [];
+  const mappedStores = stores.map(toStore);
+  const storesById = new Map(mappedStores.map((s) => [s.storeId, s]));
   const categorySlugById = new Map(categoryItems.map((c) => [c.categoryId, c.slug]));
-  const products = productsResult.status === 'fulfilled'
-    ? productsResult.value.items
+  const products = productItems
       // No ACTIVE variant → no price, nothing to buy.
       .filter((p) => p.minPrice !== null)
-      .map((p) => toProduct(p, storesById, categorySlugById))
-    : [];
+      .map((p) => toProduct(p, storesById, categorySlugById));
 
   return {
-    stores,
+    stores: mappedStores,
     products,
     categories: [ALL_CATEGORIES, ...categoryItems.filter((c) => c.status === 'ACTIVE').map(toCategoryOption)]
   };
