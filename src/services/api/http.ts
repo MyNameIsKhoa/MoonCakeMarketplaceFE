@@ -4,8 +4,8 @@
  * `services/api/index.ts`.
  *
  * Base URL: VITE_API_BASE_URL (default http://localhost:8080 — the Gateway).
- * Auth: the access token from Identity login is attached as `Authorization: Bearer ...`.
- * TODO(TV1): the login screen should call setAccessToken() after POST /api/auth/login.
+ * Auth: the access token from Identity login (context/AuthContext) is attached as `Authorization: Bearer ...`.
+ * A 401 on an authenticated request clears the token and fires UNAUTHORIZED_EVENT so the app logs out.
  *
  * `apiRequest` (fetch) is used by the TV4 RFQ/quotation/chat screens; errors are normalised to ApiError
  * for both Problem Details (RFQ: detail/code/errors) and ErrorResponse (Identity: message/validationErrors).
@@ -48,13 +48,39 @@ export function setAccessToken(token: string | null): void {
   }
 }
 
+/** Claims Identity puts in the access token (HS256, signature checked by the backend only). */
+export interface AccessTokenPayload {
+  userId?: number;
+  customerId?: number | null;
+  roles?: string[];
+  /** Seconds since epoch. */
+  exp?: number;
+}
+
+/** Decodes the JWT payload without verifying it; null when the token is not a readable JWT. */
+export function readTokenPayload(token: string): AccessTokenPayload | null {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes)) as AccessTokenPayload;
+  } catch {
+    return null;
+  }
+}
+
+export function isTokenExpired(token: string): boolean {
+  const payload = readTokenPayload(token);
+  return !payload || (!!payload.exp && payload.exp * 1000 <= Date.now());
+}
+
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
 
 /**
  * Normalised backend error. Branch on `status`, not on `message` text.
- * Backend bodies: `{status, message}` (business errors) or `{status, errors: {field: msg}}` (validation).
+ * Backend bodies: `{status, message}` (business errors) or `{status, errors: {field: msg}}` (validation;
+ * Identity names it `validationErrors`).
  */
 export class ApiError extends Error {
   readonly status: number;
@@ -65,6 +91,7 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code ?? `HTTP_${status}`;
     this.fieldErrors = fieldErrors;
     this.code = code || message;
   }
@@ -79,8 +106,10 @@ const DEFAULT_MESSAGES: Record<number, string> = {
 };
 
 interface ErrorBody {
+  code?: string;
   message?: string;
   errors?: Record<string, string>;
+  validationErrors?: Record<string, string> | null;
 }
 
 function toApiError(error: unknown): ApiError {
@@ -92,12 +121,12 @@ function toApiError(error: unknown): ApiError {
   }
   const status = error.response.status;
   const body = (error.response.data ?? {}) as ErrorBody;
-  const fieldErrors = body.errors ?? {};
+  const fieldErrors = body.errors ?? body.validationErrors ?? {};
   const message = body.message
     ?? (Object.keys(fieldErrors).length > 0 ? Object.values(fieldErrors).join('; ') : undefined)
     ?? DEFAULT_MESSAGES[status]
     ?? (status >= 500 ? 'Máy chủ gặp lỗi, vui lòng thử lại sau.' : `Yêu cầu thất bại (HTTP ${status}).`);
-  return new ApiError(status, message, fieldErrors);
+  return new ApiError(status, message, fieldErrors, body.code);
 }
 
 // ---------------------------------------------------------------------------
@@ -116,9 +145,24 @@ http.interceptors.request.use((config) => {
   return config;
 });
 
+/** Fired on window when the backend rejects the stored token (expired/invalid). */
+export const UNAUTHORIZED_EVENT = 'mooncake:unauthorized';
+
 http.interceptors.response.use(
   (response) => response,
-  (error: unknown) => Promise.reject(toApiError(error))
+  (error: unknown) => {
+    const apiError = toApiError(error);
+    const sentToken = error instanceof AxiosError && !!error.config?.headers?.Authorization;
+    // The Gateway answers an invalid/expired token with 403, not 401; a 403 with a still-valid
+    // token is a real permission error and must not log the user out.
+    const token = getAccessToken();
+    const sessionGone = apiError.status === 401 || (apiError.status === 403 && (!token || isTokenExpired(token)));
+    if (sessionGone && sentToken) {
+      setAccessToken(null);
+      globalThis.dispatchEvent?.(new Event(UNAUTHORIZED_EVENT));
+    }
+    return Promise.reject(apiError);
+  }
 );
 
 /** Query params: drop undefined/null/empty so the backend applies its own defaults. */
@@ -142,7 +186,7 @@ export async function request<T>(path: string, options: { body?: unknown; key?: 
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new ApiError(response.status, body.code || `HTTP_${response.status}`);
+    throw new ApiError(response.status, body.message || body.code || `HTTP_${response.status}`, {}, body.code);
   }
   return response.json();
 }

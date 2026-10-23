@@ -53,6 +53,8 @@ export interface StoreResponse {
   themeKey: string | null;
   status: StoreStatus;
   description: string | null;
+  /** Null until the seller configures a flat shipping fee; checkout must reject that state. */
+  shippingFee: Money | null;
 }
 
 export interface StoreQuery {
@@ -82,6 +84,7 @@ export interface UpdateStoreRequest {
   themeKey?: string;
   status?: StoreStatus;
   description?: string;
+  shippingFee?: Money;
 }
 
 /** Primary branch first, then creation order. Public viewers get ACTIVE branches only. */

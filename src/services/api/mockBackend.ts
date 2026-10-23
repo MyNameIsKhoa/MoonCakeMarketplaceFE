@@ -5,7 +5,7 @@
  * replaced by real endpoints. Do not import this file from components; go
  * through `services/api/index.ts`.
  */
-import { BRANDS, PRODUCTS, PROMOTIONS } from '../../data/mockData';
+import { STORES, PRODUCTS, PROMOTIONS } from '../../data/mockData';
 import {
   Address,
   CartItem,
@@ -40,13 +40,13 @@ const SUGAR_CODES: Record<string, string> = {
 };
 
 function variantOf(item: CartItem) {
-  const brand = BRANDS.find((b) => b.id === item.product.brandId);
+  const store = STORES.find((b) => b.storeId === item.product.storeId);
   const sugarCode = SUGAR_CODES[item.sugarLevel] ?? 'STD';
   const productCode = item.product.id.toUpperCase();
   return {
     variantId: `${item.product.id}:${sugarCode}`,
     productCode,
-    sku: `${brand?.storeCode ?? 'STORE'}-${productCode}-${sugarCode}`,
+    sku: `${store?.storeCode ?? 'STORE'}-${productCode}-${sugarCode}`,
     variantName: item.sugarLevel
   };
 }
@@ -102,13 +102,13 @@ export function setDefaultAddress(addressId: string) {
 function buildPreview(items: CartItem[]): CheckoutPreview {
   const byStore = new Map<string, CartItem[]>();
   for (const item of items) {
-    const list = byStore.get(item.product.brandId) ?? [];
+    const list = byStore.get(item.product.storeId) ?? [];
     list.push(item);
-    byStore.set(item.product.brandId, list);
+    byStore.set(item.product.storeId, list);
   }
 
   const groups: CheckoutPreviewGroup[] = [...byStore.entries()].map(([storeId, storeItems]) => {
-    const brand = BRANDS.find((b) => b.id === storeId);
+    const store = STORES.find((b) => b.storeId === storeId);
     const lines = storeItems.map((item) => {
       const variant = variantOf(item);
       return {
@@ -144,8 +144,9 @@ function buildPreview(items: CartItem[]): CheckoutPreview {
 
     return {
       storeId,
-      storeName: brand?.name ?? storeId,
-      supplierName: brand?.supplierName ?? '—',
+      // Live (API) products are not in the mock STORES: fall back to the name carried by the product.
+      storeName: store?.name ?? (storeItems[0].product.storeName || storeId),
+      supplierName: store?.supplierName ?? '—',
       lines,
       appliedPromotions,
       subtotal,
@@ -412,13 +413,13 @@ export function placeOrder({ items, addressId, provider }: PlaceOrderInput): Pro
   const paidOnline = provider !== 'COD';
 
   const sellerOrders: SellerOrder[] = preview.groups.map((group, index) => {
-    const brand = BRANDS.find((b) => b.id === group.storeId);
+    const store = STORES.find((b) => b.storeId === group.storeId);
     const sellerOrderId = nextId('so');
     return {
       sellerOrderId,
-      sellerOrderNo: `SO-${(brand?.storeCode ?? 'STORE').replace('STORE-', '')}-${orderSeq}${index + 1}`,
+      sellerOrderNo: `SO-${(store?.storeCode ?? 'STORE').replace('STORE-', '')}-${orderSeq}${index + 1}`,
       storeIdRef: group.storeId,
-      supplierIdRef: brand?.supplierId ?? '',
+      supplierIdRef: store?.supplierIdRef ?? '',
       storeNameSnapshot: group.storeName,
       supplierNameSnapshot: group.supplierName,
       subtotal: group.subtotal,

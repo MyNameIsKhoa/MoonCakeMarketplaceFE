@@ -1,15 +1,34 @@
-import React, { useState, useMemo } from 'react';
-import { 
-  Star, ShieldCheck, Tag, ShoppingBag, Heart, ChevronRight, 
-  ArrowLeft, Search, Filter, Phone, MapPin, Store, Clock
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  Star, ShieldCheck, Tag, ShoppingBag, Heart, ChevronRight,
+  ArrowLeft, Search, Filter, Phone, MapPin, Store as StoreIcon, Clock
 } from 'lucide-react';
-import { Brand, Product } from '../types';
+import { Store, Product, Promotion, StoreBranch } from '../types';
 import { PRODUCTS, PROMOTIONS } from '../data/mockData';
+import { useCatalog } from '../context/CatalogContext';
+import { catalogApi, isApiId, toProduct, toPromotion, toStoreBranch } from '../services/api';
 import { formatDate } from '../utils/format';
 import { PROMOTION_RULE, getStatusMeta } from '../utils/status';
 
-interface BrandStoreProps {
-  brand: Brand;
+/** Category tabs of the mock stores (mock product.category values). */
+const MOCK_CATEGORY_TABS = [
+  { id: 'truyen-thong', name: 'Bánh Truyền Thống' },
+  { id: 'cao-cap', name: 'Hộp Quà Cao Cấp' },
+  { id: 'hiện-đại', name: 'Lava & Hiện Đại' },
+  { id: 'chay', name: 'Ăn Kiêng / Chay' }
+];
+
+/** Backend PageQuery.MAX_SIZE. */
+const PAGE_SIZE = 100;
+
+interface LiveStoreData {
+  products: Product[];
+  promotions: Promotion[];
+  branches: StoreBranch[];
+}
+
+interface StoreDetailProps {
+  store: Store;
   setSelectedProduct: (p: Product) => void;
   setActiveTab: (tab: string) => void;
   onAddToCart: (p: Product) => void;
@@ -17,23 +36,78 @@ interface BrandStoreProps {
   onToggleWishlist: (productId: string) => void;
 }
 
-export default function BrandStore({
-  brand,
+export default function StoreDetail({
+  store,
   setSelectedProduct,
   setActiveTab,
   onAddToCart,
   wishlistIds,
   onToggleWishlist
-}: BrandStoreProps) {
+}: StoreDetailProps) {
   const [internalSearch, setInternalSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc'>('default');
 
-  const storePromotions = PROMOTIONS.filter(p => p.storeId === brand.id && p.status === 'ACTIVE');
+  // Stores from the API Gateway have numeric IDs; mock stores keep reading data/mockData.
+  const isLive = isApiId(store.storeId);
+  const { categories } = useCatalog();
+  const [live, setLive] = useState<LiveStoreData | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
-  // Filter products belonging to this brand
+  useEffect(() => {
+    if (!isLive) return;
+    let cancelled = false;
+    const storeId = Number(store.storeId);
+    setLoadError(null);
+    setLive(null);
+    // Promotions and branches are extras: a failure there should not hide the menu.
+    Promise.allSettled([
+      catalogApi.products.all({ storeId }),
+      catalogApi.promotions.list({ storeId, size: PAGE_SIZE }),
+      catalogApi.storeBranches.list(storeId),
+      catalogApi.categories.all()
+    ]).then(([productsResult, promotionsResult, branchesResult, categoriesResult]) => {
+      if (cancelled) return;
+      if (productsResult.status === 'rejected') {
+        setLoadError(productsResult.reason instanceof Error ? productsResult.reason.message : 'Không tải được sản phẩm.');
+        return;
+      }
+      const storesById = new Map([[store.storeId, store]]);
+      const categorySlugById = new Map(
+        (categoriesResult.status === 'fulfilled' ? categoriesResult.value : []).map((c) => [c.categoryId, c.slug])
+      );
+      setLive({
+        products: productsResult.value
+          .filter((p) => p.minPrice !== null)
+          .map((p) => toProduct(p, storesById, categorySlugById)),
+        promotions: promotionsResult.status === 'fulfilled' ? promotionsResult.value.items.map(toPromotion) : [],
+        branches: branchesResult.status === 'fulfilled' ? branchesResult.value.map(toStoreBranch) : []
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLive, store, reloadKey]);
+
+  const loading = isLive && !live && !loadError;
+  const storeProducts = useMemo(
+    () => (isLive ? live?.products ?? [] : PRODUCTS.filter(p => p.storeId === store.storeId)),
+    [isLive, live, store.storeId]
+  );
+  const storePromotions = (isLive ? live?.promotions ?? [] : PROMOTIONS.filter(p => p.storeId === store.storeId))
+    .filter(p => p.status === 'ACTIVE');
+  const storeBranches = isLive ? live?.branches ?? [] : store.branches ?? [];
+
+  const categoryTabs = useMemo(() => {
+    if (!isLive) return MOCK_CATEGORY_TABS;
+    const slugs = new Set(storeProducts.map(p => p.category).filter(Boolean));
+    return categories.filter(c => slugs.has(c.id));
+  }, [isLive, storeProducts, categories]);
+
+  // Filter products belonging to this store
   const filteredProducts = useMemo(() => {
-    let list = PRODUCTS.filter(p => p.brandId === brand.id);
+    let list = storeProducts;
 
     // Internal search
     if (internalSearch.trim()) {
@@ -58,7 +132,7 @@ export default function BrandStore({
     }
 
     return list;
-  }, [brand.id, internalSearch, selectedCategory, sortBy]);
+  }, [storeProducts, internalSearch, selectedCategory, sortBy]);
 
   return (
     <div className="space-y-8 pb-16">
@@ -76,17 +150,17 @@ export default function BrandStore({
           <div className="flex items-center gap-2 text-gray-300">
             <span>Sàn Đa Gian Hàng</span>
             <span>/</span>
-            <span className="text-white font-bold">{brand.name}</span>
+            <span className="text-white font-bold">{store.name}</span>
           </div>
         </div>
       </div>
 
-      {/* Brand Header & Hero Presentation */}
+      {/* Store Header & Hero Presentation */}
       <div className="relative bg-primary-950 text-white">
         <div className="h-52 md:h-72 w-full overflow-hidden relative">
           <img 
-            src={brand.banner} 
-            alt={brand.name} 
+            src={store.bannerUrl} 
+            alt={store.name} 
             className="w-full h-full object-cover opacity-50" 
           />
           <div className="absolute inset-0 bg-gradient-to-t from-primary-950 via-primary-950/50 to-transparent"></div>
@@ -96,16 +170,16 @@ export default function BrandStore({
           <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
             <div className="relative">
               <img 
-                src={brand.logo} 
-                alt={brand.name} 
-                className="w-28 h-28 md:w-32 md:h-32 rounded-2xl object-cover border-4 border-white shadow-2xl bg-white" 
+                src={store.logoUrl} 
+                alt={store.name} 
+                className="w-28 h-28 md:w-32 md:h-32 rounded-2xl object-contain p-1.5 border-4 border-white shadow-2xl bg-white" 
               />
               <span className="absolute bottom-2 right-2 w-4 h-4 rounded-full bg-green-500 border-2 border-white" title="Gian hàng chính hãng hoạt động"></span>
             </div>
 
             <div className="flex-1 text-center md:text-left space-y-2">
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
-                <h1 className="text-2xl md:text-3xl font-black">{brand.name}</h1>
+                <h1 className="text-2xl md:text-3xl font-black">{store.name}</h1>
                 <span className="bg-accent-400 text-primary-950 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   <span>Gian Hàng Chính Hãng 100%</span>
@@ -113,26 +187,26 @@ export default function BrandStore({
               </div>
 
               <p className="text-gray-300 text-xs md:text-sm max-w-2xl leading-relaxed">
-                {brand.description}
+                {store.description}
               </p>
 
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 sm:gap-5 text-xs text-accent-300 pt-1">
-                {brand.categoryLabel && (
-                  <span>🏷️ <strong className="text-white">{brand.categoryLabel}</strong></span>
+                {store.categoryLabel && (
+                  <span>🏷️ <strong className="text-white">{store.categoryLabel}</strong></span>
                 )}
-                {brand.location && (
+                {store.location && (
                   <>
                     <span>•</span>
                     <span className="flex items-center gap-1">
                       <MapPin className="w-3 h-3 text-accent-400" />
-                      <span>{brand.location}</span>
+                      <span>{store.location}</span>
                     </span>
                   </>
                 )}
-                {brand.priceRange && (
+                {store.priceRange && (
                   <>
                     <span>•</span>
-                    <span>Khoảng giá: <strong className="text-white">{brand.priceRange}</strong></span>
+                    <span>Khoảng giá: <strong className="text-white">{store.priceRange}</strong></span>
                   </>
                 )}
               </div>
@@ -166,7 +240,7 @@ export default function BrandStore({
           <div className="bg-accent-50/80 border border-accent-200/80 rounded-2xl p-4 sm:p-5">
             <h2 className="text-sm font-bold text-primary-900 flex items-center gap-1.5 mb-3">
               <Tag className="w-4 h-4 text-primary-700" />
-              <span>Chương Trình Khuyến Mãi Đang Áp Dụng Của {brand.name}</span>
+              <span>Chương Trình Khuyến Mãi Đang Áp Dụng Của {store.name}</span>
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {storePromotions.map((promo) => (
@@ -191,16 +265,16 @@ export default function BrandStore({
       )}
 
       {/* Store Branches */}
-      {brand.branches && brand.branches.length > 0 && (
+      {storeBranches.length > 0 && (
         <section className="mss-container">
           <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm">
             <h2 className="text-sm font-bold text-primary-900 flex items-center gap-1.5 mb-3">
-              <Store className="w-4 h-4 text-primary-700" />
-              <span>Hệ Thống Chi Nhánh ({brand.branches.length})</span>
+              <StoreIcon className="w-4 h-4 text-primary-700" />
+              <span>Hệ Thống Chi Nhánh ({storeBranches.length})</span>
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {brand.branches.map((branch) => (
-                <div key={branch.id} className="p-3.5 rounded-xl border border-gray-200 space-y-1.5">
+              {storeBranches.map((branch) => (
+                <div key={branch.branchId} className="p-3.5 rounded-xl border border-gray-200 space-y-1.5">
                   <div className="flex items-center gap-2">
                     <h3 className="font-bold text-xs sm:text-sm text-gray-900">{branch.name}</h3>
                     {branch.primary && (
@@ -247,48 +321,21 @@ export default function BrandStore({
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                Tất cả ({PRODUCTS.filter(p => p.brandId === brand.id).length})
+                Tất cả ({storeProducts.length})
               </button>
-              <button
-                onClick={() => setSelectedCategory('truyen-thong')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
-                  selectedCategory === 'truyen-thong'
-                    ? 'bg-primary-700 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Bánh Truyền Thống
-              </button>
-              <button
-                onClick={() => setSelectedCategory('cao-cap')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
-                  selectedCategory === 'cao-cap'
-                    ? 'bg-primary-700 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Hộp Quà Cao Cấp
-              </button>
-              <button
-                onClick={() => setSelectedCategory('hiện-đại')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
-                  selectedCategory === 'hiện-đại'
-                    ? 'bg-primary-700 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Lava & Hiện Đại
-              </button>
-              <button
-                onClick={() => setSelectedCategory('chay')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
-                  selectedCategory === 'chay'
-                    ? 'bg-primary-700 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Ăn Kiêng / Chay
-              </button>
+              {categoryTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setSelectedCategory(tab.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+                    selectedCategory === tab.id
+                      ? 'bg-primary-700 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {tab.name}
+                </button>
+              ))}
             </div>
 
             {/* Internal Search & Sort */}
@@ -318,9 +365,27 @@ export default function BrandStore({
         </div>
 
         {/* Products Grid */}
-        {filteredProducts.length === 0 ? (
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" aria-busy="true">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-80 rounded-2xl border border-accent-200/60 bg-gray-100 animate-pulse" />
+            ))}
+          </div>
+        ) : loadError ? (
           <div className="text-center py-12 bg-white rounded-2xl border border-gray-200 space-y-3">
-            <Store className="w-12 h-12 text-gray-300 mx-auto" />
+            <StoreIcon className="w-12 h-12 text-gray-300 mx-auto" />
+            <h3 className="font-bold text-gray-800 text-sm">Không tải được menu của gian hàng</h3>
+            <p className="text-xs text-gray-500">{loadError}</p>
+            <button
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="text-xs font-bold text-primary-700 bg-primary-50 px-4 py-2 rounded-xl hover:bg-primary-100 transition"
+            >
+              Thử lại
+            </button>
+          </div>
+        ) : filteredProducts.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-2xl border border-gray-200 space-y-3">
+            <StoreIcon className="w-12 h-12 text-gray-300 mx-auto" />
             <h3 className="font-bold text-gray-800 text-sm">Không tìm thấy sản phẩm phù hợp trong gian hàng này</h3>
             <p className="text-xs text-gray-500">Vui lòng thử tìm từ khóa khác hoặc chọn danh mục khác.</p>
             <button
@@ -377,11 +442,13 @@ export default function BrandStore({
                   </div>
 
                   <div>
-                    <div className="flex items-center gap-2 text-xs text-accent-600 mb-2">
-                      <Star className="w-3.5 h-3.5 fill-current text-accent-500" />
-                      <span className="font-bold text-gray-800">{product.rating}</span>
-                      <span className="text-gray-400">({product.reviewCount})</span>
-                    </div>
+                    {product.reviewCount > 0 && (
+                      <div className="flex items-center gap-2 text-xs text-accent-600 mb-2">
+                        <Star className="w-3.5 h-3.5 fill-current text-accent-500" />
+                        <span className="font-bold text-gray-800">{product.rating}</span>
+                        <span className="text-gray-400">({product.reviewCount})</span>
+                      </div>
+                    )}
 
                     <div className="flex items-baseline justify-between">
                       <span className="text-primary-700 font-bold text-base">{product.price.toLocaleString()}đ</span>

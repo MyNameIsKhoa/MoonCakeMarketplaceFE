@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { sellerOrderApi, type SellerOrderSummary } from '../../services/api';
+import { formatVnd } from '../../utils/format';
 import { 
   LayoutDashboard, Store, Package, Tag, Receipt, Truck, 
   FileText, DollarSign, MessageSquare, Wallet, Star, 
@@ -21,6 +23,14 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
   const [newProdPrice, setNewProdPrice] = useState('1250000');
   const [newProdStock, setNewProdStock] = useState('80');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [sellerOrders, setSellerOrders] = useState<SellerOrderSummary[] | null>(null);
+  const [sellerOrderError, setSellerOrderError] = useState('');
+
+  useEffect(() => {
+    if (currentSubTab !== 'don-hang') return;
+    sellerOrderApi.list().then(setSellerOrders)
+      .catch((err: unknown) => setSellerOrderError(err instanceof Error ? err.message : 'Không tải được đơn hàng.'));
+  }, [currentSubTab]);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -442,61 +452,19 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
           {/* TAB 4: ĐƠN HÀNG & VẬN CHUYỂN (ORDERS & COLD-CHAIN) */}
           {currentSubTab === 'don-hang' && (
             <div className="space-y-6 animate-fadeIn">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Quản Lý Đơn Hàng & Vận Chuyển Xe Lạnh</h1>
-                  <p className="text-gray-500 text-sm mt-1">Xác nhận đơn, in vận đơn bảo ôn giữ nhiệt cho bánh trung thu</p>
-                </div>
-                <button 
-                  onClick={() => showToast('Đã in hàng loạt phiếu đóng gói thành công!')}
-                  className="px-4 py-3 bg-gray-900 text-white font-bold text-sm rounded-xl shadow hover:bg-black transition flex items-center gap-2"
-                >
-                  <Printer className="w-4 h-4" />
-                  <span>In Phiếu Đóng Gói Hàng Loạt</span>
-                </button>
-              </div>
-
-              {/* Orders table */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-4">
-                <div className="flex gap-2 border-b border-gray-100 pb-3 text-sm font-semibold">
-                  <button className="px-3 py-2 bg-primary-700 text-white rounded-lg">Tất cả (68)</button>
-                  <button className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Chờ xử lý (18)</button>
-                  <button className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Đang giao xe lạnh (42)</button>
-                  <button className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">Hoàn tất (8)</button>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="bg-gray-50 text-gray-500 uppercase">
-                        <th className="py-3 px-3 font-semibold">Mã đơn hàng</th>
-                        <th className="py-3 px-3 font-semibold">Khách hàng B2B / B2C</th>
-                        <th className="py-3 px-3 font-semibold">Sản phẩm</th>
-                        <th className="py-3 px-3 font-semibold text-right">Tổng tiền</th>
-                        <th className="py-3 px-3 font-semibold text-center">Trạng thái xe lạnh</th>
-                        <th className="py-3 px-3 font-semibold text-right">Thao tác Fulfillment</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      <tr>
-                        <td className="py-4 px-3 font-mono font-bold text-gray-900">SO-KD-88391</td>
-                        <td className="py-4 px-3">
-                          <span className="font-bold text-gray-900 block">Công ty TNHH MoonCorp</span>
-                          <span className="text-gray-500">Đại diện: Nguyễn Hữu Đạt</span>
-                        </td>
-                        <td className="py-4 px-3 text-gray-700">500 hộp Trăng Vàng Hoàng Kim VIP</td>
-                        <td className="py-4 px-3 text-right font-bold text-primary-700">142.500.000 ₫</td>
-                        <td className="py-4 px-3 text-center">
-                          <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-semibold">Xe lạnh 18°C - 22°C</span>
-                        </td>
-                        <td className="py-4 px-3 text-right space-x-2">
-                          <button onClick={() => showToast('Đã phát lệnh vận chuyển xe lạnh cho đơn #SO-KD-88391!')} className="px-3 py-2 bg-primary-700 text-white rounded-lg font-semibold hover:bg-primary-800">Tạo Vận Đơn</button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              <h1 className="text-2xl font-bold text-gray-900">Đơn hàng của gian hàng</h1>
+              {sellerOrderError && <p role="alert" className="text-red-700">{sellerOrderError}</p>}
+              {!sellerOrders && !sellerOrderError && <p>Đang tải đơn hàng…</p>}
+              {sellerOrders?.length === 0 && <p>Chưa có đơn hàng.</p>}
+              {sellerOrders && sellerOrders.length > 0 && <div className="bg-white rounded-2xl border border-gray-100 p-6 overflow-x-auto">
+                <table className="w-full text-left text-sm"><thead><tr>
+                  <th className="p-3">Mã đơn</th><th className="p-3">Gian hàng</th>
+                  <th className="p-3">Trạng thái</th><th className="p-3 text-right">Tổng tiền</th>
+                </tr></thead><tbody>{sellerOrders.map((order) => <tr key={order.sellerOrderId} className="border-t">
+                  <td className="p-3">{order.sellerOrderNo}</td><td className="p-3">{order.storeNameSnapshot}</td>
+                  <td className="p-3">{order.status}</td><td className="p-3 text-right">{formatVnd(order.totalAmount)}</td>
+                </tr>)}</tbody></table>
+              </div>}
             </div>
           )}
 

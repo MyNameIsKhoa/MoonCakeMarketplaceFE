@@ -30,6 +30,7 @@ export const FINANCE_STATUS: StatusMap = {
 };
 
 export const ORDER_STATUS: StatusMap = {
+  PENDING_STOCK: { label: 'Đang xác nhận giữ kho', variant: 'warning' },
   AWAITING_PAYMENT: { label: 'Chờ thanh toán', variant: 'warning' },
   PENDING_CONFIRMATION: { label: 'Chờ nhà bán xác nhận', variant: 'warning' },
   CONFIRMED: { label: 'Đã xác nhận', variant: 'info' },
@@ -45,6 +46,9 @@ export const ORDER_STATUS: StatusMap = {
 
 export const PAYMENT_STATUS: StatusMap = {
   PENDING: { label: 'Chờ thanh toán', variant: 'warning' },
+  CREATING: { label: 'Đang tạo link', variant: 'warning' },
+  RECONCILING: { label: 'Đang đối soát', variant: 'warning' },
+  SUCCESS: { label: 'Đã thanh toán', variant: 'success' },
   PAID: { label: 'Đã thanh toán', variant: 'success' },
   FAILED: { label: 'Thanh toán thất bại', variant: 'danger' },
   REFUNDED: { label: 'Đã hoàn tiền', variant: 'neutral' },
@@ -58,6 +62,7 @@ export const PAYMENT_TYPE: StatusMap = {
 };
 
 export const PAYMENT_PROVIDER: StatusMap = {
+  PAYOS: { label: 'PayOS', variant: 'neutral' },
   VNPAY: { label: 'VNPAY-QR', variant: 'neutral' },
   MOMO: { label: 'Ví MoMo', variant: 'neutral' },
   BANK_TRANSFER: { label: 'Chuyển khoản ngân hàng', variant: 'neutral' },
@@ -86,6 +91,14 @@ export const PROMOTION_RULE: StatusMap = {
   PERCENT_DISCOUNT: { label: 'Giảm theo %', variant: 'neutral' },
   FIXED_DISCOUNT: { label: 'Giảm số tiền', variant: 'neutral' },
   BUY_X_GET_Y: { label: 'Mua X tặng Y', variant: 'neutral' }
+};
+
+/** supplier_profile.verification_status (Identity). */
+export const SUPPLIER_VERIFICATION: StatusMap = {
+  PENDING: { label: 'Chờ duyệt', variant: 'warning' },
+  VERIFIED: { label: 'Đã xác minh', variant: 'success' },
+  REJECTED: { label: 'Bị từ chối', variant: 'danger' },
+  SUSPENDED: { label: 'Tạm khóa', variant: 'neutral' },
 };
 
 // TV4 — RFQ & Negotiation service
