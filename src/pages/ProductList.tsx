@@ -22,12 +22,12 @@ export default function ProductList({
   wishlistIds,
   onToggleWishlist
 }: ProductListProps) {
-  const { stores, products, categories } = useCatalog();
+  const { stores, products, categories, source } = useCatalog();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedStoreId, setSelectedStoreId] = useState('all');
   const [priceRange, setPriceRange] = useState('all');
   const [sugarFilter, setSugarFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('popular');
+  const [sortBy, setSortBy] = useState('default');
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -57,7 +57,7 @@ export default function ProductList({
       if (priceRange === 'over-1000' && product.price <= 1000000) return false;
 
       // Sugar level
-      if (sugarFilter !== 'all' && !product.sugarLevel.toLowerCase().includes(sugarFilter.toLowerCase())) {
+      if (source === 'mock' && sugarFilter !== 'all' && !product.sugarLevel.toLowerCase().includes(sugarFilter.toLowerCase())) {
         return false;
       }
 
@@ -66,17 +66,18 @@ export default function ProductList({
       if (sortBy === 'price-asc') return a.price - b.price;
       if (sortBy === 'price-desc') return b.price - a.price;
       if (sortBy === 'rating') return b.rating - a.rating;
-      return b.salesCount - a.salesCount; // popular
+      if (sortBy === 'popular') return b.salesCount - a.salesCount;
+      return 0;
     });
-  }, [products, searchQuery, selectedCategory, selectedStoreId, priceRange, sugarFilter, sortBy]);
+  }, [products, searchQuery, selectedCategory, selectedStoreId, priceRange, sugarFilter, sortBy, source]);
 
   return (
     <div className="mss-container py-8 space-y-8">
       {/* Breadcrumb & Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 pb-6">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Tất Cả Sản Phẩm & Hộp Quà Trung Thu 2026</h1>
-          <p className="text-gray-500 text-sm mt-1">Khám phá hơn 100+ mẫu bánh nướng, bánh dẻo và hộp quà biếu cao cấp chính hãng</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Sản phẩm & hộp quà Trung thu</h1>
+          <p className="text-gray-500 text-sm mt-1">{products.length} sản phẩm {source === 'mock' ? 'dữ liệu mẫu' : 'từ gian hàng'}</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -86,8 +87,9 @@ export default function ProductList({
             onChange={(e) => setSortBy(e.target.value)}
             className="p-3 bg-white border border-gray-300 rounded-xl text-sm font-semibold text-gray-800 focus:ring-2 focus:ring-primary-700 outline-none shadow-sm"
           >
-            <option value="popular">Phổ biến nhất</option>
-            <option value="rating">Đánh giá cao nhất</option>
+            <option value="default">Mặc định</option>
+            {source === 'mock' && <option value="popular">Phổ biến nhất</option>}
+            {source === 'mock' && <option value="rating">Đánh giá cao nhất</option>}
             <option value="price-asc">Giá: Thấp đến Cao</option>
             <option value="price-desc">Giá: Cao đến Thấp</option>
           </select>
@@ -187,7 +189,7 @@ export default function ProductList({
           </div>
 
           {/* Sugar Level */}
-          <div className="space-y-2 pt-4 border-t border-gray-200">
+          {source === 'mock' && <div className="space-y-2 pt-4 border-t border-gray-200">
             <h4 className="font-semibold text-sm text-gray-700 uppercase tracking-wider">Độ Ngọt & Chế Độ</h4>
             <div className="space-y-2 text-sm text-gray-600">
               {[
@@ -208,7 +210,7 @@ export default function ProductList({
                 </label>
               ))}
             </div>
-          </div>
+          </div>}
         </div>
 
         {/* Product Grid */}
@@ -264,14 +266,14 @@ export default function ProductList({
                       >
                         {product.name}
                       </h3>
-                      <p className="text-xs text-gray-500 mt-1">{product.weight}</p>
+                      {product.weight && <p className="text-xs text-gray-500 mt-1">{product.weight}</p>}
                     </div>
 
                     <div>
                       <div className="flex items-center gap-2 text-sm text-accent-500 mb-2">
                         <Star className="w-3.5 h-3.5 fill-current" />
-                        <span className="font-bold text-gray-700">{product.rating}</span>
-                        <span className="text-gray-500">({product.reviewCount})</span>
+                        {product.reviewCount > 0 && <><span className="font-bold text-gray-700">{product.rating}</span>
+                        <span className="text-gray-500">({product.reviewCount})</span></>}
                       </div>
 
                       <div className="flex items-baseline justify-between">

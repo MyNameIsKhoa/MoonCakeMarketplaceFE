@@ -63,10 +63,10 @@ export default function StoreDetail({
     setLive(null);
     // Promotions and branches are extras: a failure there should not hide the menu.
     Promise.allSettled([
-      catalogApi.products.search({ storeId, size: PAGE_SIZE }),
+      catalogApi.products.all({ storeId }),
       catalogApi.promotions.list({ storeId, size: PAGE_SIZE }),
       catalogApi.storeBranches.list(storeId),
-      catalogApi.categories.list({ size: PAGE_SIZE })
+      catalogApi.categories.all()
     ]).then(([productsResult, promotionsResult, branchesResult, categoriesResult]) => {
       if (cancelled) return;
       if (productsResult.status === 'rejected') {
@@ -75,10 +75,10 @@ export default function StoreDetail({
       }
       const storesById = new Map([[store.storeId, store]]);
       const categorySlugById = new Map(
-        (categoriesResult.status === 'fulfilled' ? categoriesResult.value.items : []).map((c) => [c.categoryId, c.slug])
+        (categoriesResult.status === 'fulfilled' ? categoriesResult.value : []).map((c) => [c.categoryId, c.slug])
       );
       setLive({
-        products: productsResult.value.items
+        products: productsResult.value
           .filter((p) => p.minPrice !== null)
           .map((p) => toProduct(p, storesById, categorySlugById)),
         promotions: promotionsResult.status === 'fulfilled' ? promotionsResult.value.items.map(toPromotion) : [],

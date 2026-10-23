@@ -1,34 +1,10 @@
 /**
  * Central API client. Components import from here only.
  *
- * USE_MOCK_API = true  → address/checkout/order requests are served by ./mockBackend.
- * Catalog (categories/products/variants/promotions) already calls the real Gateway via ./catalogApi.
- * When the API Gateway is available, implement the same functions with HTTP calls
- * against the Commerce/Identity endpoints confirmed in the backend OpenAPI spec,
- * and flip the flag. TODO(backend): confirm routes, JSON field names, status codes.
+ * Catalog, Identity and Commerce requests go through the API Gateway.
  */
-import * as mock from './mockBackend';
-
-export const USE_MOCK_API = true;
-
-export const addressApi = {
-  list: mock.listAddresses,
-  create: mock.createAddress,
-  setDefault: mock.setDefaultAddress
-};
-
-export const checkoutApi = {
-  preview: mock.previewCheckout,
-  placeOrder: mock.placeOrder
-};
-
-export const orderApi = {
-  list: mock.listOrders,
-  requestCancellation: mock.requestCancellation,
-  pay: mock.payObligation
-};
-
-export type { PlaceOrderInput } from './mockBackend';
+export { addressApi, cartApi, checkoutApi, orderApi, sellerOrderApi } from './commerceApi';
+export type { CheckoutPlaced, SellerOrderSummary } from './commerceApi';
 
 // ---------------------------------------------------------------------------
 // Catalog & Store (TV2) — real backend through the API Gateway (VITE_API_BASE_URL).

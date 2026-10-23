@@ -59,7 +59,7 @@ export default function ProductDetail({
   const selectedVariant = variants.find((v) => v.variantId === variantId);
   // What goes into the cart: the chosen variant's price/image; the variant name is the cart option.
   const cartProduct: Product = selectedVariant
-    ? { ...view, price: selectedVariant.basePrice, image: selectedVariant.imageUrl || view.image, inStock: selectedVariant.stockQuantity > 0 }
+    ? { ...view, variantId: String(selectedVariant.variantId), price: selectedVariant.basePrice, image: selectedVariant.imageUrl || view.image, inStock: selectedVariant.stockQuantity > 0 }
     : view;
   const cartOption = selectedVariant?.variantName ?? sugarLevel;
 
@@ -134,7 +134,7 @@ export default function ProductDetail({
             {product.originalPrice && (
               <span className="text-gray-500 text-base line-through">{product.originalPrice.toLocaleString()}đ</span>
             )}
-            <span className="bg-primary-100 text-primary-700 text-sm font-bold px-3 py-1 rounded">Chính hãng 100%</span>
+            {!isLive && <span className="bg-primary-100 text-primary-700 text-sm font-bold px-3 py-1 rounded">Chính hãng 100%</span>}
           </div>
 
           <p className="text-sm md:text-sm text-gray-600 leading-relaxed">
@@ -188,7 +188,8 @@ export default function ProductDetail({
             </div>
             )}
 
-            {/* Box Option */}
+            {/* Mock-only box choices are not priced by Catalog. */}
+            {!isLive && <>
             <div>
               <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2">Quy cách hộp quà:</label>
               <select
@@ -201,6 +202,7 @@ export default function ProductDetail({
                 <option value="Hộp quà doanh nghiệp in logo (+50K/hộp)">Hộp quà doanh nghiệp in logo (Đơn từ 10 hộp)</option>
               </select>
             </div>
+            </>}
 
             {/* Quantity */}
             <div className="flex items-center gap-4">
@@ -227,7 +229,7 @@ export default function ProductDetail({
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
             <button
               onClick={() => onAddToCart(cartProduct, quantity, cartOption)}
-              disabled={!cartProduct.inStock}
+              disabled={!cartProduct.inStock || (isLive && !selectedVariant)}
               className="flex-1 py-4 bg-accent-500 hover:bg-accent-600 text-primary-950 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ShoppingBag className="w-5 h-5" />
@@ -235,7 +237,7 @@ export default function ProductDetail({
             </button>
             <button
               onClick={() => onBuyNow(cartProduct, quantity, cartOption)}
-              disabled={!cartProduct.inStock}
+              disabled={!cartProduct.inStock || (isLive && !selectedVariant)}
               className="flex-1 py-4 bg-gradient-to-r from-primary-700 to-accent-700 hover:from-primary-800 hover:to-accent-800 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span>Mua Ngay (Thanh Toán Nhanh)</span>

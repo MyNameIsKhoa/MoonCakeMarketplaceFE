@@ -1,28 +1,22 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, CreditCard, MapPin, Store, Truck } from 'lucide-react';
-import { Address, CartItem, CheckoutPreview, CustomerOrder, PaymentProvider } from '../types';
-import { addressApi, checkoutApi } from '../services/api';
+import { Address, CartItem, CheckoutPreview } from '../types';
+import { addressApi, checkoutApi, type CheckoutPlaced } from '../services/api';
 import { formatAddress, formatVnd } from '../utils/format';
-import { PAYMENT_PROVIDER, getStatusMeta } from '../utils/status';
 import EmptyState from '../components/ui/EmptyState';
 
 interface CheckoutProps {
   items: CartItem[];
-  onOrderPlaced: (order: CustomerOrder) => void;
+  onOrderPlaced: () => void;
   setActiveTab: (tab: string) => void;
 }
-
-const PROVIDERS: { id: PaymentProvider; description: string }[] = [
-  { id: 'VNPAY', description: 'Quét mã QR qua ứng dụng ngân hàng' },
-  { id: 'MOMO', description: 'Thanh toán qua ví MoMo' },
-  { id: 'BANK_TRANSFER', description: 'Chuyển khoản vào tài khoản sàn (giữ tiền đến khi nghiệm thu)' },
-  { id: 'COD', description: 'Trả tiền mặt cho đơn vị vận chuyển khi nhận hàng' }
-];
 
 export default function Checkout({ items, onOrderPlaced, setActiveTab }: CheckoutProps) {
   const [addresses, setAddresses] = useState<Address[] | null>(null);
   const [addressId, setAddressId] = useState('');
-  const [provider, setProvider] = useState<PaymentProvider>('VNPAY');
+  const checkoutKey = useRef<string | null>(null);
+  const cartContents = items.map((item) => `${item.variantId}:${item.quantity}`).join(',');
+  const [addressError, setAddressError] = useState('');
 
   const [preview, setPreview] = useState<CheckoutPreview | null>(null);
   const [previewError, setPreviewError] = useState('');
@@ -30,23 +24,26 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
-  const [placedOrder, setPlacedOrder] = useState<CustomerOrder | null>(null);
+  const [placedOrder, setPlacedOrder] = useState<CheckoutPlaced | null>(null);
 
   useEffect(() => {
     addressApi.list().then((list) => {
       setAddresses(list);
       setAddressId((list.find((a) => a.isDefault) ?? list[0])?.addressId ?? '');
-    });
+    }).catch((error: unknown) => setAddressError(error instanceof Error ? error.message : 'Không tải được địa chỉ.'));
   }, []);
+
+  useEffect(() => { checkoutKey.current = null; }, [cartContents]);
 
   const loadPreview = useCallback(() => {
     if (items.length === 0) return;
     setIsPreviewLoading(true);
     setPreviewError('');
+    setPreview(null);
     checkoutApi
-      .preview(items)
+      .preview()
       .then(setPreview)
-      .catch(() => setPreviewError('Không thể tính giá đơn hàng. Vui lòng thử lại.'))
+      .catch((err: unknown) => setPreviewError(err instanceof Error ? err.message : 'Không thể tính giá đơn hàng.'))
       .finally(() => setIsPreviewLoading(false));
   }, [items]);
 
@@ -58,9 +55,10 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
     setIsSubmitting(true);
     setSubmitError('');
     try {
-      const order = await checkoutApi.placeOrder({ items, addressId, provider });
+      checkoutKey.current ??= crypto.randomUUID();
+      const order = await checkoutApi.placeOrder(addressId, checkoutKey.current);
       setPlacedOrder(order);
-      onOrderPlaced(order);
+      onOrderPlaced();
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : 'Đặt hàng thất bại. Vui lòng thử lại.');
     } finally {
@@ -73,20 +71,25 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
       <div className="mss-container mss-page max-w-3xl">
         <div className="mss-card flex flex-col items-center text-center gap-4">
           <CheckCircle2 className="w-12 h-12 text-green-700" />
-          <h1 className="mss-page-title">Đặt hàng thành công</h1>
+          <h1 className="mss-page-title">Đã tạo đơn hàng</h1>
           <p className="text-base text-gray-700">
             Mã đơn hàng <strong>{placedOrder.orderNo}</strong> đã được tạo, gồm {placedOrder.sellerOrders.length} đơn nhà bán:
           </p>
           <ul className="text-sm text-gray-700 flex flex-col gap-1">
             {placedOrder.sellerOrders.map((so) => (
               <li key={so.sellerOrderId}>
-                {so.sellerOrderNo} — {so.storeNameSnapshot} ({formatVnd(so.totalAmount)})
+                {so.sellerOrderNo} ({formatVnd(so.totalAmount)})
+                <button className="ml-2 text-primary-700 underline" onClick={() => {
+                  sessionStorage.setItem('financeOrderId', String(so.sellerOrderId));
+                  setActiveTab('payment-settlement');
+                }}>Thanh toán đơn này</button>
               </li>
             ))}
           </ul>
           <p className="text-base">
             Tổng thanh toán: <span className="mss-price">{formatVnd(placedOrder.grandTotal)}</span>
           </p>
+          <p className="text-sm text-amber-800">Đơn đang chờ thanh toán PayOS; chưa có khoản nào được ghi nhận là đã trả.</p>
           <div className="flex flex-wrap justify-center gap-3">
             <button onClick={() => setActiveTab('orders')} className="mss-button mss-button--primary">
               Xem đơn hàng của tôi
@@ -133,7 +136,7 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
               <MapPin className="w-5 h-5 text-primary-700" /> Địa chỉ nhận hàng
             </h2>
             {addresses === null ? (
-              <p className="text-sm text-gray-500">Đang tải sổ địa chỉ…</p>
+              <p className="text-sm text-gray-500">{addressError || 'Đang tải sổ địa chỉ…'}</p>
             ) : addresses.length === 0 ? (
               <div className="mss-alert mss-alert--warning">
                 Bạn chưa có địa chỉ nào.{' '}
@@ -154,7 +157,7 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
                       type="radio"
                       name="address"
                       checked={addressId === addr.addressId}
-                      onChange={() => setAddressId(addr.addressId)}
+                      onChange={() => { setAddressId(addr.addressId); checkoutKey.current = null; }}
                       className="mt-1"
                     />
                     <div className="min-w-0">
@@ -173,30 +176,12 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
             )}
           </section>
 
-          {/* Payment provider */}
+          {/* TV5 creates a PayOS FULL obligation after stock is confirmed. */}
           <section className="mss-card mss-stack">
             <h2 className="mss-card-title flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-primary-700" /> Phương thức thanh toán
             </h2>
-            <div className="flex flex-col gap-3">
-              {PROVIDERS.map((p) => (
-                <label
-                  key={p.id}
-                  className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition ${
-                    provider === p.id ? 'border-primary-700 bg-primary-50' : 'border-gray-200 hover:bg-gray-50'
-                  }`}
-                >
-                  <input type="radio" name="provider" checked={provider === p.id} onChange={() => setProvider(p.id)} className="mt-1" />
-                  <div>
-                    <p className="font-semibold text-gray-900">{getStatusMeta(PAYMENT_PROVIDER, p.id).label}</p>
-                    <p className="text-sm text-gray-500">{p.description}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-            <p className="text-sm text-gray-500">
-              Mỗi nhà bán tạo một khoản thanh toán riêng. Tiền được sàn giữ đến khi đơn đủ điều kiện quyết toán.
-            </p>
+            <p className="text-sm text-gray-700">PayOS. Mỗi đơn nhà bán có một khoản thanh toán riêng sau khi giữ kho thành công.</p>
           </section>
 
           {/* Seller order groups from the backend preview */}
@@ -218,7 +203,7 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
                     <h3 className="mss-card-title flex items-center gap-2">
                       <Store className="w-5 h-5 text-primary-700 shrink-0" /> {group.storeName}
                     </h3>
-                    <p className="mss-card-meta">Nhà cung cấp: {group.supplierName}</p>
+                    {group.supplierName && <p className="mss-card-meta">Nhà cung cấp: {group.supplierName}</p>}
                   </div>
                   <span className="text-sm text-gray-600 flex items-center gap-1">
                     <Truck className="w-4 h-4" /> {group.shippingMethod}
@@ -252,6 +237,9 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
                       <dd className="whitespace-nowrap">-{formatVnd(promo.discountAmount)}</dd>
                     </div>
                   ))}
+                  {group.discountTotal > 0 && group.appliedPromotions.length === 0 && (
+                    <div className="flex justify-between text-green-700"><dt>Giảm giá</dt><dd>-{formatVnd(group.discountTotal)}</dd></div>
+                  )}
                   <div className="flex justify-between">
                     <dt>Phí vận chuyển</dt>
                     <dd>{group.shippingFee === 0 ? 'Miễn phí' : formatVnd(group.shippingFee)}</dd>
