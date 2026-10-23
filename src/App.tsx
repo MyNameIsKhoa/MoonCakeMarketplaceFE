@@ -156,7 +156,16 @@ export default function App() {
       );
     }
     if (accessLevel === 'supplier') {
-      return <SupplierOnboarding onBackToShop={() => setActiveTab('home')} />;
+      return (
+        <SupplierOnboarding
+          onBackToShop={() => setActiveTab('home')}
+          onRelogin={() => {
+            // A new token is needed to carry ROLE_SUPPLIER; staying on this tab shows the login gate
+            // and reopens the seller center once logged in.
+            auth.logout();
+          }}
+        />
+      );
     }
     return (
       <div className="mss-container mss-page">

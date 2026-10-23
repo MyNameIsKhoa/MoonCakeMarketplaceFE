@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, Clock, RefreshCw, ShieldAlert, XCircle } from 'lucide-react';
+import { Building2, CheckCircle2, Clock, LogIn, RefreshCw, ShieldAlert, XCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { SUPPLIER_VERIFICATION } from '../../utils/status';
@@ -8,13 +8,15 @@ import { authErrorMessage } from '../auth/AuthLayout';
 
 interface SupplierOnboardingProps {
   onBackToShop: () => void;
+  /** Logs out and opens the login page; used when the profile was verified after this login. */
+  onRelogin: () => void;
 }
 
 /**
  * Shown instead of the seller center while the user is not a VERIFIED supplier:
  * apply (no profile), wait (PENDING), fix and resubmit (REJECTED) or contact the platform (SUSPENDED).
  */
-export default function SupplierOnboarding({ onBackToShop }: SupplierOnboardingProps) {
+export default function SupplierOnboarding({ onBackToShop, onRelogin }: SupplierOnboardingProps) {
   const { supplierProfile, submitSupplierProfile, refreshSupplierProfile } = useAuth();
   const status = supplierProfile?.verificationStatus;
   const [companyName, setCompanyName] = useState(supplierProfile?.companyName ?? '');
@@ -75,6 +77,17 @@ export default function SupplierOnboarding({ onBackToShop }: SupplierOnboardingP
             <div className="mss-alert mss-alert--warning flex items-start gap-2">
               <Clock className="w-4 h-4 mt-0.5 shrink-0" />
               <span>Hồ sơ đang chờ quản trị viên xét duyệt. Bạn sẽ dùng được Kênh Người Bán ngay khi hồ sơ được duyệt.</span>
+            </div>
+          )}
+          {status === 'VERIFIED' && (
+            <div className="mss-alert flex flex-wrap items-center justify-between gap-3">
+              <span className="flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-green-700" />
+                <span>Hồ sơ đã được duyệt. Vui lòng đăng nhập lại để kích hoạt quyền nhà cung cấp (ROLE_SUPPLIER).</span>
+              </span>
+              <button type="button" className="mss-button mss-button--primary mss-button--sm" onClick={onRelogin}>
+                <LogIn className="w-4 h-4" /> Đăng nhập lại
+              </button>
             </div>
           )}
           {status === 'REJECTED' && (

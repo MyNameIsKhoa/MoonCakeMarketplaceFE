@@ -1,7 +1,8 @@
 /**
  * Who may open which tab. Mirrors the backend rules:
  * - customer: any logged-in account (JWT always has ROLE_CUSTOMER)
- * - supplier: logged in AND supplier profile VERIFIED (Catalog checks this via Identity on every write)
+ * - supplier: JWT has ROLE_SUPPLIER AND the supplier profile is still VERIFIED
+ *             (Catalog requires the role and re-checks VERIFIED via Identity on every write)
  * - admin:    JWT has ROLE_ADMIN (Identity grants it to ADMIN_USER_IDS)
  * Tabs not listed are public. The backend still enforces everything; this only drives the UI.
  */
