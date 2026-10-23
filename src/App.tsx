@@ -7,7 +7,7 @@ import AIAssistantModal from './components/AIAssistantModal';
 import Home from './pages/Home';
 import ProductList from './pages/ProductList';
 import ProductDetail from './pages/ProductDetail';
-import BrandStore from './pages/BrandStore';
+import StoreDetail from './pages/StoreDetail';
 import Checkout from './pages/Checkout';
 import OrderTracking from './pages/OrderTracking';
 import B2BPortal from './pages/B2BPortal';
@@ -16,13 +16,15 @@ import SellerCenter from './pages/seller/SellerCenter';
 import PaymentSettlement from './features/payment-settlement/PaymentSettlement';
 import { FulfillmentDemoPage } from './features/fulfillment/pages/FulfillmentDemoPage';
 
-import { Product, Brand, CartItem } from './types';
-import { PRODUCTS, BRANDS } from './data/mockData';
+import { Product, Store, CartItem } from './types';
+import { PRODUCTS, STORES } from './data/mockData';
+import { useCatalog } from './context/CatalogContext';
 
 export default function App() {
+  const { stores } = useCatalog();
   const [activeTab, setActiveTab] = useState<string>(() => new URLSearchParams(location.search).has('finance') ? 'payment-settlement' : 'home');
   const [selectedProduct, setSelectedProduct] = useState<Product>(PRODUCTS[0]);
-  const [selectedBrand, setSelectedBrand] = useState<Brand>(BRANDS[0]);
+  const [selectedStore, setSelectedStore] = useState<Store>(STORES[0]);
 
   const [cartItems, setCartItems] = useState<CartItem[]>([
     {
@@ -111,7 +113,7 @@ export default function App() {
           onOpenAI={() => setIsAIOpen(true)}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-          setSelectedBrand={setSelectedBrand}
+          setSelectedStore={setSelectedStore}
           setSelectedProduct={setSelectedProduct}
         />
       )}
@@ -121,7 +123,7 @@ export default function App() {
           <Home
             setActiveTab={setActiveTab}
             setSelectedProduct={setSelectedProduct}
-            setSelectedBrand={setSelectedBrand}
+            setSelectedStore={setSelectedStore}
             onAddToCart={(p) => handleAddToCart(p, 1, p.sugarLevel)}
             wishlistIds={wishlistIds}
             onToggleWishlist={handleToggleWishlist}
@@ -156,25 +158,25 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'brands' && (
+        {activeTab === 'stores' && (
           <div className="mss-container mss-page">
             <header className="mss-page-header">
               <h1 className="mss-page-title">Tất cả thương hiệu chính hãng</h1>
             </header>
             <div className="mss-grid-3">
-              {BRANDS.map(brand => (
+              {stores.map(store => (
                 <div
-                  key={brand.id}
+                  key={store.storeId}
                   onClick={() => {
-                    setSelectedBrand(brand);
-                    setActiveTab('brand-store');
+                    setSelectedStore(store);
+                    setActiveTab('store-detail');
                   }}
                   className="mss-card hover:border-primary-700 cursor-pointer transition flex items-center gap-4"
                 >
-                  <img src={brand.logo} alt={brand.name} className="w-20 h-20 aspect-square rounded-xl object-cover border border-gray-200" />
+                  <img src={store.logoUrl} alt={store.name} className="w-20 h-20 aspect-square rounded-xl object-contain bg-white p-1 border border-gray-200" />
                   <div className="min-w-0">
-                    <h3 className="mss-card-title">{brand.name}</h3>
-                    <p className="text-sm text-gray-500 mt-1">{brand.categoryLabel || 'Thương hiệu chính hãng'}</p>
+                    <h3 className="mss-card-title">{store.name}</h3>
+                    <p className="text-sm text-gray-500 mt-1">{store.categoryLabel || 'Thương hiệu chính hãng'}</p>
                     <span className="inline-block mt-2 text-sm font-semibold text-primary-700">Khám phá gian hàng →</span>
                   </div>
                 </div>
@@ -183,9 +185,10 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'brand-store' && (
-          <BrandStore
-            brand={selectedBrand}
+        {activeTab === 'store-detail' && (
+          <StoreDetail
+            key={selectedStore.storeId}
+            store={selectedStore}
             setSelectedProduct={(p) => {
               setSelectedProduct(p);
               setActiveTab('detail');

@@ -37,5 +37,9 @@ export type { PlaceOrderInput } from './mockBackend';
 export {
   catalogApi, storeApi, storeBranchApi, categoryApi, productApi, variantApi, promotionApi
 } from './catalogApi';
+export {
+  isApiId, toStore, toStoreBranch, toCategoryOption, toProduct, withProductDetail, toPromotion
+} from './catalogMappers';
+export type { CategoryOption } from './catalogMappers';
 export { ApiError, getAccessToken, setAccessToken } from './http';
 export type * from './catalogTypes';

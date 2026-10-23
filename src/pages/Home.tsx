@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import {
   Sparkles, Star, ArrowRight, ShieldCheck, Gift, Clock, Flame,
-  Cookie, Leaf, ChevronRight, Heart, Store, Layers
+  Cookie, Leaf, ChevronRight, Heart, Store as StoreIcon, Layers
 } from 'lucide-react';
-import { Product, Brand } from '../types';
-import { PRODUCTS, BRANDS, CATEGORIES, FESTIVE_BLOGS } from '../data/mockData';
+import { Product, Store } from '../types';
+// Flash sale, best sellers and blogs stay on mock data (the backend has no field for them yet).
+import { PRODUCTS, FESTIVE_BLOGS } from '../data/mockData';
+import { useCatalog } from '../context/CatalogContext';
 import { HeroBanner } from '../components/home/HeroBanner';
 import { StoreSection } from '../components/home/StoreSection';
+
+const CATEGORY_ICONS: Record<string, string> = {
+  'all': '✨', 'truyen-thong': '🥮', 'cao-cap': '🎁', 'hiện-đại': '🔥', 'hien-dai': '🔥', 'chay': '🌿', 'thieu-nhi': '🏮'
+};
 
 interface HomeProps {
   setActiveTab: (tab: string) => void;
   setSelectedProduct: (p: Product) => void;
-  setSelectedBrand: (b: Brand) => void;
+  setSelectedStore: (b: Store) => void;
   onAddToCart: (p: Product) => void;
   wishlistIds: string[];
   onToggleWishlist: (productId: string) => void;
@@ -21,12 +27,14 @@ interface HomeProps {
 export default function Home({
   setActiveTab,
   setSelectedProduct,
-  setSelectedBrand,
+  setSelectedStore,
   onAddToCart,
   wishlistIds,
   onToggleWishlist,
   onOpenAI
 }: HomeProps) {
+  const { stores, products, categories, source, error, reload, findStore } = useCatalog();
+
   // Flash sale countdown timer (e.g. 12 hours left)
   const [timeLeft, setTimeLeft] = useState({ hours: 11, minutes: 45, seconds: 30 });
 
@@ -53,9 +61,9 @@ export default function Home({
     }
   };
 
-  const handleSelectBrand = (brand: Brand) => {
-    setSelectedBrand(brand);
-    setActiveTab('brand-store');
+  const handleSelectStore = (store: Store) => {
+    setSelectedStore(store);
+    setActiveTab('store-detail');
   };
 
   const handleSelectProduct = (product: Product) => {
@@ -73,12 +81,21 @@ export default function Home({
       />
 
       {/* 2. Core Section: Multi-vendor Partner Stores Directory (Store Cards + Filters) */}
+      {source === 'mock' && error && (
+        <div className="mss-container">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm rounded-xl px-4 py-3">
+            <span>{error} Đang hiển thị dữ liệu gian hàng mẫu.</span>
+            <button onClick={reload} className="font-bold text-primary-700 hover:underline shrink-0">Thử lại</button>
+          </div>
+        </div>
+      )}
       <StoreSection
-        brands={BRANDS}
-        products={PRODUCTS}
-        onSelectBrand={handleSelectBrand}
+        stores={stores}
+        products={products}
+        loading={source === 'loading'}
+        onSelectStore={handleSelectStore}
         onSelectProduct={handleSelectProduct}
-        onViewAllBrands={() => setActiveTab('brands')}
+        onViewAllStores={() => setActiveTab('stores')}
       />
 
       {/* 3. Flash Sale Section across stores */}
@@ -136,13 +153,13 @@ export default function Home({
                     <span
                       onClick={(e) => {
                         e.stopPropagation();
-                        const foundBrand = BRANDS.find(b => b.id === product.brandId);
-                        if (foundBrand) handleSelectBrand(foundBrand);
+                        const foundStore = findStore(product.storeId);
+                        if (foundStore) handleSelectStore(foundStore);
                       }}
                       className="text-xs text-accent-800 font-bold hover:underline cursor-pointer flex items-center gap-1"
                     >
-                      <Store className="w-3 h-3 text-accent-700" />
-                      <span>{product.brandName}</span>
+                      <StoreIcon className="w-3 h-3 text-accent-700" />
+                      <span>{product.storeName}</span>
                     </span>
 
                     <h3
@@ -199,25 +216,20 @@ export default function Home({
             onClick={() => setActiveTab('products')}
             className="text-xs sm:text-sm font-bold text-primary-700 hover:underline flex items-center gap-1"
           >
-            <span>Xem tất cả ({PRODUCTS.length})</span>
+            <span>Xem tất cả ({products.length})</span>
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-          {CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <div
               key={cat.id}
               onClick={() => setActiveTab('products')}
               className="bg-white p-4 rounded-2xl border border-accent-200/60 shadow-sm hover:shadow-md hover:border-primary-700 text-center cursor-pointer transition group flex flex-col items-center"
             >
               <div className="w-12 h-12 bg-accent-50 text-primary-700 rounded-2xl flex items-center justify-center text-2xl mb-2 group-hover:bg-primary-700 group-hover:text-white transition">
-                {cat.id === 'truyen-thong' && '🥮'}
-                {cat.id === 'cao-cap' && '🎁'}
-                {cat.id === 'hiện-đại' && '🔥'}
-                {cat.id === 'chay' && '🌿'}
-                {cat.id === 'thieu-nhi' && '🏮'}
-                {cat.id === 'all' && '✨'}
+                {CATEGORY_ICONS[cat.id] ?? '🥮'}
               </div>
               <h3 className="font-semibold text-gray-800 text-xs sm:text-sm group-hover:text-primary-700 transition">
                 {cat.name}
@@ -279,13 +291,13 @@ export default function Home({
                   <span
                     onClick={(e) => {
                       e.stopPropagation();
-                      const foundBrand = BRANDS.find(b => b.id === product.brandId);
-                      if (foundBrand) handleSelectBrand(foundBrand);
+                      const foundStore = findStore(product.storeId);
+                      if (foundStore) handleSelectStore(foundStore);
                     }}
                     className="text-xs text-accent-800 font-bold hover:underline cursor-pointer flex items-center gap-1"
                   >
-                    <Store className="w-3 h-3 text-accent-700" />
-                    <span>{product.brandName}</span>
+                    <StoreIcon className="w-3 h-3 text-accent-700" />
+                    <span>{product.storeName}</span>
                   </span>
 
                   <h3
