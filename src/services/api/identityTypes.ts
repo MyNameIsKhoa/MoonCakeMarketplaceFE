@@ -3,9 +3,9 @@
  * Field names match the backend DTOs exactly.
  */
 
-/** JWT `roles` claim. Every account is ROLE_CUSTOMER; ADMIN_USER_IDS adds ROLE_ADMIN.
- *  There is no ROLE_SUPPLIER: a supplier is a user whose supplier profile is VERIFIED. */
-export type JwtRole = 'ROLE_CUSTOMER' | 'ROLE_ADMIN';
+/** JWT `roles` claim, fixed at login: every account is ROLE_CUSTOMER, a VERIFIED supplier profile adds
+ *  ROLE_SUPPLIER, ADMIN_USER_IDS adds ROLE_ADMIN. A supplier verified after login needs to log in again. */
+export type JwtRole = 'ROLE_CUSTOMER' | 'ROLE_SUPPLIER' | 'ROLE_ADMIN';
 
 export type SupplierVerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED' | 'SUSPENDED';
 

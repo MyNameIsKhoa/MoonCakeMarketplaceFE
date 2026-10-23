@@ -21,8 +21,10 @@ interface AuthState {
   supplierProfile: SupplierProfileResponse | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
-  /** Supplier profile VERIFIED: may use the seller center. */
+  /** Token has ROLE_SUPPLIER and the profile is still VERIFIED: may use the seller center. */
   isSupplier: boolean;
+  /** Profile was verified after this token was issued: log in again to receive ROLE_SUPPLIER. */
+  needsReloginForSupplier: boolean;
   login: (email: string, password: string) => Promise<void>;
   /** Creates the account and logs in. */
   register: (input: RegisterRequest) => Promise<void>;
@@ -110,21 +112,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSupplierProfile(await loadSupplierProfile());
   }, []);
 
-  const value = useMemo<AuthState>(() => ({
-    status,
-    user,
-    roles,
-    supplierProfile,
-    isAuthenticated: status === 'authenticated',
-    isAdmin: status === 'authenticated' && roles.includes('ROLE_ADMIN'),
-    isSupplier: status === 'authenticated' && supplierProfile?.verificationStatus === 'VERIFIED',
-    login,
-    register,
-    logout: clear,
-    submitSupplierProfile,
-    refreshSupplierProfile,
-    setUser
-  }), [status, user, roles, supplierProfile, login, register, clear, submitSupplierProfile, refreshSupplierProfile]);
+  const value = useMemo<AuthState>(() => {
+    const authenticated = status === 'authenticated';
+    const profileVerified = supplierProfile?.verificationStatus === 'VERIFIED';
+    const hasSupplierRole = roles.includes('ROLE_SUPPLIER');
+    return {
+      status,
+      user,
+      roles,
+      supplierProfile,
+      isAuthenticated: authenticated,
+      isAdmin: authenticated && roles.includes('ROLE_ADMIN'),
+      // Both: the role gates Catalog writes, the live status catches a supplier suspended after login.
+      isSupplier: authenticated && hasSupplierRole && profileVerified,
+      needsReloginForSupplier: authenticated && profileVerified && !hasSupplierRole,
+      login,
+      register,
+      logout: clear,
+      submitSupplierProfile,
+      refreshSupplierProfile,
+      setUser
+    };
+  }, [status, user, roles, supplierProfile, login, register, clear, submitSupplierProfile, refreshSupplierProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
