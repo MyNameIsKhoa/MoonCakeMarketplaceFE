@@ -10,6 +10,9 @@ const messages: Record<string, string> = {
   PAYMENT_CONTEXT_NOT_READY: 'Chưa có dữ liệu đơn hàng từ bộ phận xử lý đơn. Vui lòng thử lại sau.',
   ORDER_NOT_ACCEPTED: 'Đơn hàng chưa được chấp nhận. Chưa thể thanh toán.',
   FINANCE_ACCESS_DENIED: 'Bạn không có quyền truy cập giao dịch của đơn này.',
+  HTTP_403: 'Bạn chưa đăng nhập hoặc không có quyền thực hiện thao tác này.',
+  FINANCE_ADMIN_REQUIRED: 'Thao tác này cần tài khoản quản trị được cấp quyền xử lý tài chính.',
+  PAYMENT_BLOCKED_BY_CASE: 'Đơn đang có yêu cầu hủy, hoàn tiền hoặc tranh chấp. Chưa thể tạo thanh toán mới.',
   DEPOSIT_REQUIRED: 'Vui lòng thanh toán đủ tiền cọc trước.',
   DELIVERY_DATE_REQUIRED: 'Đơn hàng chưa có ngày giao được xác nhận.',
   PAYMENT_DEADLINE_PASSED: 'Đã quá hạn thanh toán. Vui lòng liên hệ để cập nhật lịch giao.',
@@ -40,7 +43,7 @@ export default function PaymentSettlement() {
   const [data, setData] = useState<FinanceSummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState(() => new URLSearchParams(location.search).has('finance')
+  const [notice, setNotice] = useState(() => ['return', 'cancel'].includes(new URLSearchParams(location.search).get('finance') || '')
     ? 'Đã trở về từ payOS. Hãy tải đơn và kiểm tra trạng thái; kết quả thanh toán được xác nhận qua webhook hoặc đối soát.' : '');
   const [reason, setReason] = useState('');
   const [evidence, setEvidence] = useState('');
@@ -57,7 +60,8 @@ export default function PaymentSettlement() {
     event?.preventDefault();
     const id = Number(orderInput);
     if (!Number.isSafeInteger(id) || id <= 0) { setError('Nhập mã đơn nhà bán dạng số nguyên dương.'); return; }
-    setBusy(true); setError(''); setData(null); setOrderId(null);
+    setBusy(true); setError(''); setNotice(''); setData(null); setOrderId(null);
+    setReason(''); setEvidence(''); setResourceId(''); setAmount(''); setPolicy(''); setReference('');
     try {
       const result = await paymentApi.summary(id);
       if (!mounted.current) return;

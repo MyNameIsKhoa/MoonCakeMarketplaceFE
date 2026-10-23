@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, MapPin, Store, Truck, Wallet } from 'lucide-react';
-import { CustomerOrder, PaymentProvider, SellerOrder } from '../types';
+import { CustomerOrder, SellerOrder } from '../types';
 import { orderApi } from '../services/api';
 import { formatAddress, formatDate, formatDateTime, formatVnd } from '../utils/format';
 import {
@@ -24,7 +24,7 @@ type FilterId = 'all' | 'active' | 'done' | 'cancelled';
 
 const FILTERS: { id: FilterId; label: string; statuses?: string[] }[] = [
   { id: 'all', label: 'Tất cả' },
-  { id: 'active', label: 'Đang xử lý', statuses: ['AWAITING_PAYMENT', 'PENDING_CONFIRMATION', 'CONFIRMED', 'PROCESSING', 'PREPARING', 'SHIPPING'] },
+  { id: 'active', label: 'Đang xử lý', statuses: ['PENDING_STOCK', 'AWAITING_PAYMENT', 'PENDING_CONFIRMATION', 'CONFIRMED', 'PROCESSING', 'PREPARING', 'SHIPPING'] },
   { id: 'done', label: 'Đã giao / Hoàn tất', statuses: ['DELIVERED', 'COMPLETED'] },
   { id: 'cancelled', label: 'Hủy / Khiếu nại', statuses: ['CANCEL_REQUESTED', 'CANCELLED', 'DISPUTED'] }
 ];
@@ -111,6 +111,7 @@ export default function OrderTracking({ setActiveTab }: OrderTrackingProps) {
               expanded={expandedId === order.orderId}
               onToggle={() => setExpandedId(expandedId === order.orderId ? null : order.orderId)}
               onUpdated={replaceOrder}
+              setActiveTab={setActiveTab}
             />
           ))}
         </div>
@@ -126,9 +127,10 @@ interface OrderCardProps {
   expanded: boolean;
   onToggle: () => void;
   onUpdated: (order: CustomerOrder) => void;
+  setActiveTab: (tab: string) => void;
 }
 
-function OrderCard({ order, expanded, onToggle, onUpdated }: OrderCardProps) {
+function OrderCard({ order, expanded, onToggle, onUpdated, setActiveTab }: OrderCardProps) {
   const itemCount = order.sellerOrders.reduce((sum, so) => sum + so.items.length, 0);
 
   return (
@@ -174,7 +176,8 @@ function OrderCard({ order, expanded, onToggle, onUpdated }: OrderCardProps) {
           </section>
 
           {order.sellerOrders.map((so) => (
-            <SellerOrderSection key={so.sellerOrderId} orderId={order.orderId} sellerOrder={so} onUpdated={onUpdated} />
+            <SellerOrderSection key={so.sellerOrderId} orderId={order.orderId} sellerOrder={so}
+              onUpdated={onUpdated} setActiveTab={setActiveTab} />
           ))}
 
           <dl className="text-sm text-gray-700 flex flex-col gap-1 self-end w-full sm:max-w-sm">
@@ -209,17 +212,16 @@ interface SellerOrderSectionProps {
   orderId: string;
   sellerOrder: SellerOrder;
   onUpdated: (order: CustomerOrder) => void;
+  setActiveTab: (tab: string) => void;
 }
 
-function SellerOrderSection({ orderId, sellerOrder: so, onUpdated }: SellerOrderSectionProps) {
+function SellerOrderSection({ orderId, sellerOrder: so, onUpdated, setActiveTab }: SellerOrderSectionProps) {
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
-  const [payProvider, setPayProvider] = useState<PaymentProvider>('VNPAY');
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
 
   const canCancel = so.allowedActions.includes('CANCEL');
-  const canPay = so.allowedActions.includes('PAY');
 
   const run = async (action: () => Promise<CustomerOrder>) => {
     setBusy(true);
@@ -247,6 +249,11 @@ function SellerOrderSection({ orderId, sellerOrder: so, onUpdated }: SellerOrder
           </p>
         </div>
         <StatusBadge map={ORDER_STATUS} status={so.status} />
+        {so.payments.some((p) => p.status !== 'SUCCESS') &&
+          <button className="text-sm text-primary-700 underline" onClick={() => {
+            sessionStorage.setItem('financeOrderId', so.sellerOrderId);
+            setActiveTab('payment-settlement');
+          }}>Thanh toán PayOS</button>}
       </div>
 
       {(so.deliveryDateSnapshot || so.shippingMethodSnapshot) && (
@@ -364,29 +371,6 @@ function SellerOrderSection({ orderId, sellerOrder: so, onUpdated }: SellerOrder
                   </td>
                   <td className="text-gray-600">
                     {p.transactionRef ?? '—'}
-                    {canPay && p.status === 'PENDING' && (
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        <select
-                          className="min-h-9 px-2 border border-gray-300 rounded-lg bg-white text-sm"
-                          value={payProvider}
-                          onChange={(e) => setPayProvider(e.target.value as PaymentProvider)}
-                          aria-label="Phương thức thanh toán"
-                        >
-                          {(['VNPAY', 'MOMO', 'BANK_TRANSFER'] as PaymentProvider[]).map((id) => (
-                            <option key={id} value={id}>
-                              {getStatusMeta(PAYMENT_PROVIDER, id).label}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          disabled={busy}
-                          onClick={() => run(() => orderApi.pay(orderId, so.sellerOrderId, p.paymentId, payProvider))}
-                          className="mss-button mss-button--primary mss-button--sm"
-                        >
-                          Thanh toán
-                        </button>
-                      </div>
-                    )}
                   </td>
                 </tr>
               ))}

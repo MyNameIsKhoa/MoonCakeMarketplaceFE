@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Search, ShoppingBag, Heart, Sparkles, Package, Building2, User, Menu, X,
-  PhoneCall, ChevronDown, Store, ArrowRight, ShieldCheck, Star
+  Search, ShoppingBag, Heart, Sparkles, Package, Building2, Menu, X,
+  PhoneCall, ChevronDown, Store as StoreIcon, ArrowRight, ShieldCheck, Star
 } from 'lucide-react';
-import { Brand, Product } from '../types';
-import { BRANDS, PRODUCTS } from '../data/mockData';
+import { Store, Product } from '../types';
+import { useCatalog } from '../context/CatalogContext';
+import { useAuth } from '../context/AuthContext';
+import UserMenu from './UserMenu';
 
 interface NavbarProps {
   activeTab: string;
@@ -15,8 +17,11 @@ interface NavbarProps {
   onOpenAI: () => void;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
-  setSelectedBrand?: (brand: Brand) => void;
+  setSelectedStore?: (store: Store) => void;
   setSelectedProduct?: (product: Product) => void;
+  onLogin: () => void;
+  onRegister: () => void;
+  onLogout: () => void;
 }
 
 export default function Navbar({
@@ -28,9 +33,14 @@ export default function Navbar({
   onOpenAI,
   searchQuery,
   setSearchQuery,
-  setSelectedBrand,
-  setSelectedProduct
+  setSelectedStore,
+  setSelectedProduct,
+  onLogin,
+  onRegister,
+  onLogout
 }: NavbarProps) {
+  const { stores, products } = useCatalog();
+  const { isAuthenticated, isAdmin } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [storeDropdownOpen, setStoreDropdownOpen] = useState(false);
@@ -52,28 +62,28 @@ export default function Navbar({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter brands matching query
-  const matchingBrands = searchQuery.trim()
-    ? BRANDS.filter(b =>
+  // Filter stores matching query
+  const matchingStores = searchQuery.trim()
+    ? stores.filter(b =>
       b.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.categoryLabel?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.featuredTags?.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
     )
-    : BRANDS;
+    : stores;
 
   // Filter products matching query
   const matchingProducts = searchQuery.trim()
-    ? PRODUCTS.filter(p =>
+    ? products.filter(p =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.flavor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.brandName.toLowerCase().includes(searchQuery.toLowerCase())
+      p.storeName.toLowerCase().includes(searchQuery.toLowerCase())
     ).slice(0, 3)
     : [];
 
-  const handleSelectBrand = (brand: Brand) => {
-    if (setSelectedBrand) setSelectedBrand(brand);
-    setActiveTab('brand-store');
+  const handleSelectStore = (store: Store) => {
+    if (setSelectedStore) setSelectedStore(store);
+    setActiveTab('store-detail');
     setIsSearchFocused(false);
     setStoreDropdownOpen(false);
     setMobileMenuOpen(false);
@@ -173,41 +183,41 @@ export default function Navbar({
           {/* Quick Suggestions Popover */}
           {isSearchFocused && (
             <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-accent-200 shadow-2xl z-50 overflow-hidden divide-y divide-gray-100 animate-in fade-in zoom-in-95 duration-150">
-              {/* Brands Suggestions Section */}
+              {/* Stores Suggestions Section */}
               <div className="p-3">
                 <div className="flex items-center justify-between text-xs font-bold text-gray-500 uppercase tracking-wider px-2 mb-2">
                   <span className="flex items-center gap-1.5 text-primary-800">
-                    <Store className="w-3.5 h-3.5 text-primary-700" />
+                    <StoreIcon className="w-3.5 h-3.5 text-primary-700" />
                     <span>Gian hàng</span>
                   </span>
-                  {matchingBrands.length > 0 && (
-                    <span className="text-[11px] text-gray-400">({matchingBrands.length} gian hàng)</span>
+                  {matchingStores.length > 0 && (
+                    <span className="text-[11px] text-gray-400">({matchingStores.length} gian hàng)</span>
                   )}
                 </div>
 
-                {matchingBrands.length === 0 ? (
+                {matchingStores.length === 0 ? (
                   <p className="text-xs text-gray-500 px-2 py-1">Không có gian hàng nào khớp từ khóa "{searchQuery}"</p>
                 ) : (
                   <div className="space-y-1">
-                    {matchingBrands.slice(0, 4).map((brand) => (
+                    {matchingStores.slice(0, 4).map((store) => (
                       <div
-                        key={brand.id}
-                        onClick={() => handleSelectBrand(brand)}
+                        key={store.storeId}
+                        onClick={() => handleSelectStore(store)}
                         className="flex items-center justify-between p-2 rounded-xl hover:bg-accent-50 cursor-pointer transition group"
                       >
                         <div className="flex items-center gap-3">
                           <img
-                            src={brand.logo}
-                            alt={brand.name}
-                            className="w-9 h-9 rounded-lg object-cover border border-gray-200 group-hover:scale-105 transition"
+                            src={store.logoUrl}
+                            alt={store.name}
+                            className="w-9 h-9 rounded-lg object-contain bg-white border border-gray-200 group-hover:scale-105 transition"
                           />
                           <div>
                             <p className="text-xs font-bold text-gray-900 group-hover:text-primary-700 flex items-center gap-1">
-                              <span>{brand.name}</span>
+                              <span>{store.name}</span>
                               <ShieldCheck className="w-3 h-3 text-accent-600" />
                             </p>
                             <p className="text-[11px] text-gray-500">
-                              {brand.categoryLabel || 'Chính hãng'}
+                              {store.categoryLabel || 'Chính hãng'}
                             </p>
                           </div>
                         </div>
@@ -246,7 +256,7 @@ export default function Navbar({
                             <p className="text-xs font-medium text-gray-900 group-hover:text-primary-700 truncate max-w-xs">
                               {p.name}
                             </p>
-                            <p className="text-[11px] text-gray-500">{p.brandName}</p>
+                            <p className="text-[11px] text-gray-500">{p.storeName}</p>
                           </div>
                         </div>
                         <span className="text-xs font-bold text-primary-700 shrink-0">
@@ -329,15 +339,14 @@ export default function Navbar({
             )}
           </button>
 
-          {/* User Profile */}
-          <button
-            onClick={() => setActiveTab('profile')}
-            className={`p-2.5 rounded-full transition ${activeTab === 'profile' ? 'bg-primary-100 text-primary-700' : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            title="Tài khoản"
-          >
-            <User className="w-5 h-5" />
-          </button>
+          {/* Account: login/register or user menu (role-based links) */}
+          <UserMenu
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            onLogin={onLogin}
+            onRegister={onRegister}
+            onLogout={onLogout}
+          />
 
           {/* Mobile menu toggle */}
           <button
@@ -364,16 +373,16 @@ export default function Navbar({
               Trang Chủ
             </button>
 
-            {/* Stores & Brands with dropdown */}
+            {/* Stores with dropdown */}
             <div ref={storeDropdownRef} className="relative">
               <button
                 onClick={() => setStoreDropdownOpen(!storeDropdownOpen)}
-                className={`px-4 py-3 border-b-2 flex items-center gap-1.5 transition ${activeTab === 'brands' || activeTab === 'brand-store'
+                className={`px-4 py-3 border-b-2 flex items-center gap-1.5 transition ${activeTab === 'stores' || activeTab === 'store-detail'
                   ? 'border-primary-700 text-primary-700 font-bold'
                   : 'border-transparent text-gray-700 hover:text-primary-700'
                   }`}
               >
-                <Store className="w-4 h-4 text-accent-700" />
+                <StoreIcon className="w-4 h-4 text-accent-700" />
                 <span>Gian Hàng</span>
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform ${storeDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -383,27 +392,27 @@ export default function Navbar({
                 <div className="absolute top-full left-0 w-80 bg-white rounded-2xl border border-accent-200 shadow-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
                   <div className="px-4 py-2 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center justify-between">
                     <span>Gian Hàng Đối Tác Tuyển Chọn</span>
-                    <span className="text-primary-700 font-semibold">{BRANDS.length} thương hiệu</span>
+                    <span className="text-primary-700 font-semibold">{stores.length} thương hiệu</span>
                   </div>
 
                   <div className="py-1">
-                    {BRANDS.map((brand) => (
+                    {stores.map((store) => (
                       <div
-                        key={brand.id}
-                        onClick={() => handleSelectBrand(brand)}
+                        key={store.storeId}
+                        onClick={() => handleSelectStore(store)}
                         className="px-4 py-2.5 hover:bg-accent-50/70 cursor-pointer transition flex items-center gap-3 group"
                       >
                         <img
-                          src={brand.logo}
-                          alt={brand.name}
-                          className="w-9 h-9 rounded-xl object-cover border border-gray-200 group-hover:scale-105 transition"
+                          src={store.logoUrl}
+                          alt={store.name}
+                          className="w-9 h-9 rounded-xl object-contain bg-white border border-gray-200 group-hover:scale-105 transition"
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-xs font-bold text-gray-900 group-hover:text-primary-700 truncate">
-                            {brand.name}
+                            {store.name}
                           </p>
                           <p className="text-[11px] text-gray-500 truncate">
-                            {brand.categoryLabel || 'Thương hiệu chính hãng'}
+                            {store.categoryLabel || 'Thương hiệu chính hãng'}
                           </p>
                         </div>
                         <span className="text-xs text-primary-700 font-bold group-hover:translate-x-1 transition-transform">
@@ -416,7 +425,7 @@ export default function Navbar({
                   <div className="pt-2 px-4 pb-2 border-t border-gray-100">
                     <button
                       onClick={() => {
-                        setActiveTab('brands');
+                        setActiveTab('stores');
                         setStoreDropdownOpen(false);
                       }}
                       className="w-full text-center py-2 text-xs font-bold text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-xl transition flex items-center justify-center gap-1"
@@ -508,7 +517,7 @@ export default function Navbar({
             </button>
 
             <button
-              onClick={() => { setActiveTab('brands'); setMobileMenuOpen(false); }}
+              onClick={() => { setActiveTab('stores'); setMobileMenuOpen(false); }}
               className="p-2 text-left hover:bg-accent-50 rounded-lg flex items-center gap-2 text-primary-700"
             >
               <span>🏪</span>
@@ -544,8 +553,36 @@ export default function Navbar({
               className="p-2 text-left hover:bg-accent-50 rounded-lg flex items-center gap-2 text-accent-800"
             >
               <span>🏪</span>
-              <span>Kênh Người Bán & Quản Trị</span>
+              <span>Kênh Người Bán</span>
             </button>
+
+            {isAdmin && (
+              <button
+                onClick={() => { setActiveTab('admin'); setMobileMenuOpen(false); }}
+                className="p-2 text-left hover:bg-accent-50 rounded-lg flex items-center gap-2 text-accent-800"
+              >
+                <span>🛡️</span>
+                <span>Duyệt nhà cung cấp</span>
+              </button>
+            )}
+
+            {isAuthenticated ? (
+              <button
+                onClick={() => { onLogout(); setMobileMenuOpen(false); }}
+                className="p-2 text-left hover:bg-red-50 rounded-lg flex items-center gap-2 text-red-700"
+              >
+                <span>↩</span>
+                <span>Đăng xuất</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => { onRegister(); setMobileMenuOpen(false); }}
+                className="p-2 text-left hover:bg-accent-50 rounded-lg flex items-center gap-2 text-primary-700"
+              >
+                <span>✍️</span>
+                <span>Đăng ký tài khoản</span>
+              </button>
+            )}
           </div>
         </div>
       )}

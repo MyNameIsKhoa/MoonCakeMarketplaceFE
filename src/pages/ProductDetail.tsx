@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Star, ShieldCheck, Truck, RefreshCw, Heart, ShoppingBag, Plus, Minus, MessageSquare, CheckCircle2, Sparkles, Building2 } from 'lucide-react';
 import { Product, Review } from '../types';
 import { REVIEWS } from '../data/mockData';
+import { catalogApi, isApiId, withProductDetail, type ProductResponse } from '../services/api';
+
+const SUGAR_LEVELS = ['Ít ngọt (Giảm 30%)', 'Tiêu chuẩn', 'Không đường (Dành cho người ăn kiêng)'];
 
 interface ProductDetailProps {
   product: Product;
@@ -25,7 +28,42 @@ export default function ProductDetail({
   const [sugarLevel, setSugarLevel] = useState<string>(product.sugarLevel);
   const [selectedBoxOption, setSelectedBoxOption] = useState('Hộp quà tiêu chuẩn mạ vàng');
 
-  const productReviews = REVIEWS.filter(r => r.productId === product.id || r.productId === 'prod-1');
+  // Products from the API Gateway have numeric IDs: load description + variants (price, image, stock).
+  // Reviews live in Commerce and are not wired yet, so live products show none.
+  const isLive = isApiId(product.id);
+  const [detail, setDetail] = useState<ProductResponse | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [variantId, setVariantId] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isLive) return;
+    let cancelled = false;
+    catalogApi.products.get(Number(product.id))
+      .then((loaded) => {
+        if (cancelled) return;
+        const firstVariant = loaded.variants.find((v) => v.stockQuantity > 0) ?? loaded.variants[0];
+        setDetail(loaded);
+        setVariantId(firstVariant?.variantId ?? null);
+        if (firstVariant?.imageUrl) setActiveImage(firstVariant.imageUrl);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setLoadError(err instanceof Error ? err.message : 'Không tải được chi tiết sản phẩm.');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isLive, product.id]);
+
+  const view = detail ? withProductDetail(product, detail) : product;
+  const variants = detail?.variants ?? [];
+  const selectedVariant = variants.find((v) => v.variantId === variantId);
+  // What goes into the cart: the chosen variant's price/image; the variant name is the cart option.
+  const cartProduct: Product = selectedVariant
+    ? { ...view, variantId: String(selectedVariant.variantId), price: selectedVariant.basePrice, image: selectedVariant.imageUrl || view.image, inStock: selectedVariant.stockQuantity > 0 }
+    : view;
+  const cartOption = selectedVariant?.variantName ?? sugarLevel;
+
+  const productReviews = isLive ? [] : REVIEWS.filter(r => r.productId === product.id || r.productId === 'prod-1');
 
   return (
     <div className="mss-container py-8 space-y-12">
@@ -47,7 +85,7 @@ export default function ProductDetail({
           </div>
 
           <div className="grid grid-cols-3 gap-3">
-            {[product.image, ...(product.gallery || [])].slice(0, 3).map((img, idx) => (
+            {[view.image, ...(view.gallery || [])].slice(0, 3).map((img, idx) => (
               <div
                 key={idx}
                 onClick={() => setActiveImage(img)}
@@ -65,7 +103,7 @@ export default function ProductDetail({
         <div className="space-y-6">
           <div>
             <div className="flex items-center justify-between">
-              <span className="text-sm font-bold text-accent-700 bg-accent-100 px-3 py-1 rounded-full">{product.brandName}</span>
+              <span className="text-sm font-bold text-accent-700 bg-accent-100 px-3 py-1 rounded-full">{product.storeName}</span>
               <button
                 onClick={() => onToggleWishlist(product.id)}
                 className={`p-3 rounded-full transition ${
@@ -75,8 +113,9 @@ export default function ProductDetail({
                 <Heart className="w-5 h-5" />
               </button>
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mt-3">{product.name}</h1>
-            
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mt-3">{view.name}</h1>
+
+            {product.reviewCount > 0 && (
             <div className="flex items-center gap-3 mt-3">
               <div className="flex items-center gap-1 text-accent-500">
                 <Star className="w-4 h-4 fill-current" />
@@ -87,28 +126,54 @@ export default function ProductDetail({
               <span className="text-gray-300">|</span>
               <span className="text-sm text-green-700 font-semibold">Đã bán {product.salesCount}+</span>
             </div>
+            )}
           </div>
 
           <div className="bg-accent-50/70 border border-accent-200 p-4 rounded-xl flex items-baseline gap-4">
-            <span className="text-3xl font-bold text-primary-700">{product.price.toLocaleString()}đ</span>
+            <span className="text-3xl font-bold text-primary-700">{cartProduct.price.toLocaleString()}đ</span>
             {product.originalPrice && (
               <span className="text-gray-500 text-base line-through">{product.originalPrice.toLocaleString()}đ</span>
             )}
-            <span className="bg-primary-100 text-primary-700 text-sm font-bold px-3 py-1 rounded">Chính hãng 100%</span>
+            {!isLive && <span className="bg-primary-100 text-primary-700 text-sm font-bold px-3 py-1 rounded">Chính hãng 100%</span>}
           </div>
 
-          <p className="text-sm md:text-sm text-gray-600 leading-relaxed">{product.description}</p>
+          <p className="text-sm md:text-sm text-gray-600 leading-relaxed">
+            {isLive && !detail && !loadError ? 'Đang tải thông tin sản phẩm...' : view.description}
+          </p>
+          {loadError && <p className="text-sm text-red-600">{loadError}</p>}
 
           <div className="space-y-4 pt-2 border-t border-gray-200">
-            {/* Sugar level option */}
+            {variants.length > 0 ? (
+            /* Variant option (product_variant from Catalog) */
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2">Phân loại:</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {variants.map((variant) => (
+                  <button
+                    key={variant.variantId}
+                    onClick={() => {
+                      setVariantId(variant.variantId);
+                      if (variant.imageUrl) setActiveImage(variant.imageUrl);
+                    }}
+                    disabled={variant.stockQuantity <= 0}
+                    className={`p-3 text-sm font-semibold rounded-xl border text-center transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                      variantId === variant.variantId ? 'bg-primary-50 border-primary-700 text-primary-700 shadow-sm' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="block">{variant.variantName}</span>
+                    <span className="block text-xs font-normal">
+                      {variant.stockQuantity > 0 ? `${variant.basePrice.toLocaleString()}đ` : 'Hết hàng'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            ) : (
+            /* Sugar level option */
             <div>
               <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2">Lựa chọn độ ngọt:</label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {[
-                  'Ít ngọt (Giảm 30%)',
-                  'Tiêu chuẩn',
-                  'Không đường (Dành cho người ăn kiêng)'
-                ].map((level) => (
+                {SUGAR_LEVELS.map((level) => (
                   <button
                     key={level}
                     onClick={() => setSugarLevel(level)}
@@ -121,8 +186,10 @@ export default function ProductDetail({
                 ))}
               </div>
             </div>
+            )}
 
-            {/* Box Option */}
+            {/* Mock-only box choices are not priced by Catalog. */}
+            {!isLive && <>
             <div>
               <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2">Quy cách hộp quà:</label>
               <select
@@ -135,6 +202,7 @@ export default function ProductDetail({
                 <option value="Hộp quà doanh nghiệp in logo (+50K/hộp)">Hộp quà doanh nghiệp in logo (Đơn từ 10 hộp)</option>
               </select>
             </div>
+            </>}
 
             {/* Quantity */}
             <div className="flex items-center gap-4">
@@ -160,15 +228,17 @@ export default function ProductDetail({
           {/* Action buttons */}
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
             <button
-              onClick={() => onAddToCart(product, quantity, sugarLevel)}
-              className="flex-1 py-4 bg-accent-500 hover:bg-accent-600 text-primary-950 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 transition"
+              onClick={() => onAddToCart(cartProduct, quantity, cartOption)}
+              disabled={!cartProduct.inStock || (isLive && !selectedVariant)}
+              className="flex-1 py-4 bg-accent-500 hover:bg-accent-600 text-primary-950 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ShoppingBag className="w-5 h-5" />
-              <span>Thêm Vào Giỏ Hàng</span>
+              <span>{cartProduct.inStock ? 'Thêm Vào Giỏ Hàng' : 'Tạm Hết Hàng'}</span>
             </button>
             <button
-              onClick={() => onBuyNow(product, quantity, sugarLevel)}
-              className="flex-1 py-4 bg-gradient-to-r from-primary-700 to-accent-700 hover:from-primary-800 hover:to-accent-800 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition"
+              onClick={() => onBuyNow(cartProduct, quantity, cartOption)}
+              disabled={!cartProduct.inStock || (isLive && !selectedVariant)}
+              className="flex-1 py-4 bg-gradient-to-r from-primary-700 to-accent-700 hover:from-primary-800 hover:to-accent-800 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span>Mua Ngay (Thanh Toán Nhanh)</span>
             </button>
@@ -189,7 +259,8 @@ export default function ProductDetail({
         </div>
       </div>
 
-      {/* Specifications & Ingredients */}
+      {/* Specifications & Ingredients (mock-only fields; Catalog has no ingredients/weight yet) */}
+      {(product.ingredients.length > 0 || product.weight) && (
       <div className="bg-white rounded-2xl border border-accent-200/70 p-6 md:p-8 shadow-sm space-y-6">
         <h3 className="text-xl font-bold text-gray-900 border-b border-gray-200 pb-4">Thành Phần & Thông Tin Dinh Dưỡng</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-gray-700">
@@ -209,12 +280,16 @@ export default function ProductDetail({
           </div>
         </div>
       </div>
+      )}
 
       {/* Customer Reviews */}
       <div className="bg-white rounded-2xl border border-accent-200/70 p-6 md:p-8 shadow-sm space-y-6">
         <h3 className="text-xl font-bold text-gray-900 border-b border-gray-200 pb-4">Đánh Giá Từ Khách Hàng ({product.reviewCount})</h3>
 
         <div className="space-y-6">
+          {productReviews.length === 0 && (
+            <p className="text-sm text-gray-500">Sản phẩm chưa có đánh giá nào.</p>
+          )}
           {productReviews.map((rev) => (
             <div key={rev.id} className="border-b border-gray-100 pb-6 space-y-3">
               <div className="flex items-center justify-between">

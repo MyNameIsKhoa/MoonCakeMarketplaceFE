@@ -4,16 +4,18 @@
 
 export interface Product {
   id: string;
+  variantId?: string;
   name: string;
-  brandId: string;
-  brandName: string;
+  storeId: string;
+  storeName: string;
   price: number;
   originalPrice?: number;
   rating: number;
   reviewCount: number;
   image: string;
   gallery: string[];
-  category: 'truyen-thong' | 'hiện-đại' | 'chay' | 'cao-cap' | 'thieu-nhi';
+  /** Category slug (mock: 'truyen-thong' | 'hiện-đại' | 'chay' | 'cao-cap' | 'thieu-nhi'; API: category.slug). */
+  category: string;
   flavor: string;
   weight: string;
   ingredients: string[];
@@ -50,15 +52,19 @@ export interface Promotion {
   rules: PromotionRule[];
 }
 
-/** store + supplier_profile summary as the storefront needs it. */
-export interface Brand {
-  id: string;
+/**
+ * store + supplier_profile summary as the storefront needs it.
+ * Field names follow StoreResponse (GET /api/stores); IDs are strings so mock slugs and API numbers share one type.
+ */
+export interface Store {
+  storeId: string;
   storeCode: string;
   name: string;
-  supplierId: string;
+  slug: string;
+  supplierIdRef: string;
   supplierName: string;
-  logo: string;
-  banner: string;
+  logoUrl: string;
+  bannerUrl: string;
   description: string;
   categoryType?: 'all' | 'truyen-thong' | 'cao-cap' | 'hien-dai' | 'healthy';
   categoryLabel?: string;
@@ -71,7 +77,7 @@ export interface Brand {
 }
 
 export interface StoreBranch {
-  id: string;
+  branchId: string;
   name: string;
   addressLine: string;
   ward?: string;
@@ -84,6 +90,7 @@ export interface StoreBranch {
 
 export interface CartItem {
   id: string;
+  variantId?: string;
   productId: string;
   product: Product;
   quantity: number;

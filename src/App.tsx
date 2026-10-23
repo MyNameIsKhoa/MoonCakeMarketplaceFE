@@ -7,7 +7,7 @@ import AIAssistantModal from './components/AIAssistantModal';
 import Home from './pages/Home';
 import ProductList from './pages/ProductList';
 import ProductDetail from './pages/ProductDetail';
-import BrandStore from './pages/BrandStore';
+import StoreDetail from './pages/StoreDetail';
 import Checkout from './pages/Checkout';
 import OrderTracking from './pages/OrderTracking';
 import B2BPortal from './pages/B2BPortal';
@@ -15,72 +15,95 @@ import UserProfile from './pages/UserProfile';
 import SellerCenter from './pages/seller/SellerCenter';
 import PaymentSettlement from './features/payment-settlement/PaymentSettlement';
 import { FulfillmentDemoPage } from './features/fulfillment/pages/FulfillmentDemoPage';
+import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
+import SupplierOnboarding from './pages/seller/SupplierOnboarding';
+import AdminSupplierReview from './pages/admin/AdminSupplierReview';
+import EmptyState from './components/ui/EmptyState';
 
-import { Product, Brand, CartItem } from './types';
-import { PRODUCTS, BRANDS } from './data/mockData';
+import { Product, Store, CartItem } from './types';
+import { PRODUCTS, STORES } from './data/mockData';
+import { useCatalog } from './context/CatalogContext';
+import { useAuth } from './context/AuthContext';
+import { accessLevelOf, canAccess } from './utils/permissions';
+import { cartApi, catalogApi, isApiId } from './services/api';
+
+/** Shown on the login screen when a guest opens a protected tab. */
+const LOGIN_NOTICES: Record<string, string> = {
+  checkout: 'Vui lòng đăng nhập rồi thêm sản phẩm để thanh toán.',
+  orders: 'Vui lòng đăng nhập để xem đơn hàng của bạn.',
+  profile: 'Vui lòng đăng nhập để xem tài khoản.',
+  wishlist: 'Vui lòng đăng nhập để xem danh sách yêu thích.',
+  b2b: 'Vui lòng đăng nhập để gửi yêu cầu báo giá doanh nghiệp.',
+  'payment-settlement': 'Vui lòng đăng nhập để xem thanh toán của bạn.',
+  'seller-center': 'Đăng nhập bằng tài khoản nhà cung cấp để vào Kênh Người Bán.',
+  admin: 'Đăng nhập bằng tài khoản quản trị viên.'
+};
 
 export default function App() {
+  const { stores } = useCatalog();
+  const auth = useAuth();
   const [activeTab, setActiveTab] = useState<string>(() => new URLSearchParams(location.search).has('finance') ? 'payment-settlement' : 'home');
+  /** Protected tab to return to after login/register. */
+  const [returnTab, setReturnTab] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product>(PRODUCTS[0]);
-  const [selectedBrand, setSelectedBrand] = useState<Brand>(BRANDS[0]);
+  const [selectedStore, setSelectedStore] = useState<Store>(STORES[0]);
 
-  const [cartItems, setCartItems] = useState<CartItem[]>([
-    {
-      id: 'cart-1',
-      productId: PRODUCTS[0].id,
-      product: PRODUCTS[0],
-      quantity: 1,
-      sugarLevel: 'Ít ngọt (Giảm 30%)'
-    }
-  ]);
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [cartError, setCartError] = useState('');
 
   const [wishlistIds, setWishlistIds] = useState<string[]>(['prod-1', 'prod-3']);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Cart actions
-  const handleAddToCart = (product: Product, quantity = 1, sugarLevel: string = product.sugarLevel, openCart = true) => {
-    setCartItems(prev => {
-      const existing = prev.find(item => item.productId === product.id && item.sugarLevel === sugarLevel);
-      if (existing) {
-        return prev.map(item =>
-          item.id === existing.id ? { ...item, quantity: item.quantity + quantity } : item
-        );
+  useEffect(() => {
+    if (!auth.isAuthenticated) { setCartItems([]); return; }
+    cartApi.list().then(setCartItems).catch((err: unknown) =>
+      setCartError(err instanceof Error ? err.message : 'Không tải được giỏ hàng.'));
+  }, [auth.isAuthenticated]);
+
+  const refreshCart = async () => setCartItems(await cartApi.list());
+  const handleAddToCart = async (product: Product, quantity = 1, _option: string = product.sugarLevel, openCart = true) => {
+    if (!auth.isAuthenticated) { setActiveTab('login'); return false; }
+    try {
+      setCartError('');
+      if (!isApiId(product.id)) throw new Error('Chỉ có thể mua sản phẩm đang có trên API Catalog.');
+      let variantId = product.variantId;
+      if (!variantId) {
+        const detail = await catalogApi.products.get(Number(product.id));
+        variantId = String(detail.variants.find((v) => v.stockQuantity > 0)?.variantId ?? '');
       }
-      return [
-        ...prev,
-        {
-          id: 'cart-' + Date.now(),
-          productId: product.id,
-          product,
-          quantity,
-          sugarLevel
-        }
-      ];
-    });
-    if (openCart) setIsCartOpen(true);
+      if (!variantId || !isApiId(variantId)) throw new Error('Sản phẩm chưa có phân loại còn hàng.');
+      await cartApi.add(variantId, quantity);
+      await refreshCart();
+      if (openCart) setIsCartOpen(true);
+      return true;
+    } catch (err) {
+      setCartError(err instanceof Error ? err.message : 'Không thêm được vào giỏ hàng.');
+      setIsCartOpen(true);
+      return false;
+    }
   };
 
-  const handleUpdateQuantity = (id: string, delta: number) => {
-    setCartItems(prev =>
-      prev.map(item => {
-        if (item.id === id) {
-          const newQ = item.quantity + delta;
-          return newQ > 0 ? { ...item, quantity: newQ } : item;
-        }
-        return item;
-      })
-    );
+  const handleUpdateQuantity = async (id: string, delta: number) => {
+    try {
+      setCartError('');
+      const item = cartItems.find((line) => line.id === id);
+      if (!item) return;
+      if (item.quantity + delta <= 0) await cartApi.remove(id);
+      else await cartApi.update(id, item.quantity + delta);
+      await refreshCart();
+    } catch (err) { setCartError(err instanceof Error ? err.message : 'Không cập nhật được giỏ hàng.'); }
   };
 
-  const handleRemoveItem = (id: string) => {
-    setCartItems(prev => prev.filter(item => item.id !== id));
+  const handleRemoveItem = async (id: string) => {
+    try { setCartError(''); await cartApi.remove(id); await refreshCart(); }
+    catch (err) { setCartError(err instanceof Error ? err.message : 'Không xóa được sản phẩm.'); }
   };
 
-  const handleBuyNow = (product: Product, quantity = 1, sugarLevel: string = product.sugarLevel) => {
-    handleAddToCart(product, quantity, sugarLevel, false);
-    setActiveTab('checkout');
+  const handleBuyNow = async (product: Product, quantity = 1, option: string = product.sugarLevel) => {
+    if (await handleAddToCart(product, quantity, option, false)) setActiveTab('checkout');
   };
 
   const handleToggleWishlist = (productId: string) => {
@@ -93,11 +116,66 @@ export default function App() {
   // the app only clears the cart once an order has been placed.
   const handleOrderPlaced = () => setCartItems([]);
 
-  const isSellerCenter = activeTab === 'seller-center';
+  // Access control: a protected tab renders a gate (login / supplier onboarding / 403) instead of the page.
+  const accessLevel = accessLevelOf(activeTab);
+  const isAllowed = canAccess(accessLevel, auth);
+  const isSellerCenter = activeTab === 'seller-center' && isAllowed;
+
+  const goToAuth = (mode: 'login' | 'register') => {
+    setReturnTab(accessLevel !== 'public' ? activeTab : returnTab);
+    setActiveTab(mode);
+  };
+
+  const finishAuth = (fallbackTab = 'home') => {
+    setActiveTab(returnTab ?? fallbackTab);
+    setReturnTab(null);
+  };
+
+  const handleLogout = () => {
+    auth.logout();
+    setReturnTab(null);
+    setActiveTab('home');
+  };
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [activeTab]);
+
+  const renderGate = () => {
+    if (auth.status === 'loading') {
+      return <div className="mss-container mss-page"><p className="text-sm text-gray-500">Đang kiểm tra phiên đăng nhập…</p></div>;
+    }
+    if (!auth.isAuthenticated) {
+      return (
+        <Login
+          notice={LOGIN_NOTICES[activeTab]}
+          onSuccess={() => setReturnTab(null)}
+          onSwitchToRegister={() => goToAuth('register')}
+        />
+      );
+    }
+    if (accessLevel === 'supplier') {
+      return (
+        <SupplierOnboarding
+          onBackToShop={() => setActiveTab('home')}
+          onRelogin={() => {
+            // A new token is needed to carry ROLE_SUPPLIER; staying on this tab shows the login gate
+            // and reopens the seller center once logged in.
+            auth.logout();
+          }}
+        />
+      );
+    }
+    return (
+      <div className="mss-container mss-page">
+        <EmptyState
+          title="Bạn không có quyền truy cập trang này"
+          description="Trang này chỉ dành cho quản trị viên của sàn."
+          action={<button className="mss-button mss-button--primary" onClick={() => setActiveTab('home')}>Về trang chủ</button>}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="mss-app selection:bg-accent-200 selection:text-primary-950">
@@ -111,17 +189,38 @@ export default function App() {
           onOpenAI={() => setIsAIOpen(true)}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-          setSelectedBrand={setSelectedBrand}
+          setSelectedStore={setSelectedStore}
           setSelectedProduct={setSelectedProduct}
+          onLogin={() => goToAuth('login')}
+          onRegister={() => goToAuth('register')}
+          onLogout={handleLogout}
         />
       )}
 
       <main className="mss-main">
+        {!isAllowed ? renderGate() : <>
+        {activeTab === 'login' && (
+          <Login
+            onSuccess={() => finishAuth()}
+            onSwitchToRegister={() => setActiveTab('register')}
+          />
+        )}
+
+        {activeTab === 'register' && (
+          <Register
+            onSuccess={(accountType) => finishAuth(accountType === 'supplier' ? 'seller-center' : 'home')}
+            onSwitchToLogin={() => setActiveTab('login')}
+            defaultAccountType={returnTab === 'seller-center' ? 'supplier' : 'customer'}
+          />
+        )}
+
+        {activeTab === 'admin' && <AdminSupplierReview />}
+
         {activeTab === 'home' && (
           <Home
             setActiveTab={setActiveTab}
             setSelectedProduct={setSelectedProduct}
-            setSelectedBrand={setSelectedBrand}
+            setSelectedStore={setSelectedStore}
             onAddToCart={(p) => handleAddToCart(p, 1, p.sugarLevel)}
             wishlistIds={wishlistIds}
             onToggleWishlist={handleToggleWishlist}
@@ -156,25 +255,25 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'brands' && (
+        {activeTab === 'stores' && (
           <div className="mss-container mss-page">
             <header className="mss-page-header">
               <h1 className="mss-page-title">Tất cả thương hiệu chính hãng</h1>
             </header>
             <div className="mss-grid-3">
-              {BRANDS.map(brand => (
+              {stores.map(store => (
                 <div
-                  key={brand.id}
+                  key={store.storeId}
                   onClick={() => {
-                    setSelectedBrand(brand);
-                    setActiveTab('brand-store');
+                    setSelectedStore(store);
+                    setActiveTab('store-detail');
                   }}
                   className="mss-card hover:border-primary-700 cursor-pointer transition flex items-center gap-4"
                 >
-                  <img src={brand.logo} alt={brand.name} className="w-20 h-20 aspect-square rounded-xl object-cover border border-gray-200" />
+                  <img src={store.logoUrl} alt={store.name} className="w-20 h-20 aspect-square rounded-xl object-contain bg-white p-1 border border-gray-200" />
                   <div className="min-w-0">
-                    <h3 className="mss-card-title">{brand.name}</h3>
-                    <p className="text-sm text-gray-500 mt-1">{brand.categoryLabel || 'Thương hiệu chính hãng'}</p>
+                    <h3 className="mss-card-title">{store.name}</h3>
+                    <p className="text-sm text-gray-500 mt-1">{store.categoryLabel || 'Thương hiệu chính hãng'}</p>
                     <span className="inline-block mt-2 text-sm font-semibold text-primary-700">Khám phá gian hàng →</span>
                   </div>
                 </div>
@@ -183,9 +282,10 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'brand-store' && (
-          <BrandStore
-            brand={selectedBrand}
+        {activeTab === 'store-detail' && (
+          <StoreDetail
+            key={selectedStore.storeId}
+            store={selectedStore}
             setSelectedProduct={(p) => {
               setSelectedProduct(p);
               setActiveTab('detail');
@@ -229,6 +329,7 @@ export default function App() {
             setActiveTab={setActiveTab}
           />
         )}
+        </>}
       </main>
 
       {!isSellerCenter && <Footer />}
@@ -237,6 +338,7 @@ export default function App() {
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
         items={cartItems}
+        error={cartError}
         onUpdateQuantity={handleUpdateQuantity}
         onRemoveItem={handleRemoveItem}
         onProceedCheckout={() => setActiveTab('checkout')}

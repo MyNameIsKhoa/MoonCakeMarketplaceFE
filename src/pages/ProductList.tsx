@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Star, Filter, Heart, ShoppingBag, ChevronRight, SlidersHorizontal } from 'lucide-react';
-import { Product, Brand } from '../types';
-import { PRODUCTS, BRANDS, CATEGORIES } from '../data/mockData';
+import { Product, Store } from '../types';
+import { useCatalog } from '../context/CatalogContext';
 
 interface ProductListProps {
   searchQuery: string;
@@ -22,21 +22,22 @@ export default function ProductList({
   wishlistIds,
   onToggleWishlist
 }: ProductListProps) {
+  const { stores, products, categories, source } = useCatalog();
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedBrandId, setSelectedBrandId] = useState('all');
+  const [selectedStoreId, setSelectedStoreId] = useState('all');
   const [priceRange, setPriceRange] = useState('all');
   const [sugarFilter, setSugarFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('popular');
+  const [sortBy, setSortBy] = useState('default');
 
   const filteredProducts = useMemo(() => {
-    return PRODUCTS.filter((product) => {
+    return products.filter((product) => {
       // Search query match
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
         const matchName = product.name.toLowerCase().includes(q);
-        const matchBrand = product.brandName.toLowerCase().includes(q);
+        const matchStore = product.storeName.toLowerCase().includes(q);
         const matchFlavor = product.flavor.toLowerCase().includes(q);
-        if (!matchName && !matchBrand && !matchFlavor) return false;
+        if (!matchName && !matchStore && !matchFlavor) return false;
       }
 
       // Category match
@@ -44,8 +45,8 @@ export default function ProductList({
         return false;
       }
 
-      // Brand match
-      if (selectedBrandId !== 'all' && product.brandId !== selectedBrandId) {
+      // Store match
+      if (selectedStoreId !== 'all' && product.storeId !== selectedStoreId) {
         return false;
       }
 
@@ -56,7 +57,7 @@ export default function ProductList({
       if (priceRange === 'over-1000' && product.price <= 1000000) return false;
 
       // Sugar level
-      if (sugarFilter !== 'all' && !product.sugarLevel.toLowerCase().includes(sugarFilter.toLowerCase())) {
+      if (source === 'mock' && sugarFilter !== 'all' && !product.sugarLevel.toLowerCase().includes(sugarFilter.toLowerCase())) {
         return false;
       }
 
@@ -65,17 +66,18 @@ export default function ProductList({
       if (sortBy === 'price-asc') return a.price - b.price;
       if (sortBy === 'price-desc') return b.price - a.price;
       if (sortBy === 'rating') return b.rating - a.rating;
-      return b.salesCount - a.salesCount; // popular
+      if (sortBy === 'popular') return b.salesCount - a.salesCount;
+      return 0;
     });
-  }, [searchQuery, selectedCategory, selectedBrandId, priceRange, sugarFilter, sortBy]);
+  }, [products, searchQuery, selectedCategory, selectedStoreId, priceRange, sugarFilter, sortBy, source]);
 
   return (
     <div className="mss-container py-8 space-y-8">
       {/* Breadcrumb & Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 pb-6">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Tất Cả Sản Phẩm & Hộp Quà Trung Thu 2026</h1>
-          <p className="text-gray-500 text-sm mt-1">Khám phá hơn 100+ mẫu bánh nướng, bánh dẻo và hộp quà biếu cao cấp chính hãng</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Sản phẩm & hộp quà Trung thu</h1>
+          <p className="text-gray-500 text-sm mt-1">{products.length} sản phẩm {source === 'mock' ? 'dữ liệu mẫu' : 'từ gian hàng'}</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -85,8 +87,9 @@ export default function ProductList({
             onChange={(e) => setSortBy(e.target.value)}
             className="p-3 bg-white border border-gray-300 rounded-xl text-sm font-semibold text-gray-800 focus:ring-2 focus:ring-primary-700 outline-none shadow-sm"
           >
-            <option value="popular">Phổ biến nhất</option>
-            <option value="rating">Đánh giá cao nhất</option>
+            <option value="default">Mặc định</option>
+            {source === 'mock' && <option value="popular">Phổ biến nhất</option>}
+            {source === 'mock' && <option value="rating">Đánh giá cao nhất</option>}
             <option value="price-asc">Giá: Thấp đến Cao</option>
             <option value="price-desc">Giá: Cao đến Thấp</option>
           </select>
@@ -104,7 +107,7 @@ export default function ProductList({
             <button
               onClick={() => {
                 setSelectedCategory('all');
-                setSelectedBrandId('all');
+                setSelectedStoreId('all');
                 setPriceRange('all');
                 setSugarFilter('all');
                 setSearchQuery('');
@@ -119,7 +122,7 @@ export default function ProductList({
           <div className="space-y-2">
             <h4 className="font-semibold text-sm text-gray-700 uppercase tracking-wider">Danh Mục</h4>
             <div className="space-y-1">
-              {CATEGORIES.map((cat) => (
+              {categories.map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => setSelectedCategory(cat.id)}
@@ -134,27 +137,27 @@ export default function ProductList({
             </div>
           </div>
 
-          {/* Brands */}
+          {/* Stores */}
           <div className="space-y-2 pt-4 border-t border-gray-200">
             <h4 className="font-semibold text-sm text-gray-700 uppercase tracking-wider">Thương Hiệu</h4>
             <div className="space-y-1 max-h-48 overflow-y-auto">
               <button
-                onClick={() => setSelectedBrandId('all')}
+                onClick={() => setSelectedStoreId('all')}
                 className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition ${
-                  selectedBrandId === 'all' ? 'bg-primary-50 text-primary-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                  selectedStoreId === 'all' ? 'bg-primary-50 text-primary-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'
                 }`}
               >
                 Tất cả thương hiệu
               </button>
-              {BRANDS.map((brand) => (
+              {stores.map((store) => (
                 <button
-                  key={brand.id}
-                  onClick={() => setSelectedBrandId(brand.id)}
+                  key={store.storeId}
+                  onClick={() => setSelectedStoreId(store.storeId)}
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition ${
-                    selectedBrandId === brand.id ? 'bg-primary-50 text-primary-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'
+                    selectedStoreId === store.storeId ? 'bg-primary-50 text-primary-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  {brand.name}
+                  {store.name}
                 </button>
               ))}
             </div>
@@ -186,7 +189,7 @@ export default function ProductList({
           </div>
 
           {/* Sugar Level */}
-          <div className="space-y-2 pt-4 border-t border-gray-200">
+          {source === 'mock' && <div className="space-y-2 pt-4 border-t border-gray-200">
             <h4 className="font-semibold text-sm text-gray-700 uppercase tracking-wider">Độ Ngọt & Chế Độ</h4>
             <div className="space-y-2 text-sm text-gray-600">
               {[
@@ -207,7 +210,7 @@ export default function ProductList({
                 </label>
               ))}
             </div>
-          </div>
+          </div>}
         </div>
 
         {/* Product Grid */}
@@ -256,21 +259,21 @@ export default function ProductList({
 
                   <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                     <div>
-                      <span className="text-sm text-accent-700 font-semibold">{product.brandName}</span>
+                      <span className="text-sm text-accent-700 font-semibold">{product.storeName}</span>
                       <h3
                         onClick={() => { setSelectedProduct(product); setActiveTab('detail'); }}
                         className="font-bold text-gray-900 text-sm line-clamp-2 hover:text-primary-700 cursor-pointer transition mt-1"
                       >
                         {product.name}
                       </h3>
-                      <p className="text-xs text-gray-500 mt-1">{product.weight}</p>
+                      {product.weight && <p className="text-xs text-gray-500 mt-1">{product.weight}</p>}
                     </div>
 
                     <div>
                       <div className="flex items-center gap-2 text-sm text-accent-500 mb-2">
                         <Star className="w-3.5 h-3.5 fill-current" />
-                        <span className="font-bold text-gray-700">{product.rating}</span>
-                        <span className="text-gray-500">({product.reviewCount})</span>
+                        {product.reviewCount > 0 && <><span className="font-bold text-gray-700">{product.rating}</span>
+                        <span className="text-gray-500">({product.reviewCount})</span></>}
                       </div>
 
                       <div className="flex items-baseline justify-between">

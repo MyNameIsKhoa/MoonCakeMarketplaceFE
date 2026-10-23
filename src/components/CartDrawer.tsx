@@ -1,4 +1,4 @@
-import { X, ShoppingBag, Trash2, Plus, Minus, ArrowRight, Store } from 'lucide-react';
+import { X, ShoppingBag, Trash2, Plus, Minus, ArrowRight, Store as StoreIcon } from 'lucide-react';
 import { CartItem } from '../types';
 import { formatVnd } from '../utils/format';
 
@@ -6,6 +6,7 @@ interface CartDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   items: CartItem[];
+  error?: string;
   onUpdateQuantity: (id: string, delta: number) => void;
   onRemoveItem: (id: string) => void;
   onProceedCheckout: () => void;
@@ -15,6 +16,7 @@ export default function CartDrawer({
   isOpen,
   onClose,
   items,
+  error,
   onUpdateQuantity,
   onRemoveItem,
   onProceedCheckout
@@ -25,8 +27,8 @@ export default function CartDrawer({
   const estimatedSubtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
 
   const groups = items.reduce<Record<string, { storeName: string; items: CartItem[] }>>((acc, item) => {
-    const key = item.product.brandId;
-    acc[key] ??= { storeName: item.product.brandName, items: [] };
+    const key = item.product.storeId;
+    acc[key] ??= { storeName: item.product.storeName, items: [] };
     acc[key].items.push(item);
     return acc;
   }, {});
@@ -49,6 +51,7 @@ export default function CartDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
+          {error && <div role="alert" className="mss-alert mss-alert--danger">{error}</div>}
           {items.length === 0 ? (
             <div className="mss-empty">
               <p className="text-lg font-semibold text-gray-900">Giỏ hàng đang trống</p>
@@ -61,7 +64,7 @@ export default function CartDrawer({
             Object.entries(groups).map(([storeId, group]) => (
               <section key={storeId} className="flex flex-col gap-3">
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <Store className="w-4 h-4 text-primary-700" />
+                  <StoreIcon className="w-4 h-4 text-primary-700" />
                   {group.storeName}
                 </h3>
                 {group.items.map((item) => (
