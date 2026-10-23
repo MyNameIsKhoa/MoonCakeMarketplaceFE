@@ -41,5 +41,13 @@ export {
   isApiId, toStore, toStoreBranch, toCategoryOption, toProduct, withProductDetail, toPromotion
 } from './catalogMappers';
 export type { CategoryOption } from './catalogMappers';
-export { ApiError, getAccessToken, setAccessToken } from './http';
+// ---------------------------------------------------------------------------
+// Identity (TV1) — register/login, current user, supplier onboarding, admin review.
+// ---------------------------------------------------------------------------
+export { authApi, userApi, supplierProfileApi, adminSupplierApi } from './identityApi';
+export type * from './identityTypes';
+
+export {
+  ApiError, getAccessToken, setAccessToken, readTokenPayload, isTokenExpired, UNAUTHORIZED_EVENT
+} from './http';
 export type * from './catalogTypes';

@@ -88,6 +88,14 @@ export const PROMOTION_RULE: StatusMap = {
   BUY_X_GET_Y: { label: 'Mua X tặng Y', variant: 'neutral' }
 };
 
+/** supplier_profile.verification_status (Identity). */
+export const SUPPLIER_VERIFICATION: StatusMap = {
+  PENDING: { label: 'Chờ duyệt', variant: 'warning' },
+  VERIFIED: { label: 'Đã xác minh', variant: 'success' },
+  REJECTED: { label: 'Bị từ chối', variant: 'danger' },
+  SUSPENDED: { label: 'Tạm khóa', variant: 'neutral' },
+};
+
 export function getStatusMeta(map: StatusMap, code: string | undefined): StatusMeta {
   if (!code) return { label: '—', variant: 'neutral' };
   return map[code] ?? { label: code, variant: 'neutral' };

@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Heart, Award, Plus, Building2 } from 'lucide-react';
 import { Address, Product } from '../types';
 import { STORES, PRODUCTS, PROMOTIONS } from '../data/mockData';
-import { addressApi } from '../services/api';
+import { addressApi, ApiError, userApi } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { formatAddress, formatDate } from '../utils/format';
 
 const EMPTY_ADDRESS = {
@@ -33,6 +34,31 @@ export default function UserProfile({
   setActiveTab
 }: UserProfileProps) {
   const [activeProfileTab, setActiveProfileTab] = useState<ProfileTab>(initialTab);
+
+  // Account info: GET/PATCH /api/users/me (the page is only reachable when logged in).
+  const { user, setUser, isAdmin, isSupplier } = useAuth();
+  const [fullName, setFullName] = useState(user?.fullName ?? '');
+  const [phone, setPhone] = useState(user?.phone ?? '');
+  const [profileMessage, setProfileMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const displayName = user?.fullName || user?.email || 'Tài khoản';
+
+  const handleSaveProfile = async () => {
+    if (!fullName.trim()) {
+      setProfileMessage({ ok: false, text: 'Họ và tên không được để trống.' });
+      return;
+    }
+    setIsSavingProfile(true);
+    setProfileMessage(null);
+    try {
+      setUser(await userApi.updateMe({ fullName: fullName.trim(), phone: phone.trim() }));
+      setProfileMessage({ ok: true, text: 'Đã lưu thông tin tài khoản.' });
+    } catch (err) {
+      setProfileMessage({ ok: false, text: err instanceof ApiError && err.status === 400 ? 'Thông tin chưa hợp lệ (họ tên tối đa 255, SĐT tối đa 30 ký tự).' : 'Không lưu được thông tin, vui lòng thử lại.' });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
 
   const [addresses, setAddresses] = useState<Address[] | null>(null);
   const [showAddAddress, setShowAddAddress] = useState(false);
@@ -76,14 +102,16 @@ export default function UserProfile({
       {/* Header */}
       <div className="bg-gradient-to-r from-primary-950 to-accent-950 text-white p-8 rounded-2xl shadow-xl flex flex-col md:flex-row items-center gap-6">
         <div className="w-24 h-24 rounded-full bg-accent-400 text-primary-950 font-bold text-3xl flex items-center justify-center border-4 border-white shadow-xl">
-          Đ
+          {displayName.charAt(0).toUpperCase()}
         </div>
         <div className="space-y-2 text-center md:text-left">
           <div className="flex items-center justify-center md:justify-start gap-3">
-            <h1 className="text-2xl font-bold">Nguyễn Hữu Đạt</h1>
-            <span className="bg-accent-400 text-primary-950 text-sm font-bold px-3 py-1 rounded-full">Hội Viên Hoàng Gia (450 điểm)</span>
+            <h1 className="text-2xl font-bold">{displayName}</h1>
+            <span className="bg-accent-400 text-primary-950 text-sm font-bold px-3 py-1 rounded-full">
+              {isAdmin ? 'Quản trị viên' : isSupplier ? 'Nhà cung cấp' : 'Khách hàng'}
+            </span>
           </div>
-          <p className="text-gray-300 text-sm">Email: nguyenhuudat.mkt@gmail.com • SĐT: 0901 234 567</p>
+          <p className="text-gray-300 text-sm">Email: {user?.email}{user?.phone ? ` • SĐT: ${user.phone}` : ''}</p>
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm text-accent-300 pt-1">
             <span className="flex items-center gap-1"><Award className="w-4 h-4" /> 1,450 Điểm tích lũy</span>
             <span>•</span>
@@ -123,16 +151,16 @@ export default function UserProfile({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-500 mb-1">Họ và tên</label>
-                <input type="text" defaultValue="Nguyễn Hữu Đạt" className="w-full p-3 border border-gray-300 rounded-xl text-sm" />
+                <input type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} maxLength={255} className="w-full p-3 border border-gray-300 rounded-xl text-sm" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-500 mb-1">Số điện thoại</label>
-                <input type="text" defaultValue="0901234567" className="w-full p-3 border border-gray-300 rounded-xl text-sm" />
+                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={30} className="w-full p-3 border border-gray-300 rounded-xl text-sm" />
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-500 mb-1">Địa chỉ Email (Bảo mật)</label>
-              <input type="email" defaultValue="nguyenhuudat.mkt@gmail.com" disabled className="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm text-gray-500" />
+              <label className="block text-sm font-medium text-gray-500 mb-1">Địa chỉ Email (không thể thay đổi)</label>
+              <input type="email" value={user?.email ?? ''} disabled className="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm text-gray-500" />
             </div>
 
             <div className="pt-4 border-t border-gray-100 space-y-3">
@@ -152,8 +180,11 @@ export default function UserProfile({
               </div>
             </div>
 
-            <button onClick={() => alert('Cập nhật thông tin tài khoản thành công!')} className="px-6 py-3 bg-primary-700 hover:bg-primary-800 text-white font-semibold rounded-xl shadow transition text-sm">
-              Lưu Thay Đổi
+            {profileMessage && (
+              <div className={`mss-alert ${profileMessage.ok ? '' : 'mss-alert--danger'}`} role="status">{profileMessage.text}</div>
+            )}
+            <button onClick={handleSaveProfile} disabled={isSavingProfile} className="px-6 py-3 bg-primary-700 hover:bg-primary-800 disabled:opacity-60 text-white font-semibold rounded-xl shadow transition text-sm">
+              {isSavingProfile ? 'Đang lưu…' : 'Lưu Thay Đổi'}
             </button>
           </div>
         </div>

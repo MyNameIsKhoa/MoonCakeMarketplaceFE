@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Search, ShoppingBag, Heart, Sparkles, Package, Building2, User, Menu, X,
+  Search, ShoppingBag, Heart, Sparkles, Package, Building2, Menu, X,
   PhoneCall, ChevronDown, Store as StoreIcon, ArrowRight, ShieldCheck, Star
 } from 'lucide-react';
 import { Store, Product } from '../types';
 import { useCatalog } from '../context/CatalogContext';
+import { useAuth } from '../context/AuthContext';
+import UserMenu from './UserMenu';
 
 interface NavbarProps {
   activeTab: string;
@@ -17,6 +19,9 @@ interface NavbarProps {
   setSearchQuery: (q: string) => void;
   setSelectedStore?: (store: Store) => void;
   setSelectedProduct?: (product: Product) => void;
+  onLogin: () => void;
+  onRegister: () => void;
+  onLogout: () => void;
 }
 
 export default function Navbar({
@@ -29,9 +34,13 @@ export default function Navbar({
   searchQuery,
   setSearchQuery,
   setSelectedStore,
-  setSelectedProduct
+  setSelectedProduct,
+  onLogin,
+  onRegister,
+  onLogout
 }: NavbarProps) {
   const { stores, products } = useCatalog();
+  const { isAuthenticated, isAdmin } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [storeDropdownOpen, setStoreDropdownOpen] = useState(false);
@@ -330,15 +339,14 @@ export default function Navbar({
             )}
           </button>
 
-          {/* User Profile */}
-          <button
-            onClick={() => setActiveTab('profile')}
-            className={`p-2.5 rounded-full transition ${activeTab === 'profile' ? 'bg-primary-100 text-primary-700' : 'text-gray-700 hover:bg-gray-100'
-              }`}
-            title="Tài khoản"
-          >
-            <User className="w-5 h-5" />
-          </button>
+          {/* Account: login/register or user menu (role-based links) */}
+          <UserMenu
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            onLogin={onLogin}
+            onRegister={onRegister}
+            onLogout={onLogout}
+          />
 
           {/* Mobile menu toggle */}
           <button
@@ -545,8 +553,36 @@ export default function Navbar({
               className="p-2 text-left hover:bg-accent-50 rounded-lg flex items-center gap-2 text-accent-800"
             >
               <span>🏪</span>
-              <span>Kênh Người Bán & Quản Trị</span>
+              <span>Kênh Người Bán</span>
             </button>
+
+            {isAdmin && (
+              <button
+                onClick={() => { setActiveTab('admin'); setMobileMenuOpen(false); }}
+                className="p-2 text-left hover:bg-accent-50 rounded-lg flex items-center gap-2 text-accent-800"
+              >
+                <span>🛡️</span>
+                <span>Duyệt nhà cung cấp</span>
+              </button>
+            )}
+
+            {isAuthenticated ? (
+              <button
+                onClick={() => { onLogout(); setMobileMenuOpen(false); }}
+                className="p-2 text-left hover:bg-red-50 rounded-lg flex items-center gap-2 text-red-700"
+              >
+                <span>↩</span>
+                <span>Đăng xuất</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => { onRegister(); setMobileMenuOpen(false); }}
+                className="p-2 text-left hover:bg-accent-50 rounded-lg flex items-center gap-2 text-primary-700"
+              >
+                <span>✍️</span>
+                <span>Đăng ký tài khoản</span>
+              </button>
+            )}
           </div>
         </div>
       )}
