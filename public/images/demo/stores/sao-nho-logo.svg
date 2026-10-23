@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-label="Sao Nhỏ">
+  <rect width="240" height="240" rx="48" fill="#87567f"/>
+  <circle cx="120" cy="120" r="76" fill="#f8d9cd"/>
+  <path d="M120 54l17 44 47 3-37 29 13 46-40-26-40 26 13-46-37-29 47-3z" fill="#d47d5f"/>
+  <circle cx="104" cy="116" r="4" fill="#5c3b60"/>
+  <circle cx="136" cy="116" r="4" fill="#5c3b60"/>
+  <path d="M107 133q13 14 26 0" fill="none" stroke="#5c3b60" stroke-width="4" stroke-linecap="round"/>
+</svg>
