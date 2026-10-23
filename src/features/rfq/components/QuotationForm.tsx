@@ -2,7 +2,7 @@ import { FormEvent, useRef, useState } from 'react';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { errorMessage } from '../../../services/api/http';
 import { idempotencyKeyFor, quotationApi } from '../api';
-import { centsToVnd, isMoney, isoToLocalDateTime, localDateTimeToIso, toCents, todayIsoDate } from '../format';
+import { centsToVnd, isMoney, isoToLocalDateTime, isWholeVnd, localDateTimeToIso, toCents, todayIsoDate } from '../format';
 import type { Quotation, QuotationItemInput, QuotationTermsInput, Rfq, StoreInfo } from '../types';
 
 type Mode = { kind: 'create'; stores: StoreInfo[] } | { kind: 'revise'; quotation: Quotation };
@@ -53,8 +53,8 @@ function rowError(row: ItemRow): string | null {
     return 'Nhập tên mục hàng.';
   }
   if (!/^[1-9]\d{0,8}$/.test(row.quantity)) return 'Số lượng là số nguyên lớn hơn 0.';
-  if (!isMoney(row.unitPrice)) return 'Đơn giá là số, tối đa 2 chữ số thập phân.';
-  if (row.discountAmount && !isMoney(row.discountAmount)) return 'Giảm giá là số, tối đa 2 chữ số thập phân.';
+  if (!isWholeVnd(row.unitPrice)) return 'Đơn giá là số tiền nguyên đồng (VND).';
+  if (row.discountAmount && !isWholeVnd(row.discountAmount)) return 'Giảm giá là số tiền nguyên đồng (VND).';
   if (toCents(row.discountAmount) > toCents(row.unitPrice) * Number(row.quantity)) return 'Giảm giá không được vượt giá trị mục hàng.';
   return null;
 }
@@ -99,7 +99,7 @@ export default function QuotationForm({ rfq, mode, onSaved, onCancel }: Quotatio
   if (!validIso || new Date(validIso).getTime() <= Date.now()) termErrors.push('Hiệu lực báo giá phải ở tương lai.');
   if (!deliveryDate || deliveryDate < todayIsoDate()) termErrors.push('Ngày giao dự kiến không được ở quá khứ.');
   if (leadTimeDays && !INT.test(leadTimeDays)) termErrors.push('Thời gian chuẩn bị là số ngày (số nguyên).');
-  if (!isMoney(shippingFee)) termErrors.push('Phí vận chuyển là số, tối đa 2 chữ số thập phân.');
+  if (!isWholeVnd(shippingFee)) termErrors.push('Phí vận chuyển là số tiền nguyên đồng (VND).');
   const itemErrors = rows.map(rowError);
   const valid = termErrors.length === 0 && itemErrors.every((e) => e === null) && rows.length > 0;
 
@@ -108,7 +108,8 @@ export default function QuotationForm({ rfq, mode, onSaved, onCancel }: Quotatio
     0
   );
   const totalCents = subtotalCents + toCents(shippingFee);
-  const depositCents = Math.round((totalCents * (Number(depositPercent) || 0)) / 100);
+  // Same rule as Commerce: deposit = total × percent / 100, HALF_UP to the whole dong (percent in hundredths).
+  const depositCents = Math.round(((totalCents / 100) * toCents(depositPercent)) / 10000) * 100;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();

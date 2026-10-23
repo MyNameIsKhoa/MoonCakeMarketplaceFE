@@ -36,6 +36,13 @@ export function isMoney(value: string): boolean {
   return MONEY_PATTERN.test(value.trim());
 }
 
+/** Quotation money is whole VND (Commerce/TV5 payments); "90000" and "90000.00" are both accepted. */
+const VND_PATTERN = /^\d{1,16}(\.0{1,2})?$/;
+
+export function isWholeVnd(value: string): boolean {
+  return VND_PATTERN.test(value.trim());
+}
+
 /** Whole cents for the composer's preview only; the server recalculates every total. */
 export function toCents(value: string): number {
   return isMoney(value) ? Math.round(Number(value) * 100) : 0;
