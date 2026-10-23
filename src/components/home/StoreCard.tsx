@@ -1,17 +1,17 @@
 import React from 'react';
-import { ShieldCheck, Zap, ChevronRight, Store } from 'lucide-react';
-import { Brand, Product } from '../../types';
+import { ShieldCheck, Zap, ChevronRight, Store as StoreIcon } from 'lucide-react';
+import { Store, Product } from '../../types';
 
 interface StoreCardProps {
-  brand: Brand;
-  onSelectBrand: (brand: Brand) => void;
+  store: Store;
+  onSelectStore: (store: Store) => void;
   storeProducts: Product[];
   onSelectProduct?: (product: Product) => void;
 }
 
 export const StoreCard: React.FC<StoreCardProps> = ({
-  brand,
-  onSelectBrand,
+  store,
+  onSelectStore,
   storeProducts,
   onSelectProduct
 }) => {
@@ -20,14 +20,14 @@ export const StoreCard: React.FC<StoreCardProps> = ({
 
   return (
     <div 
-      onClick={() => onSelectBrand(brand)}
+      onClick={() => onSelectStore(store)}
       className="bg-white rounded-2xl border border-accent-200/80 shadow-sm hover:shadow-xl hover:border-primary-600 transition-all duration-300 overflow-hidden flex flex-col group cursor-pointer"
     >
       {/* Cover Banner Header */}
       <div className="h-28 w-full relative overflow-hidden bg-primary-950">
         <img 
-          src={brand.banner} 
-          alt={brand.name} 
+          src={store.bannerUrl} 
+          alt={store.name} 
           className="w-full h-full object-cover opacity-60 group-hover:scale-105 group-hover:opacity-75 transition-all duration-700" 
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"></div>
@@ -48,9 +48,9 @@ export const StoreCard: React.FC<StoreCardProps> = ({
         <div className="absolute -bottom-6 left-5 z-10">
           <div className="relative">
             <img 
-              src={brand.logo} 
-              alt={brand.name} 
-              className="w-16 h-16 rounded-2xl object-cover border-2 border-white shadow-lg bg-white ring-2 ring-primary-100" 
+              src={store.logoUrl} 
+              alt={store.name} 
+              className="w-16 h-16 rounded-2xl object-contain p-1 border-2 border-white shadow-lg bg-white ring-2 ring-primary-100" 
             />
             <span className="absolute -bottom-1 -right-1 bg-green-500 w-3.5 h-3.5 rounded-full border-2 border-white" title="Gian hàng đang mở"></span>
           </div>
@@ -59,27 +59,27 @@ export const StoreCard: React.FC<StoreCardProps> = ({
 
       {/* Main Content Info */}
       <div className="pt-8 px-5 pb-5 flex-1 flex flex-col justify-between space-y-4">
-        {/* Brand identity */}
+        {/* Store identity */}
         <div>
           <div className="flex items-start justify-between gap-2">
             <div>
               <h3 className="font-bold text-gray-900 text-lg group-hover:text-primary-700 transition flex items-center gap-1.5">
-                <span>{brand.name}</span>
+                <span>{store.name}</span>
               </h3>
               <p className="text-xs text-accent-800 font-semibold mt-0.5">
-                {brand.categoryLabel || 'Thương hiệu đối tác'}
+                {store.categoryLabel || 'Thương hiệu đối tác'}
               </p>
             </div>
           </div>
 
           <p className="text-xs text-gray-600 line-clamp-2 mt-2 leading-relaxed">
-            {brand.description}
+            {store.description}
           </p>
 
           {/* Price Range Bar */}
           <div className="mt-3 flex items-center justify-between text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
             <span className="text-gray-600 font-medium">Khoảng giá tham khảo:</span>
-            <span className="text-primary-700 font-bold">{brand.priceRange || '65.000đ - 2.500.000đ'}</span>
+            <span className="text-primary-700 font-bold">{store.priceRange || '65.000đ - 2.500.000đ'}</span>
           </div>
         </div>
 
@@ -109,7 +109,7 @@ export const StoreCard: React.FC<StoreCardProps> = ({
                     className="w-full aspect-square object-cover rounded-lg group-hover/item:scale-105 transition" 
                   />
                   <p className="text-[11px] font-semibold text-gray-800 truncate mt-1 group-hover/item:text-primary-700">
-                    {p.name.replace(` - ${brand.name.split(' ')[0]}`, '')}
+                    {p.name.replace(` - ${store.name.split(' ')[0]}`, '')}
                   </p>
                   <p className="text-[11px] font-bold text-primary-700">
                     {p.price.toLocaleString()}đ
@@ -123,7 +123,7 @@ export const StoreCard: React.FC<StoreCardProps> = ({
         {/* Footer CTA */}
         <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
-            <Store className="w-3.5 h-3.5 text-primary-700" />
+            <StoreIcon className="w-3.5 h-3.5 text-primary-700" />
             <span className="text-gray-600 font-medium">Gian hàng chính hãng</span>
           </div>
 

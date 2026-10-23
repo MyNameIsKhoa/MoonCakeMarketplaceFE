@@ -1,4 +1,4 @@
-import { X, ShoppingBag, Trash2, Plus, Minus, ArrowRight, Store } from 'lucide-react';
+import { X, ShoppingBag, Trash2, Plus, Minus, ArrowRight, Store as StoreIcon } from 'lucide-react';
 import { CartItem } from '../types';
 import { formatVnd } from '../utils/format';
 
@@ -25,8 +25,8 @@ export default function CartDrawer({
   const estimatedSubtotal = items.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
 
   const groups = items.reduce<Record<string, { storeName: string; items: CartItem[] }>>((acc, item) => {
-    const key = item.product.brandId;
-    acc[key] ??= { storeName: item.product.brandName, items: [] };
+    const key = item.product.storeId;
+    acc[key] ??= { storeName: item.product.storeName, items: [] };
     acc[key].items.push(item);
     return acc;
   }, {});
@@ -61,7 +61,7 @@ export default function CartDrawer({
             Object.entries(groups).map(([storeId, group]) => (
               <section key={storeId} className="flex flex-col gap-3">
                 <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                  <Store className="w-4 h-4 text-primary-700" />
+                  <StoreIcon className="w-4 h-4 text-primary-700" />
                   {group.storeName}
                 </h3>
                 {group.items.map((item) => (
