@@ -5,7 +5,6 @@ import { paymentApi, FinanceSummary, Payment } from './paymentApi';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { FINANCE_STATUS, PAYMENT_TYPE } from '../../utils/status';
 import { formatVnd } from '../../utils/format';
-import LocalFinanceLogin from './LocalFinanceLogin';
 
 const messages: Record<string, string> = {
   PAYMENT_CONTEXT_NOT_READY: 'Chưa có dữ liệu đơn hàng từ bộ phận xử lý đơn. Vui lòng thử lại sau.',
@@ -137,7 +136,6 @@ export default function PaymentSettlement() {
 
   return <div className="mss-container mss-page mss-stack">
     <header className="mss-page-header"><div><h1 className="mss-page-title flex items-center gap-3"><Wallet /> Thanh toán & đối soát</h1><p className="mt-2 text-gray-600">Theo dõi tiền cọc, khoản còn lại và xử lý giao dịch của từng đơn nhà bán.</p></div></header>
-    {import.meta.env.DEV && <LocalFinanceLogin />}
     <form onSubmit={load} className="mss-card flex flex-wrap items-end gap-3">
       <label className="mss-field flex-1">Mã đơn nhà bán<input className="mss-input" inputMode="numeric" value={orderInput} onChange={e => setOrderInput(e.target.value)} required placeholder="Nhập mã đơn nhà bán" /></label>
       <button className="mss-button mss-button--primary" disabled={busy}><RefreshCw size={16} /> {busy ? 'Đang xử lý…' : 'Tải giao dịch'}</button>

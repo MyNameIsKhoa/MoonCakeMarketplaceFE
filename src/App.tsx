@@ -15,14 +15,36 @@ import UserProfile from './pages/UserProfile';
 import SellerCenter from './pages/seller/SellerCenter';
 import PaymentSettlement from './features/payment-settlement/PaymentSettlement';
 import { FulfillmentDemoPage } from './features/fulfillment/pages/FulfillmentDemoPage';
+import Login from './pages/auth/Login';
+import Register from './pages/auth/Register';
+import SupplierOnboarding from './pages/seller/SupplierOnboarding';
+import AdminSupplierReview from './pages/admin/AdminSupplierReview';
+import EmptyState from './components/ui/EmptyState';
 
 import { Product, Store, CartItem } from './types';
 import { PRODUCTS, STORES } from './data/mockData';
 import { useCatalog } from './context/CatalogContext';
+import { useAuth } from './context/AuthContext';
+import { accessLevelOf, canAccess } from './utils/permissions';
+
+/** Shown on the login screen when a guest opens a protected tab. */
+const LOGIN_NOTICES: Record<string, string> = {
+  checkout: 'Vui lòng đăng nhập để thanh toán. Giỏ hàng của bạn vẫn được giữ nguyên.',
+  orders: 'Vui lòng đăng nhập để xem đơn hàng của bạn.',
+  profile: 'Vui lòng đăng nhập để xem tài khoản.',
+  wishlist: 'Vui lòng đăng nhập để xem danh sách yêu thích.',
+  b2b: 'Vui lòng đăng nhập để gửi yêu cầu báo giá doanh nghiệp.',
+  'payment-settlement': 'Vui lòng đăng nhập để xem thanh toán của bạn.',
+  'seller-center': 'Đăng nhập bằng tài khoản nhà cung cấp để vào Kênh Người Bán.',
+  admin: 'Đăng nhập bằng tài khoản quản trị viên.'
+};
 
 export default function App() {
   const { stores } = useCatalog();
+  const auth = useAuth();
   const [activeTab, setActiveTab] = useState<string>(() => new URLSearchParams(location.search).has('finance') ? 'payment-settlement' : 'home');
+  /** Protected tab to return to after login/register. */
+  const [returnTab, setReturnTab] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product>(PRODUCTS[0]);
   const [selectedStore, setSelectedStore] = useState<Store>(STORES[0]);
 
@@ -95,11 +117,57 @@ export default function App() {
   // the app only clears the cart once an order has been placed.
   const handleOrderPlaced = () => setCartItems([]);
 
-  const isSellerCenter = activeTab === 'seller-center';
+  // Access control: a protected tab renders a gate (login / supplier onboarding / 403) instead of the page.
+  const accessLevel = accessLevelOf(activeTab);
+  const isAllowed = canAccess(accessLevel, auth);
+  const isSellerCenter = activeTab === 'seller-center' && isAllowed;
+
+  const goToAuth = (mode: 'login' | 'register') => {
+    setReturnTab(accessLevel !== 'public' ? activeTab : returnTab);
+    setActiveTab(mode);
+  };
+
+  const finishAuth = (fallbackTab = 'home') => {
+    setActiveTab(returnTab ?? fallbackTab);
+    setReturnTab(null);
+  };
+
+  const handleLogout = () => {
+    auth.logout();
+    setReturnTab(null);
+    setActiveTab('home');
+  };
 
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [activeTab]);
+
+  const renderGate = () => {
+    if (auth.status === 'loading') {
+      return <div className="mss-container mss-page"><p className="text-sm text-gray-500">Đang kiểm tra phiên đăng nhập…</p></div>;
+    }
+    if (!auth.isAuthenticated) {
+      return (
+        <Login
+          notice={LOGIN_NOTICES[activeTab]}
+          onSuccess={() => setReturnTab(null)}
+          onSwitchToRegister={() => goToAuth('register')}
+        />
+      );
+    }
+    if (accessLevel === 'supplier') {
+      return <SupplierOnboarding onBackToShop={() => setActiveTab('home')} />;
+    }
+    return (
+      <div className="mss-container mss-page">
+        <EmptyState
+          title="Bạn không có quyền truy cập trang này"
+          description="Trang này chỉ dành cho quản trị viên của sàn."
+          action={<button className="mss-button mss-button--primary" onClick={() => setActiveTab('home')}>Về trang chủ</button>}
+        />
+      </div>
+    );
+  };
 
   return (
     <div className="mss-app selection:bg-accent-200 selection:text-primary-950">
@@ -115,10 +183,31 @@ export default function App() {
           setSearchQuery={setSearchQuery}
           setSelectedStore={setSelectedStore}
           setSelectedProduct={setSelectedProduct}
+          onLogin={() => goToAuth('login')}
+          onRegister={() => goToAuth('register')}
+          onLogout={handleLogout}
         />
       )}
 
       <main className="mss-main">
+        {!isAllowed ? renderGate() : <>
+        {activeTab === 'login' && (
+          <Login
+            onSuccess={() => finishAuth()}
+            onSwitchToRegister={() => setActiveTab('register')}
+          />
+        )}
+
+        {activeTab === 'register' && (
+          <Register
+            onSuccess={(accountType) => finishAuth(accountType === 'supplier' ? 'seller-center' : 'home')}
+            onSwitchToLogin={() => setActiveTab('login')}
+            defaultAccountType={returnTab === 'seller-center' ? 'supplier' : 'customer'}
+          />
+        )}
+
+        {activeTab === 'admin' && <AdminSupplierReview />}
+
         {activeTab === 'home' && (
           <Home
             setActiveTab={setActiveTab}
@@ -232,6 +321,7 @@ export default function App() {
             setActiveTab={setActiveTab}
           />
         )}
+        </>}
       </main>
 
       {!isSellerCenter && <Footer />}
