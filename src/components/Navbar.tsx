@@ -198,6 +198,14 @@ export default function Navbar({
             >
               Cổng Doanh Nghiệp & B2B
             </button>
+            <button
+              onClick={() => setActiveTab('fulfillment')}
+              className={`px-4 py-3 border-b-2 transition ${
+                activeTab === 'fulfillment' ? 'border-primary-700 text-primary-700 font-semibold' : 'border-transparent text-gray-700 hover:text-primary-700'
+              }`}
+            >
+              🚚 Vận Chuyển & Nghiệm Thu (TV6)
+            </button>
           </div>
 
           <div className="flex items-center gap-3 text-sm text-primary-800 font-semibold bg-primary-50 px-3 py-2 rounded-lg border border-primary-100">

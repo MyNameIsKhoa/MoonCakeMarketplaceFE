@@ -14,6 +14,7 @@ import B2BPortal from './pages/B2BPortal';
 import UserProfile from './pages/UserProfile';
 import SellerCenter from './pages/seller/SellerCenter';
 import PaymentSettlement from './features/payment-settlement/PaymentSettlement';
+import { FulfillmentDemoPage } from './features/fulfillment/pages/FulfillmentDemoPage';
 
 import { Product, Brand, CartItem } from './types';
 import { PRODUCTS, BRANDS } from './data/mockData';
