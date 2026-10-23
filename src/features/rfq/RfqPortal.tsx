@@ -1,57 +1,43 @@
 import { useEffect, useState } from 'react';
-import { Building2, FileText, Inbox, LogOut, MessageSquare, Store, UserRound } from 'lucide-react';
-import { clearSession, useSession } from '../../services/api/session';
+import { Building2, FileText, Inbox, MessageSquare, Store, UserRound } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 import ConversationsView from '../chat/ConversationsView';
-import { lookupApi } from './api';
 import MyQuotations from './components/MyQuotations';
 import RfqCreateForm from './components/RfqCreateForm';
 import RfqDetail from './components/RfqDetail';
 import RfqList from './components/RfqList';
-import SignInCard from './components/SignInCard';
-import type { SupplierProfile } from './types';
 
 type Tab = 'feed' | 'mine' | 'quotations' | 'messages';
 
 type View =
   | { kind: 'list' }
   | { kind: 'create' }
-  | { kind: 'detail'; rfqId: string; quotationId?: string | null }
-  | { kind: 'signin'; back: View };
+  | { kind: 'detail'; rfqId: string; quotationId?: string | null };
 
-const TABS: { id: Tab; label: string; icon: typeof FileText; needs?: 'session' | 'supplier' }[] = [
+const TABS: { id: Tab; label: string; icon: typeof FileText; needs?: 'supplier' }[] = [
   { id: 'feed', label: 'Sàn yêu cầu báo giá', icon: Inbox },
-  { id: 'mine', label: 'RFQ của tôi', icon: FileText, needs: 'session' },
+  { id: 'mine', label: 'RFQ của tôi', icon: FileText },
   { id: 'quotations', label: 'Báo giá của tôi', icon: Store, needs: 'supplier' },
-  { id: 'messages', label: 'Tin nhắn', icon: MessageSquare, needs: 'session' }
+  { id: 'messages', label: 'Tin nhắn', icon: MessageSquare }
 ];
 
-/** TV4 — public RFQ feed, buyer RFQs + quotation comparison, supplier quotations and negotiation chat. */
+/**
+ * TV4 — RFQ feed, buyer RFQs + quotation comparison, supplier quotations and negotiation chat.
+ * The b2b tab is 'customer' in utils/permissions, so App only renders this for a logged-in user (TV1 AuthContext).
+ */
 export default function RfqPortal() {
-  const session = useSession();
-  const [supplier, setSupplier] = useState<SupplierProfile | null>(null);
+  const { user, supplierProfile: supplier } = useAuth();
   const [tab, setTab] = useState<Tab>('feed');
   const [view, setView] = useState<View>({ kind: 'list' });
   const [conversationId, setConversationId] = useState<string | null>(null);
 
   useEffect(() => {
-    setSupplier(null);
-    if (!session) {
-      setTab((current) => (current === 'feed' ? current : 'feed'));
-      return;
-    }
-    // Return to whatever the visitor was doing before signing in.
-    setView((current) => (current.kind === 'signin' ? current.back : current));
-    lookupApi
-      .mySupplierProfile()
-      .then(setSupplier)
-      .catch(() => setSupplier(null));
-  }, [session?.user.userId]);
-
-  useEffect(() => {
     window.scrollTo(0, 0);
   }, [tab, view.kind]);
 
-  const visibleTabs = TABS.filter((t) => !t.needs || (t.needs === 'session' ? !!session : !!supplier));
+  if (!user) return null;
+
+  const visibleTabs = TABS.filter((t) => !t.needs || !!supplier);
 
   const goTab = (next: Tab) => {
     setTab(next);
@@ -69,12 +55,10 @@ export default function RfqPortal() {
     setView({ kind: 'list' });
   };
 
-  const requireSignIn = () => setView((current) => (current.kind === 'signin' ? current : { kind: 'signin', back: current }));
-  const create = () => (session ? setView({ kind: 'create' }) : requireSignIn());
+  const create = () => setView({ kind: 'create' });
 
   const content = () => {
-    if (view.kind === 'signin' && !session) return <SignInCard onCancel={() => setView(view.back)} />;
-    if (view.kind === 'create' && session) {
+    if (view.kind === 'create') {
       return <RfqCreateForm onCancel={() => setView({ kind: 'list' })} onCreated={(rfq) => openRfq(rfq.rfqId)} />;
     }
     if (view.kind === 'detail') {
@@ -82,12 +66,10 @@ export default function RfqPortal() {
         <RfqDetail
           key={view.rfqId}
           rfqId={view.rfqId}
-          session={session}
           supplier={supplier}
           initialQuotationId={view.quotationId}
           onBack={() => setView({ kind: 'list' })}
           onOpenConversation={openConversation}
-          onRequireSignIn={requireSignIn}
         />
       );
     }
@@ -97,15 +79,16 @@ export default function RfqPortal() {
       case 'quotations':
         return <MyQuotations onOpen={(rfqId, quotationId) => openRfq(rfqId, quotationId)} />;
       case 'messages':
-        return session ? (
+        // RFQ/chat DTOs carry IDs as strings; Identity's profile uses numbers.
+        return (
           <ConversationsView
-            myUserId={session.user.userId}
-            myCustomerId={session.user.customerId}
+            myUserId={String(user.userId)}
+            myCustomerId={user.customerId == null ? null : String(user.customerId)}
             selectedId={conversationId}
             onSelect={setConversationId}
             onOpenRfq={(rfqId) => openRfq(rfqId)}
           />
-        ) : null;
+        );
       default:
         return <RfqList key="feed" mine={false} onOpen={(id) => openRfq(id)} onCreate={create} />;
     }
@@ -126,29 +109,15 @@ export default function RfqPortal() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {session ? (
-            <>
-              <span className="flex min-w-0 items-center gap-2 text-sm text-gray-700">
-                <UserRound className="h-4 w-4 shrink-0" aria-hidden />
-                <span className="truncate font-semibold">{session.user.fullName}</span>
-                {supplier && (
-                  <span className={`mss-badge ${supplier.verificationStatus === 'VERIFIED' ? 'mss-badge--success' : 'mss-badge--warning'}`}>
-                    {supplier.verificationStatus === 'VERIFIED' ? 'Nhà cung cấp đã xác minh' : 'Nhà cung cấp chờ xác minh'}
-                  </span>
-                )}
+          <span className="flex min-w-0 items-center gap-2 text-sm text-gray-700">
+            <UserRound className="h-4 w-4 shrink-0" aria-hidden />
+            <span className="truncate font-semibold">{user.fullName ?? user.email}</span>
+            {supplier && (
+              <span className={`mss-badge ${supplier.verificationStatus === 'VERIFIED' ? 'mss-badge--success' : 'mss-badge--warning'}`}>
+                {supplier.verificationStatus === 'VERIFIED' ? 'Nhà cung cấp đã xác minh' : 'Nhà cung cấp chờ xác minh'}
               </span>
-              <button type="button" className="mss-button mss-button--secondary mss-button--sm" onClick={clearSession}>
-                <LogOut className="h-4 w-4" aria-hidden />
-                Đăng xuất
-              </button>
-            </>
-          ) : (
-            view.kind !== 'signin' && (
-              <button type="button" className="mss-button mss-button--primary mss-button--sm" onClick={requireSignIn}>
-                Đăng nhập
-              </button>
-            )
-          )}
+            )}
+          </span>
         </div>
       </header>
 

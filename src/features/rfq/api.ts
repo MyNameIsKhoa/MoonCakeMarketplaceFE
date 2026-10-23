@@ -1,5 +1,4 @@
-import { ApiError, apiRequest } from '../../services/api/http';
-import { setSession } from '../../services/api/session';
+import { apiRequest } from '../../services/api/http';
 import type {
   BuyerAddress,
   CreateRfqInput,
@@ -11,8 +10,7 @@ import type {
   QuotationTermsInput,
   Rfq,
   RfqStatus,
-  StoreInfo,
-  SupplierProfile
+  StoreInfo
 } from './types';
 
 function query(params: Record<string, string | number | boolean | undefined>): string {
@@ -61,11 +59,6 @@ export const lookupApi = {
   myAddresses: () => apiRequest<BuyerAddress[]>('/api/addresses'),
   createAddress: (input: Omit<BuyerAddress, 'addressId'>) =>
     apiRequest<BuyerAddress>('/api/addresses', { method: 'POST', body: input }),
-  mySupplierProfile: () =>
-    apiRequest<SupplierProfile>('/api/supplier-profile').catch((error) => {
-      if (error instanceof ApiError && error.status === 404) return null;
-      throw error;
-    }),
   myStores: () => apiRequest<StoreInfo[]>('/api/stores?mine=true'),
   store: (storeId: string) => {
     if (!storeCache.has(storeId)) {
@@ -86,26 +79,6 @@ export const lookupApi = {
     return supplierStoreCache.get(supplierId)!;
   }
 };
-
-interface LoginResponse {
-  accessToken: string;
-  expiresIn: number;
-  user: { userId: number; customerId: number | null; fullName: string; email: string };
-}
-
-export async function signIn(email: string, password: string) {
-  const result = await apiRequest<LoginResponse>('/api/auth/login', { method: 'POST', body: { email, password } });
-  setSession({
-    accessToken: result.accessToken,
-    expiresAt: Date.now() + result.expiresIn * 1000,
-    user: {
-      userId: String(result.user.userId),
-      customerId: result.user.customerId == null ? null : String(result.user.customerId),
-      fullName: result.user.fullName,
-      email: result.user.email
-    }
-  });
-}
 
 /** Reuses the same Idempotency-Key while the payload is unchanged so a retry never creates a duplicate. */
 export function idempotencyKeyFor(slot: { payload?: string; key?: string }, payload: unknown): string {

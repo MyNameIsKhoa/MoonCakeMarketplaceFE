@@ -11,7 +11,6 @@
  * for both Problem Details (RFQ: detail/code/errors) and ErrorResponse (Identity: message/validationErrors).
  */
 import axios, { AxiosError } from 'axios';
-import { clearSession, getAccessToken as getSessionToken } from './session';
 
 const DEFAULT_BASE_URL = 'http://localhost:8080';
 const TOKEN_STORAGE_KEY = 'mooncake.accessToken';
@@ -26,10 +25,7 @@ const baseURL = API_BASE_URL;
 
 let memoryToken: string | null = null;
 
-/** The TV4 sign-in session (session.ts) wins; otherwise the token stored via setAccessToken(). */
 export function getAccessToken(): string | null {
-  const sessionToken = getSessionToken();
-  if (sessionToken) return sessionToken;
   if (memoryToken) return memoryToken;
   try {
     return globalThis.localStorage?.getItem(TOKEN_STORAGE_KEY) ?? null;
@@ -148,19 +144,23 @@ http.interceptors.request.use((config) => {
 /** Fired on window when the backend rejects the stored token (expired/invalid). */
 export const UNAUTHORIZED_EVENT = 'mooncake:unauthorized';
 
+/** Clears the token and fires UNAUTHORIZED_EVENT when the backend rejected the token a request carried. */
+function logoutIfTokenRejected(status: number, sentToken: boolean): void {
+  // The Gateway answers an invalid/expired token with 403, not 401; a 403 with a still-valid
+  // token is a real permission error and must not log the user out.
+  const token = getAccessToken();
+  const sessionGone = status === 401 || (status === 403 && (!token || isTokenExpired(token)));
+  if (sessionGone && sentToken) {
+    setAccessToken(null);
+    globalThis.dispatchEvent?.(new Event(UNAUTHORIZED_EVENT));
+  }
+}
+
 http.interceptors.response.use(
   (response) => response,
   (error: unknown) => {
     const apiError = toApiError(error);
-    const sentToken = error instanceof AxiosError && !!error.config?.headers?.Authorization;
-    // The Gateway answers an invalid/expired token with 403, not 401; a 403 with a still-valid
-    // token is a real permission error and must not log the user out.
-    const token = getAccessToken();
-    const sessionGone = apiError.status === 401 || (apiError.status === 403 && (!token || isTokenExpired(token)));
-    if (sessionGone && sentToken) {
-      setAccessToken(null);
-      globalThis.dispatchEvent?.(new Event(UNAUTHORIZED_EVENT));
-    }
+    logoutIfTokenRejected(apiError.status, error instanceof AxiosError && !!error.config?.headers?.Authorization);
     return Promise.reject(apiError);
   }
 );
@@ -241,7 +241,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     }
   }
   if (!response.ok) {
-    if (response.status === 401 && token) clearSession();
+    logoutIfTokenRejected(response.status, !!token);
     throw new ApiError(
       response.status,
       data?.detail ?? data?.message ?? STATUS_MESSAGES[response.status] ?? 'Có lỗi xảy ra. Vui lòng thử lại.',
