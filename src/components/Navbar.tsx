@@ -347,6 +347,8 @@ export default function Navbar({
             {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
         </div>
+      </div>
+
       {/* Main Navigation Bar */}
       <nav className="border-t border-gray-100 bg-white hidden md:block">
         <div className="mss-container flex items-center justify-between text-xs sm:text-sm font-medium">
@@ -446,7 +448,7 @@ export default function Navbar({
                 : 'border-transparent text-gray-700 hover:text-primary-700'
                 }`}
             >
-              Doanh Nghiệp / B2B
+              Doanh Nghiệp
             </button>
 
             {/* Fulfillment */}
@@ -457,7 +459,7 @@ export default function Navbar({
                 : 'border-transparent text-gray-700 hover:text-primary-700'
                 }`}
             >
-              🚚 Vận Chuyển & Nghiệm Thu
+              Vận Chuyển
             </button>
 
             {/* Payment & Settlement */}
@@ -468,7 +470,7 @@ export default function Navbar({
                 : 'border-transparent text-gray-700 hover:text-primary-700'
                 }`}
             >
-              💳 Thanh Toán & Đối Soát
+              Thanh Toán
             </button>
           </div>
 

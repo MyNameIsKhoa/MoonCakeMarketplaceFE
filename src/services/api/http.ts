@@ -50,13 +50,15 @@ export function setAccessToken(token: string | null): void {
  */
 export class ApiError extends Error {
   readonly status: number;
+  readonly code: string;
   readonly fieldErrors: Record<string, string>;
 
-  constructor(status: number, message: string, fieldErrors: Record<string, string> = {}) {
+  constructor(status: number, message: string, fieldErrors: Record<string, string> = {}, code?: string) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.fieldErrors = fieldErrors;
+    this.code = code || message;
   }
 }
 
