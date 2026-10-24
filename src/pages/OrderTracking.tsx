@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ChevronDown, ChevronUp, MapPin, Store, Truck, Wallet } from 'lucide-react';
 import { CustomerOrder, SellerOrder } from '../types';
 import { orderApi } from '../services/api';
+import { paymentApi } from '../features/payment-settlement/paymentApi';
 import { formatAddress, formatDate, formatDateTime, formatVnd } from '../utils/format';
 import {
   CANCELLATION_STATUS,
@@ -18,20 +19,29 @@ import EmptyState from '../components/ui/EmptyState';
 
 interface OrderTrackingProps {
   setActiveTab: (tab: string) => void;
+  paymentReturnOrderId: string | null;
+  onPaymentReturnHandled: () => void;
 }
 
 type FilterId = 'all' | 'active' | 'done' | 'cancelled';
 
 const FILTERS: { id: FilterId; label: string; statuses?: string[] }[] = [
   { id: 'all', label: 'Tất cả' },
-  { id: 'active', label: 'Đang xử lý', statuses: ['PENDING_STOCK', 'AWAITING_PAYMENT', 'PENDING_CONFIRMATION', 'CONFIRMED', 'PROCESSING', 'PREPARING', 'SHIPPING'] },
+  { id: 'active', label: 'Đang xử lý', statuses: ['PENDING_STOCK', 'AWAITING_PAYMENT', 'PAYMENT_COMPLETED', 'PENDING_CONFIRMATION', 'CONFIRMED', 'PROCESSING', 'PREPARING', 'SHIPPING'] },
   { id: 'done', label: 'Đã giao / Hoàn tất', statuses: ['DELIVERED', 'COMPLETED'] },
   { id: 'cancelled', label: 'Hủy / Khiếu nại', statuses: ['CANCEL_REQUESTED', 'CANCELLED', 'DISPUTED'] }
 ];
 
-export default function OrderTracking({ setActiveTab }: OrderTrackingProps) {
+function isFullyPaid(sellerOrder: SellerOrder) {
+  return sellerOrder.status !== 'CANCELLED' &&
+    sellerOrder.payments.length > 0 &&
+    sellerOrder.payments.every((payment) => ['SUCCESS', 'PAID'].includes(payment.status));
+}
+
+export default function OrderTracking({ setActiveTab, paymentReturnOrderId, onPaymentReturnHandled }: OrderTrackingProps) {
   const [orders, setOrders] = useState<CustomerOrder[] | null>(null);
   const [loadError, setLoadError] = useState('');
+  const [paymentNotice, setPaymentNotice] = useState<{ message: string; success: boolean } | null>(null);
   const [filter, setFilter] = useState<FilterId>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -48,6 +58,35 @@ export default function OrderTracking({ setActiveTab }: OrderTrackingProps) {
   }, []);
 
   useEffect(load, [load]);
+
+  useEffect(() => {
+    if (!paymentReturnOrderId) return;
+    let active = true;
+    const orderId = Number(paymentReturnOrderId);
+    paymentApi.reconcileCustomer(orderId).then(async (payment) => {
+      if (!active) return;
+      const success = payment.payment?.status === 'SUCCESS' &&
+        payment.paidAmount >= payment.totalAmount;
+      setPaymentNotice({
+        success,
+        message: success
+          ? `Thanh toán thành công! Đơn hàng #${orderId} đã được đặt thành công.`
+          : `Đã quay lại từ PayOS nhưng thanh toán đơn #${orderId} chưa được xác nhận. Vui lòng tải lại trạng thái đơn hàng sau ít phút.`
+      });
+      await load();
+      onPaymentReturnHandled();
+    }).catch((error: unknown) => {
+      if (!active) return;
+      setPaymentNotice({
+        success: false,
+        message: error instanceof Error
+          ? `Không thể xác nhận thanh toán: ${error.message}`
+          : 'Không thể xác nhận thanh toán. Vui lòng thử tải lại đơn hàng.'
+      });
+      onPaymentReturnHandled();
+    });
+    return () => { active = false; };
+  }, [paymentReturnOrderId, load, onPaymentReturnHandled]);
 
   const replaceOrder = (updated: CustomerOrder) =>
     setOrders((prev) => prev?.map((o) => (o.orderId === updated.orderId ? updated : o)) ?? prev);
@@ -70,6 +109,10 @@ export default function OrderTracking({ setActiveTab }: OrderTrackingProps) {
           </p>
         </div>
       </header>
+
+      {paymentNotice && <p role="status" className={`mss-card ${paymentNotice.success ? 'text-green-800' : 'text-amber-800'}`}>
+        {paymentNotice.message}
+      </p>}
 
       <div className="flex gap-2 overflow-x-auto pb-1" role="tablist">
         {FILTERS.map((f) => (
@@ -156,6 +199,9 @@ function OrderCard({ order, expanded, onToggle, onUpdated, setActiveTab }: Order
       setIsCancelling(false);
     }
   };
+  const displayStatus = order.sellerOrders.length > 0 && order.sellerOrders.every(isFullyPaid)
+    ? 'PAYMENT_COMPLETED'
+    : order.status;
 
   return (
     <article className="mss-card mss-stack">
@@ -163,7 +209,7 @@ function OrderCard({ order, expanded, onToggle, onUpdated, setActiveTab }: Order
         <div className="min-w-0 flex flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="mss-card-title">Đơn {order.orderNo}</h2>
-            <StatusBadge map={ORDER_STATUS} status={order.status} />
+            <StatusBadge map={ORDER_STATUS} status={displayStatus} />
             {order.sellerOrders.some((so) => so.cancellation?.status === 'REQUESTED') &&
               <StatusBadge map={ORDER_STATUS} status="CANCEL_REQUESTED" />}
             <StatusBadge map={ORDER_SOURCE} status={order.sourceType} />
@@ -265,6 +311,7 @@ function SellerOrderSection({ orderId, retail, sellerOrder: so, onUpdated, setAc
   const [actionError, setActionError] = useState('');
 
   const canCancel = so.allowedActions.includes('CANCEL');
+  const displayStatus = isFullyPaid(so) ? 'PAYMENT_COMPLETED' : so.status;
 
   const run = async (action: () => Promise<CustomerOrder>) => {
     setBusy(true);
@@ -292,7 +339,7 @@ function SellerOrderSection({ orderId, retail, sellerOrder: so, onUpdated, setAc
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <StatusBadge map={ORDER_STATUS} status={so.status} />
+          <StatusBadge map={ORDER_STATUS} status={displayStatus} />
           {!retail && !so.cancellation && so.payments.some((p) => p.status !== 'SUCCESS') &&
             <button className="text-sm text-primary-700 underline" onClick={() => {
               sessionStorage.removeItem('financeCustomerOrderId');

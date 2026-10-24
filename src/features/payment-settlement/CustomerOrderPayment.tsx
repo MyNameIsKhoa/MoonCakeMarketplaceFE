@@ -37,8 +37,14 @@ export default function CustomerOrderPayment({ orderId }: { orderId: number }) {
     try {
       if (action === 'initiate') {
         key.current ||= crypto.randomUUID();
-        setData(await paymentApi.initiateCustomer(orderId, key.current));
+        const updated = await paymentApi.initiateCustomer(orderId, key.current);
         key.current = null;
+        setData(updated);
+        const checkoutUrl = safeUrl(updated.payment?.checkoutUrl || null);
+        if (checkoutUrl && updated.payment?.status === 'PENDING') {
+          window.location.assign(checkoutUrl);
+          return;
+        }
       } else if (action === 'cancel') {
         setData(await paymentApi.cancelCustomerLink(orderId));
       } else {
@@ -80,9 +86,9 @@ export default function CustomerOrderPayment({ orderId }: { orderId: number }) {
         {uncertain && <p className="text-amber-800">Đang xác minh với PayOS. Vui lòng đối soát trước khi tạo link mới.</p>}
         <div className="flex flex-wrap gap-2">
           {(!payment || ended) && data.paidAmount === 0 && <button className="mss-button mss-button--primary" disabled={busy}
-            onClick={() => void run('initiate')}>Tạo một link thanh toán {formatVnd(data.totalAmount)}</button>}
+            onClick={() => void run('initiate')}>{busy ? 'Đang chuyển đến PayOS…' : `Thanh toán ${formatVnd(data.totalAmount)}`}</button>}
           {payment?.status === 'PENDING' && checkout && !expired &&
-            <a className="mss-button mss-button--primary" href={checkout} target="_blank" rel="noreferrer">Mở QR / thanh toán PayOS <ExternalLink size={16} /></a>}
+            <a className="mss-button mss-button--primary" href={checkout}>Mở QR / thanh toán PayOS <ExternalLink size={16} /></a>}
           {payment && payment.status !== 'SUCCESS' && !ended && <>
             <button className="mss-button mss-button--secondary" disabled={busy} onClick={() => void run('reconcile')}>Đối soát PayOS</button>
             <button className="mss-button mss-button--secondary" disabled={busy} onClick={() => void run('cancel')}>Hủy link chưa trả</button>

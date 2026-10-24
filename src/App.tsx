@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import CartDrawer from './components/CartDrawer';
@@ -43,7 +43,15 @@ const LOGIN_NOTICES: Record<string, string> = {
 export default function App() {
   const { stores } = useCatalog();
   const auth = useAuth();
-  const [activeTab, setActiveTab] = useState<string>(() => new URLSearchParams(location.search).has('finance') ? 'payment-settlement' : 'home');
+  const [paymentReturnOrderId, setPaymentReturnOrderId] = useState<string | null>(() => {
+    const params = new URLSearchParams(location.search);
+    const orderId = sessionStorage.getItem('financeCustomerOrderId');
+    return params.get('finance') === 'return' && orderId && /^\d+$/.test(orderId) ? orderId : null;
+  });
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const params = new URLSearchParams(location.search);
+    return paymentReturnOrderId ? 'orders' : params.has('finance') ? 'payment-settlement' : 'home';
+  });
   /** Protected tab to return to after login/register. */
   const [returnTab, setReturnTab] = useState<string | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product>(PRODUCTS[0]);
@@ -56,6 +64,13 @@ export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const handlePaymentReturnHandled = useCallback(() => setPaymentReturnOrderId(null), []);
+
+  useEffect(() => {
+    if (!paymentReturnOrderId) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    sessionStorage.removeItem('financeCustomerOrderId');
+  }, [paymentReturnOrderId]);
 
   useEffect(() => {
     if (!auth.isAuthenticated) { setCartItems([]); return; }
@@ -306,7 +321,11 @@ export default function App() {
         )}
 
         {activeTab === 'orders' && (
-          <OrderTracking setActiveTab={setActiveTab} />
+          <OrderTracking
+            setActiveTab={setActiveTab}
+            paymentReturnOrderId={paymentReturnOrderId}
+            onPaymentReturnHandled={handlePaymentReturnHandled}
+          />
         )}
 
         {activeTab === 'b2b' && <B2BPortal />}
