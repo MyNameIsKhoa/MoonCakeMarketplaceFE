@@ -32,6 +32,7 @@ export const FINANCE_STATUS: StatusMap = {
 export const ORDER_STATUS: StatusMap = {
   PENDING_STOCK: { label: 'Đang xác nhận giữ kho', variant: 'warning' },
   AWAITING_PAYMENT: { label: 'Chờ thanh toán', variant: 'warning' },
+  PAYMENT_COMPLETED: { label: 'Đã thanh toán', variant: 'success' },
   PENDING_CONFIRMATION: { label: 'Chờ nhà bán xác nhận', variant: 'warning' },
   CONFIRMED: { label: 'Đã xác nhận', variant: 'info' },
   PROCESSING: { label: 'Đang xử lý', variant: 'info' },
