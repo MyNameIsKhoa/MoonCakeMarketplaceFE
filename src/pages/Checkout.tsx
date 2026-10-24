@@ -79,10 +79,6 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
             {placedOrder.sellerOrders.map((so) => (
               <li key={so.sellerOrderId}>
                 {so.sellerOrderNo} ({formatVnd(so.totalAmount)})
-                <button className="ml-2 text-primary-700 underline" onClick={() => {
-                  sessionStorage.setItem('financeOrderId', String(so.sellerOrderId));
-                  setActiveTab('payment-settlement');
-                }}>Thanh toán đơn này</button>
               </li>
             ))}
           </ul>
@@ -91,6 +87,11 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
           </p>
           <p className="text-sm text-amber-800">Đơn đang chờ thanh toán PayOS; chưa có khoản nào được ghi nhận là đã trả.</p>
           <div className="flex flex-wrap justify-center gap-3">
+            <button onClick={() => {
+              sessionStorage.removeItem('financeOrderId');
+              sessionStorage.setItem('financeCustomerOrderId', String(placedOrder.orderId));
+              setActiveTab('payment-settlement');
+            }} className="mss-button mss-button--primary">Thanh toán tổng đơn</button>
             <button onClick={() => setActiveTab('orders')} className="mss-button mss-button--primary">
               Xem đơn hàng của tôi
             </button>
