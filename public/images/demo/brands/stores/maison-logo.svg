@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-label="Maison">
+  <title>Logo chữ minh họa Maison</title>
+  <rect width="320" height="320" rx="48" fill="#4c344e"/>
+  <circle cx="160" cy="160" r="126" fill="none" stroke="#e4c8da" stroke-width="4"/>
+  <text x="160" y="177" text-anchor="middle" fill="#fff0fa" font-family="Arial,sans-serif" font-size="49" font-weight="700">Maison</text>
+</svg>

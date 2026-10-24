@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-label="Madame Hương">
+  <title>Logo chữ minh họa Madame Hương</title>
+  <rect width="320" height="320" rx="48" fill="#48515f"/>
+  <circle cx="160" cy="160" r="126" fill="none" stroke="#e6cdb2" stroke-width="4"/>
+  <text x="160" y="151" text-anchor="middle" fill="#fff4e6" font-family="Arial,sans-serif" font-size="40" font-weight="700">Madame</text>
+  <text x="160" y="203" text-anchor="middle" fill="#fff4e6" font-family="Arial,sans-serif" font-size="45" font-weight="700">Hương</text>
+</svg>
