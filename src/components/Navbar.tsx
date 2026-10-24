@@ -471,10 +471,10 @@ export default function Navbar({
               Vận Chuyển
             </button>
 
-            {/* Payment & Settlement */}
+            {/* Checkout */}
             <button
-              onClick={() => setActiveTab('payment-settlement')}
-              className={`px-4 py-3 border-b-2 transition ${activeTab === 'payment-settlement'
+              onClick={() => setActiveTab('checkout')}
+              className={`px-4 py-3 border-b-2 transition ${activeTab === 'checkout'
                 ? 'border-primary-700 text-primary-700 font-bold'
                 : 'border-transparent text-gray-700 hover:text-primary-700'
                 }`}

@@ -169,7 +169,7 @@ export interface Shipment {
 /** cancellation (max one per seller order in v1) */
 export interface Cancellation {
   cancellationId: string;
-  actorType: string;
+  actorType?: string;
   reason: string;
   refundPercent?: number;
   status: string;
@@ -200,7 +200,7 @@ export interface SellerOrder {
   payments: Payment[];
   shipments: Shipment[];
   cancellation?: Cancellation;
-  /** Actions the backend currently allows the customer to perform. */
+  /** Customer actions derived from current order and finance state. */
   allowedActions: string[];
 }
 

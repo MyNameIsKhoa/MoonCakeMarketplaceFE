@@ -5,6 +5,7 @@ import { paymentApi, FinanceSummary, Payment } from './paymentApi';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { FINANCE_STATUS, PAYMENT_TYPE } from '../../utils/status';
 import { formatVnd } from '../../utils/format';
+import CustomerOrderPayment from './CustomerOrderPayment';
 
 const messages: Record<string, string> = {
   PAYMENT_CONTEXT_NOT_READY: 'Chưa có dữ liệu đơn hàng từ bộ phận xử lý đơn. Vui lòng thử lại sau.',
@@ -38,6 +39,14 @@ function safeUrl(value: string | null) {
 }
 
 export default function PaymentSettlement() {
+  const customerOrderId = Number(sessionStorage.getItem('financeCustomerOrderId'));
+  if (Number.isSafeInteger(customerOrderId) && customerOrderId > 0) {
+    return <CustomerOrderPayment orderId={customerOrderId} />;
+  }
+  return <SellerPaymentSettlement />;
+}
+
+function SellerPaymentSettlement() {
   const [orderInput, setOrderInput] = useState(() => sessionStorage.getItem('financeOrderId') || '');
   const [orderId, setOrderId] = useState<number | null>(null);
   const [data, setData] = useState<FinanceSummary | null>(null);

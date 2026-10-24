@@ -19,8 +19,11 @@ type OrderWire = Omit<CustomerOrder, 'orderId' | 'sellerOrders' | 'deliveryAddre
         { orderItemId: number; variantIdRef: number | null }>;
     }>;
 };
-type FinanceWire = { payments: Array<{ paymentId: number; paymentType: string; amount: number;
-  status: string; dueAt: string | null }> };
+type FinanceWire = {
+  payments: Array<{ paymentId: number; paymentType: string; amount: number;
+    status: string; dueAt: string | null }>;
+  cancellations: Array<{ id: number; status: string; reason: string }>;
+};
 export type CheckoutPlaced = { orderId: number; orderNo: string; status: string; grandTotal: number;
   sellerOrders: Array<{ sellerOrderId: number; sellerOrderNo: string; totalAmount: number }> };
 
@@ -105,13 +108,16 @@ export const orderApi = {
   get: async (id: string): Promise<CustomerOrder> => {
     const raw = (await http.get<OrderWire>(`/api/orders/${orderId(id)}`)).data;
     const sellerOrders = await Promise.all(raw.sellerOrders.map(async (seller) => {
-      const finance = raw.status === 'PENDING_STOCK' ? { payments: [] } :
+      const finance: FinanceWire = raw.status === 'PENDING_STOCK' ? { payments: [], cancellations: [] } :
         await http.get<FinanceWire>(`/api/payments/orders/${seller.sellerOrderId}`)
           .then((response) => response.data)
           .catch((error: unknown) => {
-            if (error instanceof ApiError && error.status === 404) return { payments: [] };
+            if (error instanceof ApiError && error.status === 404) return { payments: [], cancellations: [] };
             throw error;
           });
+      const cancellation = finance.cancellations[0];
+      const canRequestCancellation = finance.cancellations.length === 0 &&
+        !['PENDING_STOCK', 'CANCELLED', 'DELIVERED', 'COMPLETED', 'SETTLED', 'DISPUTED'].includes(seller.status);
       return {
         ...seller, sellerOrderId: String(seller.sellerOrderId), storeIdRef: String(seller.storeIdRef),
         supplierIdRef: String(seller.supplierIdRef), discountTotal: seller.items.reduce((n, i) => n + i.discountAmount, 0),
@@ -119,7 +125,10 @@ export const orderApi = {
           variantIdRef: item.variantIdRef === null ? undefined : String(item.variantIdRef) })),
         payments: finance.payments.map((p) => ({ paymentId: String(p.paymentId), paymentType: p.paymentType,
           amount: p.amount, status: p.status, dueAt: p.dueAt ?? undefined, provider: 'PAYOS' })),
-        shipments: [], allowedActions: []
+        shipments: [],
+        cancellation: cancellation ? { cancellationId: String(cancellation.id),
+          status: cancellation.status, reason: cancellation.reason } : undefined,
+        allowedActions: canRequestCancellation ? ['CANCEL'] : []
       };
     }));
     return { ...raw, orderId: String(raw.orderId),
@@ -139,6 +148,10 @@ export const orderApi = {
   requestCancellation: async (orderIdValue: string, sellerOrderId: string, reason: string) => {
     await http.post(`/api/payments/orders/${orderId(sellerOrderId)}/cancellations`, { reason },
       { headers: { 'Idempotency-Key': crypto.randomUUID() } });
+    return orderApi.get(orderIdValue);
+  },
+  cancelUnpaidCustomerOrder: async (orderIdValue: string, reason: string) => {
+    await http.post(`/api/payments/customer-orders/${orderId(orderIdValue)}/cancel-unpaid`, { reason });
     return orderApi.get(orderIdValue);
   }
 };
