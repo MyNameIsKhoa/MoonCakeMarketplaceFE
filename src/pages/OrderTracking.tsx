@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronDown, ChevronUp, MapPin, Store, Truck, Wallet } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, MapPin, Store, Truck, Wallet } from 'lucide-react';
 import { CustomerOrder, SellerOrder } from '../types';
 import { orderApi } from '../services/api';
 import { paymentApi } from '../features/payment-settlement/paymentApi';
+import { openCustomerCheckout, openSellerCheckout } from '../features/payment-settlement/openCheckout';
 import { formatAddress, formatDate, formatDateTime, formatVnd } from '../utils/format';
 import {
   CANCELLATION_STATUS,
@@ -38,6 +39,11 @@ function isFullyPaid(sellerOrder: SellerOrder) {
     sellerOrder.payments.every((payment) => ['SUCCESS', 'PAID'].includes(payment.status));
 }
 
+function isUnpaidCancelled(order: CustomerOrder) {
+  return order.status === 'CANCELLED' && order.sourceType === 'RETAIL' &&
+    order.sellerOrders.every(so => so.payments.every(p => !['SUCCESS', 'PAID'].includes(p.status)));
+}
+
 export default function OrderTracking({ setActiveTab, paymentReturnOrderId, onPaymentReturnHandled }: OrderTrackingProps) {
   const [orders, setOrders] = useState<CustomerOrder[] | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -51,8 +57,9 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, onPa
     orderApi
       .list()
       .then((list) => {
-        setOrders(list);
-        setExpandedId((current) => current ?? list[0]?.orderId ?? null);
+        const visible = list.filter(order => !isUnpaidCancelled(order));
+        setOrders(visible);
+        setExpandedId((current) => current ?? visible[0]?.orderId ?? null);
       })
       .catch(() => setLoadError('Không tải được danh sách đơn hàng.'));
   }, []);
@@ -89,7 +96,9 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, onPa
   }, [paymentReturnOrderId, load, onPaymentReturnHandled]);
 
   const replaceOrder = (updated: CustomerOrder) =>
-    setOrders((prev) => prev?.map((o) => (o.orderId === updated.orderId ? updated : o)) ?? prev);
+    setOrders((prev) => isUnpaidCancelled(updated)
+      ? prev?.filter(o => o.orderId !== updated.orderId) ?? prev
+      : prev?.map((o) => (o.orderId === updated.orderId ? updated : o)) ?? prev);
 
   const activeFilter = FILTERS.find((f) => f.id === filter)!;
   const visibleOrders =
@@ -110,9 +119,45 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, onPa
         </div>
       </header>
 
-      {paymentNotice && <p role="status" className={`mss-card ${paymentNotice.success ? 'text-green-800' : 'text-amber-800'}`}>
+      {paymentNotice && !paymentNotice.success && <p role="alert" className="mss-card text-amber-800">
         {paymentNotice.message}
       </p>}
+
+      {paymentNotice?.success && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
+          role="presentation">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="payment-success-title"
+            aria-describedby="payment-success-message"
+            className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl"
+          >
+            <div className="bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-7 pb-6 pt-8 text-center">
+              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 ring-8 ring-emerald-50">
+                <CheckCircle2 className="h-11 w-11 text-emerald-600" aria-hidden="true" />
+              </div>
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">MoocakeHub</p>
+              <h2 id="payment-success-title" className="text-2xl font-bold text-gray-900">
+                Thanh toán thành công!
+              </h2>
+              <p id="payment-success-message" className="mt-3 leading-6 text-gray-600">
+                {paymentNotice.message}
+              </p>
+            </div>
+            <div className="border-t border-gray-100 px-7 py-5">
+              <button
+                type="button"
+                autoFocus
+                className="mss-button mss-button--primary mss-button--full"
+                onClick={() => setPaymentNotice(null)}
+              >
+                OK, xem đơn hàng
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       <div className="flex gap-2 overflow-x-auto pb-1" role="tablist">
         {FILTERS.map((f) => (
@@ -156,7 +201,6 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, onPa
               expanded={expandedId === order.orderId}
               onToggle={() => setExpandedId(expandedId === order.orderId ? null : order.orderId)}
               onUpdated={replaceOrder}
-              setActiveTab={setActiveTab}
             />
           ))}
         </div>
@@ -172,13 +216,14 @@ interface OrderCardProps {
   expanded: boolean;
   onToggle: () => void;
   onUpdated: (order: CustomerOrder) => void;
-  setActiveTab: (tab: string) => void;
 }
 
-function OrderCard({ order, expanded, onToggle, onUpdated, setActiveTab }: OrderCardProps) {
+function OrderCard({ order, expanded, onToggle, onUpdated }: OrderCardProps) {
   const itemCount = order.sellerOrders.reduce((sum, so) => sum + so.items.length, 0);
-  const canPayTogether = order.sourceType === 'RETAIL' && order.sellerOrders.some((so) =>
-    !so.cancellation && so.payments.some((payment) => payment.status !== 'SUCCESS'));
+  const canPayTogether = order.sourceType === 'RETAIL' &&
+    !['CANCEL_REQUESTED', 'CANCELLED'].includes(order.status) &&
+    order.sellerOrders.every(so => !so.cancellation) &&
+    order.sellerOrders.some(so => so.payments.some(payment => payment.status !== 'SUCCESS'));
   const canCancelUnpaid = order.sourceType === 'RETAIL' &&
     order.status !== 'CANCELLED' &&
     order.sellerOrders.length > 0 &&
@@ -187,6 +232,16 @@ function OrderCard({ order, expanded, onToggle, onUpdated, setActiveTab }: Order
       so.payments.every((payment) => !['SUCCESS', 'PAID'].includes(payment.status)));
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelError, setCancelError] = useState('');
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+
+  const pay = async () => {
+    setPaymentBusy(true);
+    setPaymentError('');
+    try { await openCustomerCheckout(Number(order.orderId)); }
+    catch (error) { setPaymentError(error instanceof Error ? error.message : 'Không mở được PayOS.'); }
+    finally { setPaymentBusy(false); }
+  };
 
   const cancelUnpaidOrder = async () => {
     setIsCancelling(true);
@@ -230,15 +285,12 @@ function OrderCard({ order, expanded, onToggle, onUpdated, setActiveTab }: Order
           >
             {isCancelling ? 'Đang hủy…' : 'Hủy ngay (chưa thanh toán)'}
           </button>}
-          {canPayTogether && <button className="mss-button mss-button--primary mss-button--sm mt-2" onClick={() => {
-            sessionStorage.removeItem('financeOrderId');
-            sessionStorage.setItem('financeCustomerOrderId', String(order.orderId));
-            setActiveTab('payment-settlement');
-          }}>Thanh toán tổng đơn</button>}
+          {canPayTogether && <button disabled={paymentBusy} className="mss-button mss-button--primary mss-button--sm mt-2" onClick={() => void pay()}>{paymentBusy ? 'Đang mở PayOS…' : 'Thanh toán tổng đơn'}</button>}
         </div>
       </div>
 
       {cancelError && <div role="alert" className="mss-alert mss-alert--danger">{cancelError}</div>}
+      {paymentError && <div role="alert" className="mss-alert mss-alert--danger">{paymentError}</div>}
 
       <button
         onClick={onToggle}
@@ -264,7 +316,7 @@ function OrderCard({ order, expanded, onToggle, onUpdated, setActiveTab }: Order
 
           {order.sellerOrders.map((so) => (
             <SellerOrderSection key={so.sellerOrderId} orderId={order.orderId} retail={order.sourceType === 'RETAIL'} sellerOrder={so}
-              onUpdated={onUpdated} setActiveTab={setActiveTab} immediateCancellationAvailable={canCancelUnpaid} />
+              onUpdated={onUpdated} immediateCancellationAvailable={canCancelUnpaid} />
           ))}
 
           <dl className="text-sm text-gray-700 flex flex-col gap-1 self-end w-full sm:max-w-sm">
@@ -300,15 +352,22 @@ interface SellerOrderSectionProps {
   retail: boolean;
   sellerOrder: SellerOrder;
   onUpdated: (order: CustomerOrder) => void;
-  setActiveTab: (tab: string) => void;
   immediateCancellationAvailable: boolean;
 }
 
-function SellerOrderSection({ orderId, retail, sellerOrder: so, onUpdated, setActiveTab, immediateCancellationAvailable }: SellerOrderSectionProps) {
+function SellerOrderSection({ orderId, retail, sellerOrder: so, onUpdated, immediateCancellationAvailable }: SellerOrderSectionProps) {
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [paymentBusy, setPaymentBusy] = useState(false);
+
+  const paySeller = async () => {
+    setPaymentBusy(true); setActionError('');
+    try { await openSellerCheckout(Number(so.sellerOrderId)); }
+    catch (error) { setActionError(error instanceof Error ? error.message : 'Không mở được PayOS.'); }
+    finally { setPaymentBusy(false); }
+  };
 
   const canCancel = so.allowedActions.includes('CANCEL');
   const displayStatus = isFullyPaid(so) ? 'PAYMENT_COMPLETED' : so.status;
@@ -341,11 +400,7 @@ function SellerOrderSection({ orderId, retail, sellerOrder: so, onUpdated, setAc
         <div className="flex flex-wrap items-center gap-3">
           <StatusBadge map={ORDER_STATUS} status={displayStatus} />
           {!retail && !so.cancellation && so.payments.some((p) => p.status !== 'SUCCESS') &&
-            <button className="text-sm text-primary-700 underline" onClick={() => {
-              sessionStorage.removeItem('financeCustomerOrderId');
-              sessionStorage.setItem('financeOrderId', so.sellerOrderId);
-              setActiveTab('payment-settlement');
-            }}>Thanh toán PayOS</button>}
+            <button disabled={paymentBusy} className="text-sm text-primary-700 underline" onClick={() => void paySeller()}>{paymentBusy ? 'Đang mở PayOS…' : 'Thanh toán PayOS'}</button>}
           {canCancel && !immediateCancellationAvailable && !showCancel &&
             <button type="button" className="mss-button mss-button--danger mss-button--sm"
               onClick={() => { setActionError(''); setCancelReason('Tôi thay đổi ý định mua hàng.'); setShowCancel(true); }}>

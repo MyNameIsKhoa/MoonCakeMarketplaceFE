@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, CreditCard, MapPin, Store, Truck } from 'lucide-react';
 import { Address, CartItem, CheckoutPreview } from '../types';
 import { addressApi, checkoutApi, type CheckoutPlaced } from '../services/api';
+import { openCustomerCheckout } from '../features/payment-settlement/openCheckout';
 import { formatAddress, formatVnd } from '../utils/format';
 import EmptyState from '../components/ui/EmptyState';
 
@@ -25,6 +26,16 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [placedOrder, setPlacedOrder] = useState<CheckoutPlaced | null>(null);
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
+
+  const payPlacedOrder = async () => {
+    if (!placedOrder) return;
+    setPaymentBusy(true); setPaymentError('');
+    try { await openCustomerCheckout(placedOrder.orderId); }
+    catch (error) { setPaymentError(error instanceof Error ? error.message : 'Không mở được PayOS.'); }
+    finally { setPaymentBusy(false); }
+  };
 
   useEffect(() => {
     addressApi.list().then((list) => {
@@ -87,11 +98,7 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
           </p>
           <p className="text-sm text-amber-800">Đơn đang chờ thanh toán PayOS; chưa có khoản nào được ghi nhận là đã trả.</p>
           <div className="flex flex-wrap justify-center gap-3">
-            <button onClick={() => {
-              sessionStorage.removeItem('financeOrderId');
-              sessionStorage.setItem('financeCustomerOrderId', String(placedOrder.orderId));
-              setActiveTab('payment-settlement');
-            }} className="mss-button mss-button--primary">Thanh toán tổng đơn</button>
+            <button disabled={paymentBusy} onClick={() => void payPlacedOrder()} className="mss-button mss-button--primary">{paymentBusy ? 'Đang mở PayOS…' : 'Thanh toán tổng đơn'}</button>
             <button onClick={() => setActiveTab('orders')} className="mss-button mss-button--primary">
               Xem đơn hàng của tôi
             </button>
@@ -99,6 +106,7 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
               Về trang chủ
             </button>
           </div>
+          {paymentError && <p role="alert" className="mss-alert mss-alert--danger">{paymentError}</p>}
         </div>
       </div>
     );
