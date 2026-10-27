@@ -2,7 +2,10 @@ import { FormEvent, useRef, useState } from 'react';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
 import { errorMessage } from '../../../services/api/http';
 import { idempotencyKeyFor, quotationApi } from '../api';
-import { centsToVnd, isMoney, isoToLocalDateTime, isWholeVnd, localDateTimeToIso, toCents, todayIsoDate } from '../format';
+import {
+  centsToVnd, isMoney, isoToLocalDateTime, isWholeVnd, localDateTimeToIso, MIN_DELIVERY_DAYS_WITH_REMAINING, toCents,
+  todayIsoDate, vietnamIsoDate
+} from '../format';
 import type { Quotation, QuotationItemInput, QuotationTermsInput, Rfq, StoreInfo } from '../types';
 
 type Mode = { kind: 'create'; stores: StoreInfo[] } | { kind: 'revise'; quotation: Quotation };
@@ -97,7 +100,13 @@ export default function QuotationForm({ rfq, mode, onSaved, onCancel }: Quotatio
   if (!isMoney(depositPercent) || Number(depositPercent) > 100) termErrors.push('Tỷ lệ đặt cọc từ 0 đến 100%.');
   const validIso = localDateTimeToIso(validUntil);
   if (!validIso || new Date(validIso).getTime() <= Date.now()) termErrors.push('Hiệu lực báo giá phải ở tương lai.');
+  const hasRemaining = isMoney(depositPercent) && Number(depositPercent) > 0 && Number(depositPercent) < 100;
+  const earliestDelivery = hasRemaining ? vietnamIsoDate(MIN_DELIVERY_DAYS_WITH_REMAINING) : todayIsoDate();
   if (!deliveryDate || deliveryDate < todayIsoDate()) termErrors.push('Ngày giao dự kiến không được ở quá khứ.');
+  else if (hasRemaining && deliveryDate < earliestDelivery) {
+    termErrors.push(`Báo giá có tiền cọc cần ngày giao từ ${earliestDelivery.split('-').reverse().join('/')} trở đi: ` +
+      `phần còn lại phải thanh toán trước ngày giao 3 ngày.`);
+  }
   if (leadTimeDays && !INT.test(leadTimeDays)) termErrors.push('Thời gian chuẩn bị là số ngày (số nguyên).');
   if (!isWholeVnd(shippingFee)) termErrors.push('Phí vận chuyển là số tiền nguyên đồng (VND).');
   const itemErrors = rows.map(rowError);
@@ -206,7 +215,7 @@ export default function QuotationForm({ rfq, mode, onSaved, onCancel }: Quotatio
           <label className="mss-label" htmlFor="q-delivery">
             Ngày giao dự kiến *
           </label>
-          <input id="q-delivery" className="mss-input" type="date" min={todayIsoDate()} value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} />
+          <input id="q-delivery" className="mss-input" type="date" min={earliestDelivery} value={deliveryDate} onChange={(e) => setDeliveryDate(e.target.value)} />
         </div>
         <div className="mss-field">
           <label className="mss-label" htmlFor="q-lead">

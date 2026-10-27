@@ -30,6 +30,17 @@ export function todayIsoDate(offsetDays = 0): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+/** YYYY-MM-DD in Vietnam time, the calendar the backend uses for payment deadlines. */
+export function vietnamIsoDate(offsetDays = 0): string {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date());
+  const date = new Date(`${today}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+}
+
+/** A deposit between 0% and 100% leaves a remaining balance due 3 days before delivery (TV5). */
+export const MIN_DELIVERY_DAYS_WITH_REMAINING = 4;
+
 const MONEY_PATTERN = /^\d{1,16}(\.\d{1,2})?$/;
 
 export function isMoney(value: string): boolean {
