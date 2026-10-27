@@ -100,10 +100,18 @@ export default function RfqDetail({ rfqId, supplier, initialQuotationId, onBack,
       const busyStores = new Set(
         [...latest.values()].filter((q) => q.status === 'SUBMITTED' || q.status === 'EXPIRED').map((q) => q.storeId)
       );
-      const active = (await lookupApi.myStores()).filter((s) => s.status === 'ACTIVE');
+      // A private RFQ only takes quotations from the invited stores (the response lists the caller's own).
+      const invited = rfq?.audience === 'SELECTED_STORES' ? new Set((rfq.targetStores ?? []).map((t) => t.storeId)) : null;
+      const active = (await lookupApi.myStores()).filter(
+        (s) => s.status === 'ACTIVE' && (!invited || invited.has(String(s.storeId)))
+      );
       const stores = active.filter((s) => !busyStores.has(String(s.storeId)));
       if (active.length === 0) {
-        setComposerError('Bạn chưa có cửa hàng đang hoạt động. Kích hoạt cửa hàng trong Kênh người bán trước khi báo giá.');
+        setComposerError(
+          invited
+            ? 'Cửa hàng được mời cho yêu cầu này hiện không hoạt động. Kích hoạt lại cửa hàng trước khi báo giá.'
+            : 'Bạn chưa có cửa hàng đang hoạt động. Kích hoạt cửa hàng trong Kênh người bán trước khi báo giá.'
+        );
         return;
       }
       if (stores.length === 0) {
@@ -144,8 +152,16 @@ export default function RfqDetail({ rfqId, supplier, initialQuotationId, onBack,
           <div className="flex flex-wrap gap-1">
             <StatusBadge map={RFQ_STATUS} status={rfq.status} />
             {isIntakeExpired(rfq) && <span className="mss-badge mss-badge--warning">Hết hạn nhận báo giá</span>}
+            {rfq.audience === 'SELECTED_STORES' && <span className="mss-badge mss-badge--info">Gửi riêng</span>}
           </div>
         </header>
+
+        {rfq.audience === 'SELECTED_STORES' && (rfq.targetStores?.length ?? 0) > 0 && (
+          <p className="mss-alert m-0">
+            {owner ? `Chỉ gửi cho ${rfq.targetStores!.length} cửa hàng: ` : 'Yêu cầu được gửi riêng cho cửa hàng của bạn: '}
+            <strong>{rfq.targetStores!.map((t) => t.storeName).join(', ')}</strong>
+          </p>
+        )}
 
         <dl className="m-0 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <InfoRow label="Số lượng">{rfq.quantity.toLocaleString('vi-VN')} sản phẩm</InfoRow>

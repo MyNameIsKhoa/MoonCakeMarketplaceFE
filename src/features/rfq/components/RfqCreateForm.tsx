@@ -3,7 +3,8 @@ import { Loader2 } from 'lucide-react';
 import { ApiError, errorMessage } from '../../../services/api/http';
 import { rfqApi } from '../api';
 import { isMoney, localDateTimeToIso, todayIsoDate } from '../format';
-import type { CreateRfqInput, Rfq } from '../types';
+import type { CreateRfqInput, Rfq, RfqAudience } from '../types';
+import TargetStorePicker from './TargetStorePicker';
 
 interface RfqCreateFormProps {
   onCreated: (rfq: Rfq) => void;
@@ -43,9 +44,13 @@ export default function RfqCreateForm({ onCreated, onCancel }: RfqCreateFormProp
   const [serverErrors, setServerErrors] = useState<Partial<Record<Field, string>>>({});
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [audience, setAudience] = useState<RfqAudience>('ALL');
+  const [targetStoreIds, setTargetStoreIds] = useState<string[]>([]);
+  const [targetsTouched, setTargetsTouched] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   const clientErrors = validate(values);
+  const targetsError = audience === 'SELECTED_STORES' && targetStoreIds.length === 0 ? 'Chọn ít nhất một cửa hàng.' : undefined;
   const errorFor = (field: Field) => serverErrors[field] ?? (touched[field] ? clientErrors[field] : undefined);
 
   const set = (field: Field) => (event: { target: { value: string } }) => {
@@ -58,10 +63,11 @@ export default function RfqCreateForm({ onCreated, onCancel }: RfqCreateFormProp
     event.preventDefault();
     setFormError('');
     const errors = validate(values);
-    if (Object.keys(errors).length > 0) {
+    if (Object.keys(errors).length > 0 || targetsError) {
       setTouched(Object.fromEntries(Object.keys(EMPTY).map((k) => [k, true])));
+      setTargetsTouched(true);
       const first = Object.keys(EMPTY).find((k) => errors[k as Field]);
-      formRef.current?.querySelector<HTMLElement>(`[name="${first}"]`)?.focus();
+      formRef.current?.querySelector<HTMLElement>(first ? `[name="${first}"]` : '#rfq-audience-selected')?.focus();
       return;
     }
     const input: CreateRfqInput = {
@@ -72,14 +78,19 @@ export default function RfqCreateForm({ onCreated, onCancel }: RfqCreateFormProp
       requestedDeliveryDate: values.requestedDeliveryDate || undefined,
       deliveryLocation: values.deliveryLocation.trim() || undefined,
       customizationRequirements: values.customizationRequirements.trim() || undefined,
-      expiresAt: localDateTimeToIso(values.expiresAt)
+      expiresAt: localDateTimeToIso(values.expiresAt),
+      targetStoreIds: audience === 'SELECTED_STORES' ? targetStoreIds : undefined
     };
     setSubmitting(true);
     try {
       onCreated(await rfqApi.create(input));
     } catch (error) {
       if (error instanceof ApiError && Object.keys(error.fieldErrors).length > 0) setServerErrors(error.fieldErrors as Partial<Record<Field, string>>);
-      setFormError(errorMessage(error));
+      setFormError(
+        error instanceof ApiError && (error.code === 'STORE_NOT_ACTIVE' || error.code === 'STORE_NOT_FOUND')
+          ? 'Có cửa hàng đã chọn không còn hoạt động. Hãy bỏ chọn cửa hàng đó rồi gửi lại.'
+          : errorMessage(error)
+      );
     } finally {
       setSubmitting(false);
     }
@@ -119,8 +130,43 @@ export default function RfqCreateForm({ onCreated, onCancel }: RfqCreateFormProp
         <h2 id="rfq-create-title" className="mss-section-title">
           Tạo yêu cầu báo giá
         </h2>
-        <p className="mss-card-meta">Yêu cầu được công bố ngay để nhà cung cấp gửi báo giá. Địa chỉ và yêu cầu tùy chỉnh chỉ bạn nhìn thấy.</p>
+        <p className="mss-card-meta">Yêu cầu được gửi ngay để nhà cung cấp báo giá. Địa chỉ và yêu cầu tùy chỉnh chỉ bạn nhìn thấy.</p>
       </div>
+
+      <fieldset className="mss-stack m-0 border-0 p-0">
+        <legend className="mss-label">Gửi đến</legend>
+        <div className="flex flex-wrap gap-x-6 gap-y-2">
+          <label className="flex cursor-pointer items-center gap-2">
+            <input type="radio" name="audience" checked={audience === 'ALL'} onChange={() => setAudience('ALL')} />
+            Tất cả cửa hàng
+          </label>
+          <label className="flex cursor-pointer items-center gap-2">
+            <input
+              id="rfq-audience-selected"
+              type="radio"
+              name="audience"
+              checked={audience === 'SELECTED_STORES'}
+              onChange={() => setAudience('SELECTED_STORES')}
+            />
+            Chọn cửa hàng
+          </label>
+        </div>
+        <p className="m-0 text-sm text-gray-500">
+          {audience === 'ALL'
+            ? 'Hiện trên sàn yêu cầu báo giá; mọi nhà cung cấp đã xác minh có thể báo giá.'
+            : 'Chỉ cửa hàng được chọn nhìn thấy và báo giá; yêu cầu không hiện trên sàn chung.'}
+        </p>
+        {audience === 'SELECTED_STORES' && (
+          <TargetStorePicker
+            selected={targetStoreIds}
+            onChange={(ids) => {
+              setTargetStoreIds(ids);
+              setTargetsTouched(true);
+            }}
+            error={targetsTouched ? targetsError : undefined}
+          />
+        )}
+      </fieldset>
 
       {field('title', 'Tiêu đề *', <input className="mss-input" maxLength={255} {...common('title')} placeholder="VD: 500 hộp bánh trung thu quà tặng đối tác" />)}
 

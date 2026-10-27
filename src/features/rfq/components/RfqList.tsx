@@ -133,6 +133,9 @@ export default function RfqList({ mine, onOpen, onCreate }: RfqListProps) {
                 <div className="flex flex-wrap gap-1">
                   <StatusBadge map={RFQ_STATUS} status={rfq.status} />
                   {isIntakeExpired(rfq) && <span className="mss-badge mss-badge--warning">Hết hạn nhận báo giá</span>}
+                  {rfq.audience === 'SELECTED_STORES' && (
+                    <span className="mss-badge mss-badge--info">{mine ? 'Gửi riêng' : 'Gửi riêng cho cửa hàng của bạn'}</span>
+                  )}
                 </div>
               </div>
               {rfq.description && <p className="m-0 line-clamp-2 text-sm text-gray-600">{rfq.description}</p>}

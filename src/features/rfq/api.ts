@@ -60,6 +60,8 @@ export const lookupApi = {
   createAddress: (input: Omit<BuyerAddress, 'addressId'>) =>
     apiRequest<BuyerAddress>('/api/addresses', { method: 'POST', body: input }),
   myStores: () => apiRequest<StoreInfo[]>('/api/stores?mine=true'),
+  /** Every ACTIVE store; the buyer picks RFQ recipients from it. */
+  activeStores: () => apiRequest<StoreInfo[]>('/api/stores'),
   store: (storeId: string) => {
     if (!storeCache.has(storeId)) {
       storeCache.set(storeId, apiRequest<StoreInfo>(`/api/stores/${storeId}`).catch(() => null));

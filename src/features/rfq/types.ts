@@ -3,6 +3,8 @@
 // Identity/Catalog responses keep their own numeric IDs.
 
 export type RfqStatus = 'DRAFT' | 'OPEN' | 'CLOSED' | 'CANCELLED';
+/** ALL: public feed. SELECTED_STORES: only the invited stores see the RFQ and quote. */
+export type RfqAudience = 'ALL' | 'SELECTED_STORES';
 export type QuotationStatus = 'DRAFT' | 'SUBMITTED' | 'REVISED' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED';
 export type ConversionStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
 
@@ -29,6 +31,14 @@ export interface Rfq {
   status: RfqStatus;
   expiresAt?: string;
   createdAt: string;
+  audience?: RfqAudience;
+  /** Detail only: the owner gets every invited store, an invited supplier only its own. */
+  targetStores?: RfqTargetStore[];
+}
+
+export interface RfqTargetStore {
+  storeId: string;
+  storeName: string;
 }
 
 export interface CreateRfqInput {
@@ -40,6 +50,8 @@ export interface CreateRfqInput {
   deliveryLocation?: string;
   customizationRequirements?: string;
   expiresAt?: string;
+  /** Omit to publish to every store; 1–20 store IDs to send to those stores only. */
+  targetStoreIds?: string[];
 }
 
 export interface QuotationSummary {
