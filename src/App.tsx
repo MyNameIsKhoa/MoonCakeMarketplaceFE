@@ -62,7 +62,9 @@ export default function App() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [cartError, setCartError] = useState('');
 
-  const [wishlistIds, setWishlistIds] = useState<string[]>(['prod-1', 'prod-3']);
+  // No wishlist API exists yet: each account keeps its favourite product IDs in this browser.
+  const [wishlistIds, setWishlistIds] = useState<string[]>([]);
+  const wishlistKey = auth.user ? `mooncake.wishlist.${auth.user.userId}` : null;
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -123,10 +125,22 @@ export default function App() {
     if (await handleAddToCart(product, quantity, option, false)) setActiveTab('checkout');
   };
 
+  useEffect(() => {
+    if (!wishlistKey) { setWishlistIds([]); return; }
+    try {
+      const saved: unknown = JSON.parse(localStorage.getItem(wishlistKey) ?? '[]');
+      setWishlistIds(Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : []);
+    } catch {
+      setWishlistIds([]);
+    }
+  }, [wishlistKey]);
+
   const handleToggleWishlist = (productId: string) => {
-    setWishlistIds(prev =>
-      prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId]
-    );
+    if (!wishlistKey) { setActiveTab('login'); return; }
+    const next = wishlistIds.includes(productId)
+      ? wishlistIds.filter(id => id !== productId) : [...wishlistIds, productId];
+    setWishlistIds(next);
+    try { localStorage.setItem(wishlistKey, JSON.stringify(next)); } catch { /* storage blocked: keep it for this visit */ }
   };
 
   // Order totals, snapshots and statuses come from the backend (services/api);
