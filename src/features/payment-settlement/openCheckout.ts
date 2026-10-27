@@ -58,6 +58,10 @@ export async function openCustomerCheckout(orderId: number) {
   }
   if (summary.paidAmount > 0) throw new Error('Đơn này đã được thanh toán.');
   summary = await paymentApi.initiateCustomer(orderId, crypto.randomUUID());
+  // The backend cancels a link whose URL never reached it; one more attempt issues a fresh link.
+  if (summary.payment && RETRYABLE.includes(summary.payment.status)) {
+    summary = await paymentApi.initiateCustomer(orderId, crypto.randomUUID());
+  }
   if (summary.payment?.status !== 'PENDING') throw new Error('PayOS chưa sẵn sàng. Vui lòng thử lại.');
   redirectCustomer(orderId, summary.payment.checkoutUrl);
 }
@@ -88,7 +92,9 @@ export async function openSellerCheckout(sellerOrderId: number) {
   if (!(obligation.status === 'PENDING' && !obligation.checkoutUrl) && !RETRYABLE.includes(obligation.status)) {
     throw new Error('Đơn này chưa có khoản thanh toán sẵn sàng.');
   }
-  const payment = await paymentApi.initiate(obligation.paymentId, crypto.randomUUID());
+  let payment = await paymentApi.initiate(obligation.paymentId, crypto.randomUUID());
+  // The backend cancels a link whose URL never reached it; one more attempt issues a fresh link.
+  if (RETRYABLE.includes(payment.status)) payment = await paymentApi.initiate(payment.paymentId, crypto.randomUUID());
   if (payment.status !== 'PENDING') throw new Error('PayOS chưa sẵn sàng. Vui lòng thử lại.');
   redirect(payment.checkoutUrl);
 }
