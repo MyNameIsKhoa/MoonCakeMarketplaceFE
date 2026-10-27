@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { sellerOrderApi, type SellerOrderSummary } from '../../services/api';
 import { formatVnd } from '../../utils/format';
+import { useAuth } from '../../context/AuthContext';
+import ConversationsView from '../../features/chat/ConversationsView';
+import MyQuotations from '../../features/rfq/components/MyQuotations';
+import RfqDetail from '../../features/rfq/components/RfqDetail';
+import RfqList from '../../features/rfq/components/RfqList';
 import { 
   LayoutDashboard, Store, Package, Tag, Receipt, Truck, 
   FileText, DollarSign, MessageSquare, Wallet, Star, 
@@ -16,6 +21,10 @@ interface SellerCenterProps {
 
 export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
   const [currentSubTab, setCurrentSubTab] = useState<string>('tong-quan');
+  const { user, supplierProfile } = useAuth();
+  // TV4: RFQ opened from the RFQ feed, "Báo giá của tôi" or a conversation; null shows the list.
+  const [rfqView, setRfqView] = useState<{ rfqId: string; quotationId?: string | null } | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [selectedTheme, setSelectedTheme] = useState<'red' | 'green' | 'amber'>('red');
   const [storeName, setStoreName] = useState('Kinh Đô Official Store');
   const [productSearch, setProductSearch] = useState('');
@@ -37,6 +46,25 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const goTab = (id: string) => {
+    setCurrentSubTab(id);
+    setRfqView(null);
+  };
+
+  const rfqDetail = rfqView && (
+    <RfqDetail
+      key={rfqView.rfqId}
+      rfqId={rfqView.rfqId}
+      supplier={supplierProfile}
+      initialQuotationId={rfqView.quotationId}
+      onBack={() => setRfqView(null)}
+      onOpenConversation={(id) => {
+        setConversationId(id);
+        goTab('tin-nhan');
+      }}
+    />
+  );
+
   const navItems = [
     { id: 'tong-quan', label: 'Tổng quan', icon: LayoutDashboard },
     { id: 'ho-so-gian-hang', label: 'Hồ sơ gian hàng', icon: Store },
@@ -46,7 +74,7 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
     { id: 'van-chuyen', label: 'Vận chuyển', icon: Truck },
     { id: 'yeu-cau-bao-gia', label: 'Yêu cầu báo giá (RFQ)', icon: FileText, badge: 'RFQ' },
     { id: 'bao-gia-cua-toi', label: 'Báo giá của tôi', icon: DollarSign },
-    { id: 'tin-nhan', label: 'Tin nhắn', icon: MessageSquare, dot: true },
+    { id: 'tin-nhan', label: 'Tin nhắn', icon: MessageSquare },
     { id: 'doi-soat', label: 'Đối soát', icon: Wallet },
     { id: 'admin-duyet', label: 'Quản trị Sàn & Duyệt người bán', icon: ShieldCheck },
   ];
@@ -82,7 +110,7 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
             return (
               <button
                 key={item.id}
-                onClick={() => setCurrentSubTab(item.id)}
+                onClick={() => goTab(item.id)}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-semibold transition ${
                   isActive
                     ? 'bg-primary-800 text-white shadow-sm'
@@ -98,7 +126,6 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
                     {item.badge}
                   </span>
                 )}
-                {item.dot && <span className="w-2 h-2 rounded-full bg-red-600"></span>}
               </button>
             );
           })}
@@ -148,7 +175,7 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
             <select
               className="mss-select"
               value={currentSubTab}
-              onChange={(e) => setCurrentSubTab(e.target.value)}
+              onChange={(e) => goTab(e.target.value)}
               aria-label="Chọn mục quản lý"
             >
               {navItems.map((item) => (
@@ -514,42 +541,44 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
             </div>
           )}
 
-          {/* TAB 6: YÊU CẦU BÁO GIÁ (RFQ) & BÁO GIÁ CỦA TÔI */}
-          {(currentSubTab === 'yeu-cau-bao-gia' || currentSubTab === 'bao-gia-cua-toi') && (
-            <div className="space-y-6 animate-fadeIn">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Cổng Yêu Cầu Báo Giá (RFQ) & Thương Lượng Doanh Nghiệp</h1>
-                  <p className="text-gray-500 text-sm mt-1">Tiếp nhận đơn sỉ từ doanh nghiệp và gửi báo giá chính thức v1/v2</p>
-                </div>
+          {/* TAB 6: YÊU CẦU BÁO GIÁ (RFQ) & BÁO GIÁ CỦA TÔI — TV4 RFQ Service */}
+          {currentSubTab === 'yeu-cau-bao-gia' && (
+            <div className="space-y-6 animate-fadeIn min-w-0">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Yêu Cầu Báo Giá (RFQ)</h1>
+                <p className="text-gray-500 text-sm mt-1">RFQ đang mở trên sàn và RFQ người mua gửi riêng cho cửa hàng của bạn</p>
               </div>
+              {rfqDetail ?? <RfqList mine={false} onOpen={(rfqId) => setRfqView({ rfqId })} />}
+            </div>
+          )}
 
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-                  <div>
-                    <span className="text-sm bg-accent-100 text-accent-900 font-bold px-3 py-1 rounded">#RFQ2026-0088</span>
-                    <h3 className="font-bold text-gray-900 text-base mt-1">Tập đoàn Công nghệ MoonCorp • 500 hộp Trăng Vàng</h3>
-                    <p className="text-sm text-gray-500 mt-1">Ngân sách: 140tr - 160tr • Giao ngày 18/09/2026 (Tòa Landmark 81)</p>
-                  </div>
-                  <button 
-                    onClick={() => showToast('Đã gửi báo giá phiên bản v2.0 trọn gói 142.500.000 ₫!')}
-                    className="px-5 py-3 bg-primary-700 hover:bg-primary-800 text-white font-bold text-sm rounded-xl shadow transition"
-                  >
-                    Soạn / Gửi Báo Giá Ngay
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  <h4 className="font-bold text-gray-900 text-sm">Báo Giá Đã Gửi Của Bạn (Báo giá của tôi)</h4>
-                  <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex items-center justify-between text-sm">
-                    <div>
-                      <span className="font-bold text-gray-900">Hợp đồng #RFQ2026-0088 (Phiên bản v2.0)</span>
-                      <p className="text-gray-500 mt-1">Tổng chào thầu: 142.500.000 ₫ (Đã chiết khấu 18% + Quà tặng dao dĩa)</p>
-                    </div>
-                    <span className="bg-green-100 text-green-800 font-bold px-3 py-1 rounded-full">Khách đã chấp nhận (Escrow 30% đã cọc)</span>
-                  </div>
-                </div>
+          {currentSubTab === 'bao-gia-cua-toi' && (
+            <div className="space-y-6 animate-fadeIn min-w-0">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Báo Giá Của Tôi</h1>
+                <p className="text-gray-500 text-sm mt-1">Các báo giá đã gửi, phiên bản và phản hồi của người mua</p>
               </div>
+              {rfqDetail ?? <MyQuotations onOpen={(rfqId, quotationId) => setRfqView({ rfqId, quotationId })} />}
+            </div>
+          )}
+
+          {/* TAB: TIN NHẮN — TV4 chat; RFQ/chat DTOs carry IDs as strings, Identity's profile uses numbers */}
+          {currentSubTab === 'tin-nhan' && user && (
+            <div className="space-y-6 animate-fadeIn min-w-0">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Tin Nhắn</h1>
+                <p className="text-gray-500 text-sm mt-1">Trao đổi với người mua theo từng yêu cầu báo giá</p>
+              </div>
+              <ConversationsView
+                myUserId={String(user.userId)}
+                myCustomerId={user.customerId == null ? null : String(user.customerId)}
+                selectedId={conversationId}
+                onSelect={setConversationId}
+                onOpenRfq={(rfqId) => {
+                  goTab('yeu-cau-bao-gia');
+                  setRfqView({ rfqId });
+                }}
+              />
             </div>
           )}
 
