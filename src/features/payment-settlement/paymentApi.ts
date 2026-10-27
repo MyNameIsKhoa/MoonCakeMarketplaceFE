@@ -31,15 +31,19 @@ export interface CustomerPaymentSummary {
   };
   allocations: { paymentId: number; sellerOrderId: number; amount: number; sellerOrderNo: string }[];
 }
+// Calls that reach PayOS: a create may be followed by a reconcile and a cancel, each up to the
+// backend's 30 s PayOS timeout, so these wait longer than the default 20 s.
+const PAYOS_CALL = { timeoutMs: 100000 };
+
 export const paymentApi = {
   summary: (orderId: number) => request<FinanceSummary>(`/api/payments/orders/${orderId}`),
-  initiate: (id: number, key: string) => request<Payment>(`/api/payments/${id}/initiate`, { method: 'POST', key }),
-  reconcile: (id: number) => request<Payment>(`/api/payments/${id}/reconcile`, { method: 'POST' }),
-  cancelLink: (id: number) => request<Payment>(`/api/payments/${id}/cancel-link`, { method: 'POST' }),
+  initiate: (id: number, key: string) => request<Payment>(`/api/payments/${id}/initiate`, { method: 'POST', key, ...PAYOS_CALL }),
+  reconcile: (id: number) => request<Payment>(`/api/payments/${id}/reconcile`, { method: 'POST', ...PAYOS_CALL }),
+  cancelLink: (id: number) => request<Payment>(`/api/payments/${id}/cancel-link`, { method: 'POST', ...PAYOS_CALL }),
   customerSummary: (orderId: number) => request<CustomerPaymentSummary>(`/api/payments/customer-orders/${orderId}`),
-  initiateCustomer: (orderId: number, key: string) => request<CustomerPaymentSummary>(`/api/payments/customer-orders/${orderId}/initiate`, { method: 'POST', key }),
-  reconcileCustomer: (orderId: number) => request<CustomerPaymentSummary>(`/api/payments/customer-orders/${orderId}/reconcile`, { method: 'POST' }),
-  cancelCustomerLink: (orderId: number) => request<CustomerPaymentSummary>(`/api/payments/customer-orders/${orderId}/cancel-link`, { method: 'POST' }),
+  initiateCustomer: (orderId: number, key: string) => request<CustomerPaymentSummary>(`/api/payments/customer-orders/${orderId}/initiate`, { method: 'POST', key, ...PAYOS_CALL }),
+  reconcileCustomer: (orderId: number) => request<CustomerPaymentSummary>(`/api/payments/customer-orders/${orderId}/reconcile`, { method: 'POST', ...PAYOS_CALL }),
+  cancelCustomerLink: (orderId: number) => request<CustomerPaymentSummary>(`/api/payments/customer-orders/${orderId}/cancel-link`, { method: 'POST', ...PAYOS_CALL }),
   command: (orderId: number, command: string, body: unknown, key: string) =>
     request<FinanceSummary>(`/api/payments/orders/${orderId}/${command}`, { method: 'POST', body, key }),
 };
