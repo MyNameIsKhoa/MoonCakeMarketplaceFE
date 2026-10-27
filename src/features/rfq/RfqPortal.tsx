@@ -25,9 +25,9 @@ const TABS: { id: Tab; label: string; icon: typeof FileText; needs?: 'supplier' 
  * TV4 — RFQ feed, buyer RFQs + quotation comparison, supplier quotations and negotiation chat.
  * The b2b tab is 'customer' in utils/permissions, so App only renders this for a logged-in user (TV1 AuthContext).
  */
-export default function RfqPortal() {
+export default function RfqPortal({ initialTab = 'feed' }: { initialTab?: Tab }) {
   const { user, supplierProfile: supplier } = useAuth();
-  const [tab, setTab] = useState<Tab>('feed');
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [view, setView] = useState<View>({ kind: 'list' });
   const [conversationId, setConversationId] = useState<string | null>(null);
 
