@@ -4,6 +4,7 @@ import { Address, Product } from '../types';
 import { STORES, PRODUCTS, PROMOTIONS } from '../data/mockData';
 import { addressApi, ApiError, userApi } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useCatalog } from '../context/CatalogContext';
 import { formatAddress, formatDate } from '../utils/format';
 
 const EMPTY_ADDRESS = {
@@ -69,7 +70,11 @@ export default function UserProfile({
     addressApi.list().then(setAddresses);
   }, []);
 
-  const wishlistProducts = PRODUCTS.filter(p => wishlistIds.includes(p.id));
+  // Live catalog first; sample products only for items hearted on the home page's sample sections.
+  const { products } = useCatalog();
+  const wishlistProducts = wishlistIds
+    .map(id => products.find(p => p.id === id) ?? PRODUCTS.find(p => p.id === id))
+    .filter((p): p is Product => p !== undefined);
   const activePromotions = PROMOTIONS.filter(p => p.status === 'ACTIVE');
 
   const handleAddAddress = async (e: React.FormEvent) => {
