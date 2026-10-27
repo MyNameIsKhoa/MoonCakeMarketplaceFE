@@ -1,4 +1,24 @@
-import { paymentApi } from './paymentApi';
+import { paymentApi, type Payment } from './paymentApi';
+
+// PayOS may still move money in these states, so ask PayOS before issuing another link.
+const IN_FLIGHT = ['CREATING', 'RECONCILING', 'CANCELLING'];
+// The backend reissues a link only from these states (a new payment row of the same type).
+const RETRYABLE = ['CANCELLED', 'EXPIRED', 'FAILED'];
+// Seller-order obligations: FULL alone, or DEPOSIT before REMAINING.
+const PAY_ORDER = ['FULL', 'DEPOSIT', 'REMAINING'];
+
+// A link past its expiry stays PENDING until PayOS is asked again.
+const needsReconcile = (p: Payment) => IN_FLIGHT.includes(p.status) || (p.status === 'PENDING' && !!p.expiresAt);
+
+/** Newest row of the first unpaid obligation; undefined when everything is paid. */
+function dueObligation(payments: Payment[]): Payment | undefined {
+  for (const type of PAY_ORDER) {
+    const rows = payments.filter(p => p.paymentType === type);
+    if (rows.length === 0 || rows.some(p => p.status === 'SUCCESS')) continue;
+    return rows.reduce((newest, p) => (p.paymentId > newest.paymentId ? p : newest));
+  }
+  return undefined;
+}
 
 function checkoutUrl(value: string | null): string | null {
   if (!value) return null;
@@ -43,19 +63,31 @@ export async function openCustomerCheckout(orderId: number) {
 }
 
 export async function openSellerCheckout(sellerOrderId: number) {
-  const summary = await paymentApi.summary(sellerOrderId);
+  let summary = await paymentApi.summary(sellerOrderId);
   const active = summary.payments.find(p => p.status === 'PENDING' && p.checkoutUrl &&
     (!p.expiresAt || Date.parse(p.expiresAt) > Date.now()));
   if (active) {
     redirect(active.checkoutUrl);
     return;
   }
-  if (summary.payments.some(p => ['CREATING', 'RECONCILING', 'CANCELLING'].includes(p.status) ||
-    (p.status === 'PENDING' && p.expiresAt))) {
-    throw new Error('Giao dịch đang được xác minh với PayOS. Vui lòng thử lại sau.');
+  const stale = summary.payments.filter(needsReconcile);
+  if (stale.length > 0) {
+    for (const p of stale) {
+      // Paid after all: stop here so the buyer sees it instead of being sent to pay the next obligation.
+      if ((await paymentApi.reconcile(p.paymentId)).status === 'SUCCESS') {
+        throw new Error('PayOS đã ghi nhận khoản thanh toán này. Vui lòng tải lại đơn hàng.');
+      }
+    }
+    summary = await paymentApi.summary(sellerOrderId);
+    if (summary.payments.some(needsReconcile)) {
+      throw new Error('Giao dịch đang được xác minh với PayOS. Vui lòng thử lại sau.');
+    }
   }
-  const obligation = summary.payments.find(p => p.status === 'PENDING' && !p.checkoutUrl);
-  if (!obligation) throw new Error('Đơn này chưa có khoản thanh toán sẵn sàng.');
+  const obligation = dueObligation(summary.payments);
+  if (!obligation) throw new Error('Đơn này đã được thanh toán đủ.');
+  if (!(obligation.status === 'PENDING' && !obligation.checkoutUrl) && !RETRYABLE.includes(obligation.status)) {
+    throw new Error('Đơn này chưa có khoản thanh toán sẵn sàng.');
+  }
   const payment = await paymentApi.initiate(obligation.paymentId, crypto.randomUUID());
   if (payment.status !== 'PENDING') throw new Error('PayOS chưa sẵn sàng. Vui lòng thử lại.');
   redirect(payment.checkoutUrl);
