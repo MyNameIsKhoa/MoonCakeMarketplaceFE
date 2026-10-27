@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Search, ShoppingBag, Heart, Sparkles, Package, Building2, Menu, X,
-  PhoneCall, ChevronDown, Store as StoreIcon, ArrowRight, ShieldCheck, Star
+  PhoneCall, ChevronDown, Store as StoreIcon, ArrowRight, ShieldCheck, Star, MessageSquare
 } from 'lucide-react';
 import { Store, Product } from '../types';
 import { useCatalog } from '../context/CatalogContext';
 import { useAuth } from '../context/AuthContext';
+import { useUnreadMessages } from '../features/chat/useUnreadMessages';
 import UserMenu from './UserMenu';
 
 interface NavbarProps {
@@ -14,6 +15,7 @@ interface NavbarProps {
   cartItemsCount: number;
   wishlistCount: number;
   onOpenCart: () => void;
+  onOpenMessages: () => void;
   onOpenAI: () => void;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
@@ -30,6 +32,7 @@ export default function Navbar({
   cartItemsCount,
   wishlistCount,
   onOpenCart,
+  onOpenMessages,
   onOpenAI,
   searchQuery,
   setSearchQuery,
@@ -41,6 +44,7 @@ export default function Navbar({
 }: NavbarProps) {
   const { stores, products } = useCatalog();
   const { isAuthenticated, isAdmin } = useAuth();
+  const unreadMessages = useUnreadMessages(isAuthenticated);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [storeDropdownOpen, setStoreDropdownOpen] = useState(false);
@@ -323,6 +327,23 @@ export default function Navbar({
               </span>
             )}
           </button>
+
+          {/* RFQ chat messages (TV4): unread count from the RFQ service */}
+          {isAuthenticated && (
+            <button
+              onClick={onOpenMessages}
+              className="p-2.5 text-gray-700 hover:bg-gray-100 rounded-full relative transition"
+              title="Tin nhắn"
+              aria-label={unreadMessages > 0 ? `Tin nhắn, ${unreadMessages} tin chưa đọc` : 'Tin nhắn'}
+            >
+              <MessageSquare className="w-5 h-5" />
+              {unreadMessages > 0 && (
+                <span className="absolute top-1 right-0.5 bg-red-600 text-white text-[10px] font-bold min-w-4 h-4 px-1 rounded-full flex items-center justify-center">
+                  {unreadMessages > 99 ? '99+' : unreadMessages}
+                </span>
+              )}
+            </button>
+          )}
 
           {/* High-priority Cart Button */}
           <button

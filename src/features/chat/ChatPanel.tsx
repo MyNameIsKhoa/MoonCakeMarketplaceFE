@@ -4,8 +4,9 @@ import { formatDateTime } from '../../utils/format';
 import { CONVERSATION_STATUS } from '../../utils/status';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { ErrorBlock } from '../rfq/components/ui';
-import { ConversationStatus, MAX_MESSAGE_LENGTH } from './api';
+import { ConversationStatus, MAX_MESSAGE_LENGTH, conversationApi } from './api';
 import { ConnectionState, useChatThread } from './useChatThread';
+import { CHAT_READ_EVENT } from './useUnreadMessages';
 
 interface ChatPanelProps {
   conversationId: string;
@@ -36,6 +37,14 @@ export default function ChatPanel({ conversationId, conversationStatus, title, s
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [lastId, thread.pending.length]);
+
+  // What is on screen counts as read; the navbar badge refreshes right after.
+  useEffect(() => {
+    if (!lastId) return;
+    conversationApi.markRead(conversationId)
+      .then(() => window.dispatchEvent(new Event(CHAT_READ_EVENT)))
+      .catch(() => { /* only the badge lags; the chat keeps working */ });
+  }, [conversationId, lastId]);
 
   const submit = (event?: FormEvent) => {
     event?.preventDefault();

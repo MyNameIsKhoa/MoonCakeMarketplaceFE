@@ -54,6 +54,8 @@ export default function App() {
   });
   /** Protected tab to return to after login/register. */
   const [returnTab, setReturnTab] = useState<string | null>(null);
+  /** The navbar chat icon opens the B2B portal on "Tin nhắn"; the key remounts it when already open. */
+  const [b2bEntry, setB2bEntry] = useState<{ key: number; tab?: 'messages' }>({ key: 0 });
   const [selectedProduct, setSelectedProduct] = useState<Product>(PRODUCTS[0]);
   const [selectedStore, setSelectedStore] = useState<Store>(STORES[0]);
 
@@ -154,7 +156,14 @@ export default function App() {
 
   useEffect(() => {
     window.scrollTo(0, 0);
+    // Opening "Doanh Nghiệp" from the menu later starts on the RFQ feed again.
+    if (activeTab !== 'b2b') setB2bEntry((entry) => (entry.tab ? { key: entry.key } : entry));
   }, [activeTab]);
+
+  const openMessages = () => {
+    setB2bEntry((entry) => ({ key: entry.key + 1, tab: 'messages' }));
+    setActiveTab('b2b');
+  };
 
   const renderGate = () => {
     if (auth.status === 'loading') {
@@ -201,6 +210,7 @@ export default function App() {
           cartItemsCount={cartItems.reduce((sum, i) => sum + i.quantity, 0)}
           wishlistCount={wishlistIds.length}
           onOpenCart={() => setIsCartOpen(true)}
+          onOpenMessages={openMessages}
           onOpenAI={() => setIsAIOpen(true)}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
@@ -328,7 +338,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'b2b' && <B2BPortal />}
+        {activeTab === 'b2b' && <B2BPortal key={b2bEntry.key} initialTab={b2bEntry.tab} />}
         {activeTab === 'payment-settlement' && <PaymentSettlement />}
 
         {activeTab === 'seller-center' && (

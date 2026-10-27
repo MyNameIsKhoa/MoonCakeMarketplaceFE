@@ -44,6 +44,11 @@ export const conversationApi = {
     return apiRequest<PageResult<Conversation>>(`/api/conversations?${search}`);
   },
   get: (conversationId: string) => apiRequest<Conversation>(`/api/conversations/${conversationId}`),
+  /** Messages from the other party after the caller's last read, across all conversations. */
+  unreadCount: () => apiRequest<{ unreadCount: number }>('/api/conversations/unread-count'),
+  /** Marks the conversation read up to its newest message (204). */
+  markRead: (conversationId: string) =>
+    apiRequest<void>(`/api/conversations/${conversationId}/read`, { method: 'POST' }),
   /** Items are ascending by messageId; cursors are exclusive and never combined. */
   history: (conversationId: string, cursor: { beforeMessageId?: string; afterMessageId?: string } = {}) => {
     const search = new URLSearchParams({ limit: '50' });
