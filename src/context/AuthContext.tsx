@@ -99,8 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(async (input: RegisterRequest) => {
     await authApi.register({ ...input, email: input.email.trim() });
-    await login(input.email, input.password);
-  }, [login]);
+  }, []);
 
   const submitSupplierProfile = useCallback(async (input: SupplierProfileRequest) => {
     const saved = supplierProfile ? await supplierProfileApi.update(input) : await supplierProfileApi.create(input);

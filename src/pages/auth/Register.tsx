@@ -6,7 +6,7 @@ import AuthLayout, { authErrorMessage, EMAIL_PATTERN } from './AuthLayout';
 type AccountType = 'customer' | 'supplier';
 
 interface RegisterProps {
-  /** Called once the account exists and the user is logged in; supplier accounts go to the seller center. */
+  /** Called once registration succeeds; email verification is required before login. */
   onSuccess: (accountType: AccountType) => void;
   onSwitchToLogin: () => void;
   defaultAccountType?: AccountType;
@@ -66,11 +66,10 @@ export default function Register({ onSuccess, onSwitchToLogin, defaultAccountTyp
       return;
     }
     if (accountType === 'supplier') {
-      // The account already exists here; if this step fails the seller center lets the user resubmit.
       await submitSupplierProfile({ companyName: form.companyName.trim(), taxCode: form.taxCode.trim() }).catch(() => undefined);
     }
     setSubmitting(false);
-    onSuccess(accountType);
+    onSuccess('customer');
   };
 
   const field = (name: FormField, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (

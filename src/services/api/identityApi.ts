@@ -14,7 +14,11 @@ export const authApi = {
     (await http.post<UserSummaryResponse>('/api/auth/register', body)).data,
   /** 401 wrong email/password, 403 account not ACTIVE. */
   login: async (body: LoginRequest) =>
-    (await http.post<AuthResponse>('/api/auth/login', body)).data
+    (await http.post<AuthResponse>('/api/auth/login', body)).data,
+  verifyEmail: async (token: string) =>
+    http.post('/api/auth/email/verify', { token }),
+  requestEmailVerification: async (email: string) =>
+    http.post('/api/auth/email/verification-requests', { email })
 };
 
 export const userApi = {

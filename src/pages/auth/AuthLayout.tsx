@@ -50,7 +50,9 @@ export function authErrorMessage(err: unknown, action: 'login' | 'register' | 's
   if (!(err instanceof ApiError)) return 'Đã có lỗi xảy ra, vui lòng thử lại.';
   if (err.status === 0) return err.message;
   if (action === 'login' && err.status === 401) return 'Email hoặc mật khẩu không đúng.';
-  if (action === 'login' && err.status === 403) return 'Tài khoản đang bị khóa hoặc chưa được kích hoạt.';
+  if (action === 'login' && err.status === 403 && err.message.includes('EMAIL_NOT_VERIFIED')) return 'Email chưa được xác minh. Hãy mở link trong email trước khi đăng nhập.';
+  if (action === 'login' && err.status === 403 && err.message.includes('ACCOUNT_NOT_ACTIVE')) return 'Tài khoản đang bị khóa hoặc chưa được kích hoạt.';
+  if (action === 'login' && err.status === 403) return 'Bạn không có quyền đăng nhập tài khoản này.';
   if (action === 'register' && err.status === 409) return 'Email này đã được đăng ký. Vui lòng đăng nhập.';
   if (action === 'supplier' && err.status === 409) return 'Mã số thuế đã được dùng cho một hồ sơ khác, hoặc tài khoản đã có hồ sơ nhà cung cấp.';
   if (err.status === 400) return 'Thông tin chưa hợp lệ, vui lòng kiểm tra lại các trường.';
