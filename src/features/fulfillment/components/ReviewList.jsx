@@ -1,42 +1,26 @@
 import { useState, useEffect } from 'react';
 import { fulfillmentApi } from '../api/fulfillmentApi';
 
-const SAMPLE_REVIEWS = [
-  {
-    reviewId: 1,
-    customerId: 701,
-    rating: 5,
-    comment: 'Bánh rất ngon, nhân thập cẩm jambon chuẩn vị truyền thống, vỏ bánh mềm thơm!',
-    createdAt: '2026-09-13T10:15:00',
-  },
-  {
-    reviewId: 2,
-    customerId: 703,
-    rating: 5,
-    comment: 'Hộp bánh đóng gói cực kỳ sang trọng, giao hàng nhanh chóng trước Tết Trung Thu.',
-    createdAt: '2026-09-14T14:30:00',
-  },
-];
-
 export const ReviewList = ({ variantId }) => {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
     const loadReviews = async () => {
       setLoading(true);
       setError(null);
+      setReviews([]);
       try {
         const data = await fulfillmentApi.getReviewsByVariant(variantId);
         if (isMounted) {
-          setReviews(data && data.length > 0 ? data : SAMPLE_REVIEWS);
+          setReviews(data);
         }
       } catch {
         if (isMounted) {
-          // Graceful fallback to sample reviews if backend is not reachable
-          setReviews(SAMPLE_REVIEWS);
+          setError('Không tải được đánh giá. Vui lòng thử lại.');
         }
       } finally {
         if (isMounted) {
@@ -49,7 +33,7 @@ export const ReviewList = ({ variantId }) => {
     return () => {
       isMounted = false;
     };
-  }, [variantId]);
+  }, [variantId, reloadKey]);
 
   const calculateAverageRating = () => {
     if (!reviews || reviews.length === 0) return 0;
@@ -62,7 +46,7 @@ export const ReviewList = ({ variantId }) => {
   }
 
   if (error) {
-    return <div style={{ padding: '20px', color: '#ef4444' }}>{error}</div>;
+    return <div role="alert" style={{ padding: '20px', color: '#ef4444' }}>{error} <button onClick={() => setReloadKey(k => k + 1)}>Thử lại</button></div>;
   }
 
   const avgRating = calculateAverageRating();

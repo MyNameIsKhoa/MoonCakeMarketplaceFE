@@ -4,7 +4,7 @@ import {
   Cookie, Leaf, ChevronRight, Heart, Store as StoreIcon, Layers
 } from 'lucide-react';
 import { Product, Store } from '../types';
-// Flash sale, best sellers and blogs stay on mock data (the backend has no field for them yet).
+// Blog content is editorial; sales sections are available only in explicit demo mode.
 import { PRODUCTS, FESTIVE_BLOGS } from '../data/mockData';
 import { useCatalog } from '../context/CatalogContext';
 import { HeroBanner } from '../components/home/HeroBanner';
@@ -33,7 +33,7 @@ export default function Home({
   onToggleWishlist,
   onOpenAI
 }: HomeProps) {
-  const { stores, products, categories, source, error, reload, findStore } = useCatalog();
+  const { stores, products, categories, source, findStore } = useCatalog();
 
   // Flash sale countdown timer (e.g. 12 hours left)
   const [timeLeft, setTimeLeft] = useState({ hours: 11, minutes: 45, seconds: 30 });
@@ -81,14 +81,6 @@ export default function Home({
       />
 
       {/* 2. Core Section: Multi-vendor Partner Stores Directory (Store Cards + Filters) */}
-      {source === 'mock' && error && (
-        <div className="mss-container">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-amber-50 border border-amber-200 text-amber-900 text-xs sm:text-sm rounded-xl px-4 py-3">
-            <span>{error} Đang hiển thị dữ liệu gian hàng mẫu.</span>
-            <button onClick={reload} className="font-bold text-primary-700 hover:underline shrink-0">Thử lại</button>
-          </div>
-        </div>
-      )}
       <StoreSection
         stores={stores}
         products={products}

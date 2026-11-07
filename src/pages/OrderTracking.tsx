@@ -17,6 +17,8 @@ import {
 } from '../utils/status';
 import StatusBadge from '../components/ui/StatusBadge';
 import EmptyState from '../components/ui/EmptyState';
+import { fulfillmentApi } from '../features/fulfillment/api/fulfillmentApi';
+import { ApiError } from '../services/api/http';
 
 interface OrderTrackingProps {
   setActiveTab: (tab: string) => void;
@@ -28,8 +30,8 @@ type FilterId = 'all' | 'active' | 'done' | 'cancelled';
 
 const FILTERS: { id: FilterId; label: string; statuses?: string[] }[] = [
   { id: 'all', label: 'Tất cả' },
-  { id: 'active', label: 'Đang xử lý', statuses: ['PENDING_STOCK', 'AWAITING_PAYMENT', 'PAYMENT_COMPLETED', 'PENDING_CONFIRMATION', 'CONFIRMED', 'PROCESSING', 'PREPARING', 'SHIPPING'] },
-  { id: 'done', label: 'Đã giao / Hoàn tất', statuses: ['DELIVERED', 'COMPLETED'] },
+  { id: 'active', label: 'Đang xử lý', statuses: ['PENDING_STOCK', 'AWAITING_PAYMENT', 'AWAITING_DEPOSIT', 'READY_FOR_FULFILLMENT', 'PAYMENT_COMPLETED', 'PENDING_CONFIRMATION', 'CONFIRMED', 'PROCESSING', 'PREPARING', 'SHIPPING'] },
+  { id: 'done', label: 'Đã giao / Hoàn tất', statuses: ['DELIVERED', 'ACCEPTED', 'SETTLED', 'COMPLETED'] },
   { id: 'cancelled', label: 'Hủy / Khiếu nại', statuses: ['CANCEL_REQUESTED', 'CANCELLED', 'DISPUTED'] }
 ];
 
@@ -249,7 +251,9 @@ function OrderCard({ order, expanded, onToggle, onUpdated }: OrderCardProps) {
     try {
       onUpdated(await orderApi.cancelUnpaidCustomerOrder(order.orderId, 'Khách hàng hủy đơn chưa thanh toán.'));
     } catch (error) {
-      setCancelError(error instanceof Error ? error.message : 'Không thể hủy đơn hàng.');
+      setCancelError(error instanceof ApiError && error.code === 'STOCK_RESERVATION_RECONCILIATION_REQUIRED'
+        ? 'Đơn cũ thiếu thông tin giữ kho. Vui lòng liên hệ quản trị để đối soát tồn kho trước khi hủy.'
+        : error instanceof Error ? error.message : 'Không thể hủy đơn hàng.');
     } finally {
       setIsCancelling(false);
     }
@@ -370,7 +374,7 @@ function SellerOrderSection({ orderId, retail, sellerOrder: so, onUpdated, immed
   };
 
   const canCancel = so.allowedActions.includes('CANCEL');
-  const displayStatus = isFullyPaid(so) ? 'PAYMENT_COMPLETED' : so.status;
+  const displayStatus = so.status === 'AWAITING_PAYMENT' && isFullyPaid(so) ? 'PAYMENT_COMPLETED' : so.status;
 
   const run = async (action: () => Promise<CustomerOrder>) => {
     setBusy(true);
@@ -590,6 +594,14 @@ function SellerOrderSection({ orderId, retail, sellerOrder: so, onUpdated, immed
             </div>
           ))
         )}
+        {so.status === 'DELIVERED' && <button type="button" className="mss-button mss-button--secondary self-start"
+          disabled={busy} onClick={() => {
+            if (!window.confirm('Xác nhận bạn đã nhận và kiểm tra hàng?')) return;
+            void run(async () => {
+              await fulfillmentApi.acceptSellerOrder(so.sellerOrderId);
+              return orderApi.get(orderId);
+            });
+          }}>Xác nhận nghiệm thu</button>}
       </div>
 
       {so.cancellation && (

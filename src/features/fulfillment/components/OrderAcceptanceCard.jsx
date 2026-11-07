@@ -21,19 +21,7 @@ export const OrderAcceptanceCard = ({ sellerOrder, onAccepted }) => {
         onAccepted(response);
       }
     } catch (err) {
-      // In demo/offline mode where backend might not be reachable, simulate successful acceptance
-      if (!err.response) {
-        setShowConfirm(false);
-        if (onAccepted) {
-          onAccepted({
-            sellerOrderId: sellerOrder.id,
-            status: 'ACCEPTED',
-            acceptedAt: new Date().toISOString(),
-          });
-        }
-      } else {
-        setError(err.response?.data?.message || 'Không thể nghiệm thu đơn hàng. Vui lòng thử lại sau.');
-      }
+      setError(err.response?.data?.message || err.message || 'Không thể nghiệm thu đơn hàng. Vui lòng thử lại sau.');
     } finally {
       setLoading(false);
     }

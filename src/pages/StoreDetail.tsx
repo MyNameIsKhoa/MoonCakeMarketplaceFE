@@ -49,8 +49,9 @@ export default function StoreDetail({
   const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc'>('default');
 
   // Stores from the API Gateway have numeric IDs; mock stores keep reading data/mockData.
-  const isLive = isApiId(store.storeId);
-  const { categories } = useCatalog();
+  const { categories, source } = useCatalog();
+  const isDemo = source === 'mock';
+  const isLive = !isDemo && isApiId(store.storeId);
   const [live, setLive] = useState<LiveStoreData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -92,18 +93,18 @@ export default function StoreDetail({
 
   const loading = isLive && !live && !loadError;
   const storeProducts = useMemo(
-    () => (isLive ? live?.products ?? [] : PRODUCTS.filter(p => p.storeId === store.storeId)),
-    [isLive, live, store.storeId]
+    () => (isDemo ? PRODUCTS.filter(p => p.storeId === store.storeId) : live?.products ?? []),
+    [isDemo, live, store.storeId]
   );
-  const storePromotions = (isLive ? live?.promotions ?? [] : PROMOTIONS.filter(p => p.storeId === store.storeId))
+  const storePromotions = (isDemo ? PROMOTIONS.filter(p => p.storeId === store.storeId) : live?.promotions ?? [])
     .filter(p => p.status === 'ACTIVE');
-  const storeBranches = isLive ? live?.branches ?? [] : store.branches ?? [];
+  const storeBranches = isDemo ? store.branches ?? [] : live?.branches ?? [];
 
   const categoryTabs = useMemo(() => {
-    if (!isLive) return MOCK_CATEGORY_TABS;
+    if (isDemo) return MOCK_CATEGORY_TABS;
     const slugs = new Set(storeProducts.map(p => p.category).filter(Boolean));
     return categories.filter(c => slugs.has(c.id));
-  }, [isLive, storeProducts, categories]);
+  }, [isDemo, storeProducts, categories]);
 
   // Filter products belonging to this store
   const filteredProducts = useMemo(() => {
@@ -203,7 +204,7 @@ export default function StoreDetail({
                     </span>
                   </>
                 )}
-                {store.priceRange && (
+                {isDemo && store.priceRange && (
                   <>
                     <span>•</span>
                     <span>Khoảng giá: <strong className="text-white">{store.priceRange}</strong></span>

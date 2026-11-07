@@ -30,21 +30,7 @@ export const ReviewModal = ({ orderItem, isOpen, onClose, onReviewed }) => {
       }
       onClose();
     } catch (err) {
-      if (!err.response) {
-        // Fallback for demo when backend is offline
-        if (onReviewed) {
-          onReviewed({
-            reviewId: Date.now(),
-            orderItemId: orderItem.id,
-            rating,
-            comment: comment.trim(),
-            createdAt: new Date().toISOString(),
-          });
-        }
-        onClose();
-      } else {
-        setError(err.response?.data?.message || 'Không thể gửi đánh giá. Vui lòng thử lại sau.');
-      }
+      setError(err.response?.data?.message || err.message || 'Không thể gửi đánh giá. Vui lòng thử lại sau.');
     } finally {
       setLoading(false);
     }

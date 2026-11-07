@@ -72,7 +72,7 @@ export function toProduct(
     sugarLevel: 'Tiêu chuẩn',
     description: '',
     salesCount: 0,
-    inStock: product.status !== 'OUT_OF_STOCK'
+    inStock: product.status === 'ACTIVE'
   };
 }
 
@@ -84,7 +84,7 @@ export function withProductDetail(product: Product, detail: ProductResponse): Pr
     name: detail.name,
     description: detail.description ?? '',
     gallery: images.filter((url) => url !== product.image),
-    inStock: detail.variants.some((v) => v.stockQuantity > 0)
+    inStock: detail.status === 'ACTIVE' && detail.variants.some((v) => v.status === 'ACTIVE' && v.stockQuantity > 0)
   };
 }
 

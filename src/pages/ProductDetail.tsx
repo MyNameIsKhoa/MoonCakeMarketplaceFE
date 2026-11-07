@@ -3,6 +3,8 @@ import { Star, ShieldCheck, Truck, RefreshCw, Heart, ShoppingBag, Plus, Minus, M
 import { Product, Review } from '../types';
 import { REVIEWS } from '../data/mockData';
 import { catalogApi, isApiId, withProductDetail, type ProductResponse } from '../services/api';
+import { useCatalog } from '../context/CatalogContext';
+import { ReviewList } from '../features/fulfillment/components/ReviewList';
 
 const SUGAR_LEVELS = ['Ít ngọt (Giảm 30%)', 'Tiêu chuẩn', 'Không đường (Dành cho người ăn kiêng)'];
 
@@ -28,19 +30,23 @@ export default function ProductDetail({
   const [sugarLevel, setSugarLevel] = useState<string>(product.sugarLevel);
   const [selectedBoxOption, setSelectedBoxOption] = useState('Hộp quà tiêu chuẩn mạ vàng');
 
-  // Products from the API Gateway have numeric IDs: load description + variants (price, image, stock).
-  // Reviews live in Commerce and are not wired yet, so live products show none.
-  const isLive = isApiId(product.id);
+  const { source } = useCatalog();
+  const isDemo = source === 'mock';
+  const isLive = !isDemo && isApiId(product.id);
   const [detail, setDetail] = useState<ProductResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [variantId, setVariantId] = useState<number | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!isLive) return;
     let cancelled = false;
+    setDetail(null); setLoadError(null); setVariantId(null);
     catalogApi.products.get(Number(product.id))
       .then((loaded) => {
         if (cancelled) return;
+        if (!['ACTIVE', 'OUT_OF_STOCK'].includes(loaded.status)) throw new Error('Sản phẩm hiện không còn công khai.');
+        loaded = { ...loaded, variants: loaded.variants.filter(v => v.status === 'ACTIVE') };
         const firstVariant = loaded.variants.find((v) => v.stockQuantity > 0) ?? loaded.variants[0];
         setDetail(loaded);
         setVariantId(firstVariant?.variantId ?? null);
@@ -52,7 +58,7 @@ export default function ProductDetail({
     return () => {
       cancelled = true;
     };
-  }, [isLive, product.id]);
+  }, [isLive, product.id, reloadKey]);
 
   const view = detail ? withProductDetail(product, detail) : product;
   const variants = detail?.variants ?? [];
@@ -63,7 +69,7 @@ export default function ProductDetail({
     : view;
   const cartOption = selectedVariant?.variantName ?? sugarLevel;
 
-  const productReviews = isLive ? [] : REVIEWS.filter(r => r.productId === product.id || r.productId === 'prod-1');
+  const productReviews = isDemo ? REVIEWS.filter(r => r.productId === product.id) : [];
 
   return (
     <div className="mss-container py-8 space-y-12">
@@ -115,7 +121,7 @@ export default function ProductDetail({
             </div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mt-3">{view.name}</h1>
 
-            {product.reviewCount > 0 && (
+            {isDemo && product.reviewCount > 0 && (
             <div className="flex items-center gap-3 mt-3">
               <div className="flex items-center gap-1 text-accent-500">
                 <Star className="w-4 h-4 fill-current" />
@@ -134,13 +140,13 @@ export default function ProductDetail({
             {product.originalPrice && (
               <span className="text-gray-500 text-base line-through">{product.originalPrice.toLocaleString()}đ</span>
             )}
-            {!isLive && <span className="bg-primary-100 text-primary-700 text-sm font-bold px-3 py-1 rounded">Chính hãng 100%</span>}
+            {isDemo && <span className="bg-primary-100 text-primary-700 text-sm font-bold px-3 py-1 rounded">Chính hãng 100%</span>}
           </div>
 
           <p className="text-sm md:text-sm text-gray-600 leading-relaxed">
             {isLive && !detail && !loadError ? 'Đang tải thông tin sản phẩm...' : view.description}
           </p>
-          {loadError && <p className="text-sm text-red-600">{loadError}</p>}
+          {loadError && <p role="alert" className="text-sm text-red-600">{loadError} <button className="underline" onClick={() => setReloadKey(k => k + 1)}>Thử lại</button></p>}
 
           <div className="space-y-4 pt-2 border-t border-gray-200">
             {variants.length > 0 ? (
@@ -168,7 +174,7 @@ export default function ProductDetail({
                 ))}
               </div>
             </div>
-            ) : (
+            ) : isDemo ? (
             /* Sugar level option */
             <div>
               <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2">Lựa chọn độ ngọt:</label>
@@ -186,10 +192,10 @@ export default function ProductDetail({
                 ))}
               </div>
             </div>
-            )}
+            ) : null}
 
             {/* Mock-only box choices are not priced by Catalog. */}
-            {!isLive && <>
+            {isDemo && <>
             <div>
               <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2">Quy cách hộp quà:</label>
               <select
@@ -229,7 +235,7 @@ export default function ProductDetail({
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
             <button
               onClick={() => onAddToCart(cartProduct, quantity, cartOption)}
-              disabled={!cartProduct.inStock || (isLive && !selectedVariant)}
+              disabled={!cartProduct.inStock || (!isDemo && (!isLive || !selectedVariant || !!loadError))}
               className="flex-1 py-4 bg-accent-500 hover:bg-accent-600 text-primary-950 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ShoppingBag className="w-5 h-5" />
@@ -237,7 +243,7 @@ export default function ProductDetail({
             </button>
             <button
               onClick={() => onBuyNow(cartProduct, quantity, cartOption)}
-              disabled={!cartProduct.inStock || (isLive && !selectedVariant)}
+              disabled={!cartProduct.inStock || (!isDemo && (!isLive || !selectedVariant || !!loadError))}
               className="flex-1 py-4 bg-gradient-to-r from-primary-700 to-accent-700 hover:from-primary-800 hover:to-accent-800 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span>Mua Ngay (Thanh Toán Nhanh)</span>
@@ -283,6 +289,8 @@ export default function ProductDetail({
       )}
 
       {/* Customer Reviews */}
+      {isLive && variantId !== null && <ReviewList key={variantId} variantId={variantId} />}
+      {isDemo && (
       <div className="bg-white rounded-2xl border border-accent-200/70 p-6 md:p-8 shadow-sm space-y-6">
         <h3 className="text-xl font-bold text-gray-900 border-b border-gray-200 pb-4">Đánh Giá Từ Khách Hàng ({product.reviewCount})</h3>
 
@@ -318,6 +326,7 @@ export default function ProductDetail({
           ))}
         </div>
       </div>
+      )}
     </div>
   );
 }

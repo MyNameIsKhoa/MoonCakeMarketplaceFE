@@ -24,12 +24,7 @@ app.post('/api/gemini/recommend', async (req, res) => {
     const { recipient, taste, budget, dietary } = req.body;
 
     if (!ai) {
-      // Fallback response if API key is not configured
-      return res.json({
-        recommendation: `Dựa trên sở thích của bạn (Người nhận: ${recipient}, Vị: ${taste}, Ngân sách: ${budget}, Chế độ: ${dietary}), chúng tôi gợi ý Hộp Quà Trăng Vàng Hoàng Kim Kinh Đô hoặc Bánh Nướng Thập Cẩm Như Lan. Kết hợp cùng trà Ô Long thanh tao sẽ mang lại trải nghiệm mùa trăng tuyệt vời nhất! (Lưu ý: Cần cấu hình GEMINI_API_KEY để sử dụng tư vấn AI thông minh thực tế).`,
-        teaPairing: 'Trà Ô Long thượng hạng hoặc Trà Sen Tây Hồ',
-        greetingMessage: 'Chúc gia đình mùa Trung Thu an khang thịnh vượng, vạn sự như ý!'
-      });
+      return res.status(503).json({ error: 'Trợ lý AI chưa được cấu hình. Vui lòng thử lại sau.' });
     }
 
     const prompt = `Bạn là chuyên gia ẩm thực truyền thống và quà tặng Tết Trung Thu tại Việt Nam.
@@ -60,11 +55,7 @@ Hãy trả về kết quả định dạng JSON thuần (không có markdown cod
     res.json(result);
   } catch (error: any) {
     console.error('Gemini API Error:', error);
-    res.status(500).json({
-      error: 'Không thể kết nối với trợ lý AI',
-      recommendation: 'Hộp Quà Trăng Vàng Kinh Đô là lựa chọn hoàn hảo cho mọi dịp biếu tặng.',
-      teaPairing: 'Trà Ô Long',
-      greetingMessage: 'Chúc mừng Trung Thu đoàn viên hạnh phúc!'
+    res.status(500).json({ error: 'Không thể kết nối với trợ lý AI'
     });
   }
 });
@@ -87,7 +78,7 @@ async function startServer() {
   }
 
   app.listen(Number(PORT), '0.0.0.0', () => {
-    console.log(`Mooncake E-commerce server running on http://0.0.0.0:${PORT}`);
+    console.log(`Mooncake E-commerce server running on http://localhost:${PORT}`);
   });
 }
 

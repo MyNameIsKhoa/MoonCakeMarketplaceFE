@@ -6,6 +6,7 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import { FINANCE_STATUS, PAYMENT_TYPE } from '../../utils/status';
 import { formatVnd } from '../../utils/format';
 import CustomerOrderPayment from './CustomerOrderPayment';
+import { endedPayment, sellerInitiationKey, usableCheckout, safeCheckoutUrl as safeUrl } from './paymentState';
 
 const messages: Record<string, string> = {
   PAYMENT_CONTEXT_NOT_READY: 'Chưa có dữ liệu đơn hàng từ bộ phận xử lý đơn. Vui lòng thử lại sau.',
@@ -34,14 +35,11 @@ function errorMessage(error: unknown) {
 function date(value: string | null) {
   return value ? new Intl.DateTimeFormat('vi-VN', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(value)) : 'Chưa xác định';
 }
-function safeUrl(value: string | null) {
-  try { const url = new URL(value || ''); return url.protocol === 'https:' ? url.href : undefined; } catch { return undefined; }
-}
 
 export default function PaymentSettlement() {
   const customerOrderId = Number(sessionStorage.getItem('financeCustomerOrderId'));
   if (Number.isSafeInteger(customerOrderId) && customerOrderId > 0) {
-    return <CustomerOrderPayment orderId={customerOrderId} />;
+    return <CustomerOrderPayment key={customerOrderId} orderId={customerOrderId} />;
   }
   return <SellerPaymentSettlement />;
 }
@@ -119,7 +117,11 @@ function SellerPaymentSettlement() {
 
   function paymentCard(p: Payment) {
     const expired = p.expiresAt !== null && new Date(p.expiresAt).getTime() <= Date.now() && p.status !== 'SUCCESS';
-    const uncertain = ['CREATING', 'RECONCILING'].includes(p.status);
+    const ended = endedPayment(p.status);
+    const retryable = ended && !data?.payments.some(other => other.paymentType === p.paymentType &&
+      (other.paymentId > p.paymentId || other.status === 'SUCCESS'));
+    const uncertain = p.status !== 'SUCCESS' && p.status !== 'PENDING' && !ended;
+    const checkout = usableCheckout(p);
     return <article className="mss-card mss-stack" key={p.paymentId}>
       <div className="flex flex-wrap justify-between items-start gap-3">
         <div><h3 className="mss-card-title">{PAYMENT_TYPE[p.paymentType]?.label || p.paymentType}</h3><p className="text-sm text-gray-500">Giao dịch #{p.paymentId}</p></div>
@@ -132,13 +134,13 @@ function SellerPaymentSettlement() {
       {uncertain && <p role="status" className="text-amber-800">Đang đối soát. Vui lòng kiểm tra trước khi thanh toán tiếp.</p>}
       {expired && <p className="text-amber-800">Link đã quá thời hạn hiển thị. Đối soát để xác nhận trạng thái.</p>}
       <div className="flex flex-wrap gap-2">
-        {!p.checkoutUrl && !uncertain && p.status === 'PENDING' && !p.expiresAt && <button disabled={busy} className="mss-button mss-button--primary" onClick={() => void run(`initiate:${p.paymentId}`, key => paymentApi.initiate(p.paymentId, key))}>Tạo link thanh toán</button>}
-        {safeUrl(p.checkoutUrl) && p.status === 'PENDING' && !expired && <a className="mss-button mss-button--primary" href={safeUrl(p.checkoutUrl)} target="_blank" rel="noreferrer">Mở QR / thanh toán payOS <ExternalLink size={16} /></a>}
-        {p.expiresAt && p.status !== 'SUCCESS' && <>
+        {!p.checkoutUrl && !uncertain && p.status === 'PENDING' && !p.expiresAt && <button disabled={busy} className="mss-button mss-button--primary" onClick={() => void run(`initiate:${p.paymentId}`, () => paymentApi.initiate(p.paymentId, sellerInitiationKey(p)))}>Tạo link thanh toán</button>}
+        {checkout && <a className="mss-button mss-button--primary" href={checkout} target="_blank" rel="noreferrer">Mở QR / thanh toán payOS <ExternalLink size={16} /></a>}
+        {p.status !== 'SUCCESS' && !ended && <>
           <button disabled={busy} className="mss-button mss-button--secondary" onClick={() => void run(`reconcile:${p.paymentId}`, () => paymentApi.reconcile(p.paymentId))}>Đối soát</button>
           <button disabled={busy} className="mss-button mss-button--secondary" onClick={() => void run(`cancel-link:${p.paymentId}`, () => paymentApi.cancelLink(p.paymentId))}>Hủy link chưa trả</button>
         </>}
-        {['CANCELLED', 'EXPIRED', 'FAILED'].includes(p.status) && <button disabled={busy} className="mss-button mss-button--primary" onClick={() => void run(`retry:${p.paymentId}`, key => paymentApi.initiate(p.paymentId, key))}>Tạo link mới</button>}
+        {retryable && <button disabled={busy} className="mss-button mss-button--primary" onClick={() => void run(`retry:${p.paymentId}`, () => paymentApi.initiate(p.paymentId, sellerInitiationKey(p)))}>Tạo link mới</button>}
       </div>
     </article>;
   }

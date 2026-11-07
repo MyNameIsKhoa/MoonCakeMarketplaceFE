@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ExternalLink, RefreshCw, Wallet } from 'lucide-react';
 import { ApiError } from '../../services/api/http';
 import { formatVnd } from '../../utils/format';
 import { CustomerPaymentSummary, paymentApi } from './paymentApi';
+import { endedPayment, initiationKey, usableCheckout } from './paymentState';
+import StatusBadge from '../../components/ui/StatusBadge';
+import { PAYMENT_STATUS } from '../../utils/status';
 
-function safeUrl(value: string | null) {
-  try { const url = new URL(value || ''); return url.protocol === 'https:' ? url.href : undefined; } catch { return undefined; }
-}
 
 const errors: Record<string, string> = {
   ORDER_NOT_ACCEPTED: 'Có đơn nhà bán chưa được chấp nhận. Vui lòng chờ nhà bán xác nhận.',
@@ -21,7 +21,7 @@ export default function CustomerOrderPayment({ orderId }: { orderId: number }) {
   const [data, setData] = useState<CustomerPaymentSummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const key = useRef<string | null>(null);
+  const [unresolved, setUnresolved] = useState(false);
 
   async function load() {
     setBusy(true); setError('');
@@ -36,30 +36,33 @@ export default function CustomerOrderPayment({ orderId }: { orderId: number }) {
     setBusy(true); setError('');
     try {
       if (action === 'initiate') {
-        key.current ||= crypto.randomUUID();
-        const updated = await paymentApi.initiateCustomer(orderId, key.current);
-        key.current = null;
+        const scope = `customer:${orderId}:${data?.payment?.id ?? 'initial'}`;
+        const updated = await paymentApi.initiateCustomer(orderId, initiationKey(scope));
         setData(updated);
-        const checkoutUrl = safeUrl(updated.payment?.checkoutUrl || null);
+        const checkoutUrl = updated.payment && usableCheckout(updated.payment);
         if (checkoutUrl && updated.payment?.status === 'PENDING') {
+          sessionStorage.setItem('financeCustomerOrderId', String(orderId));
           window.location.assign(checkoutUrl);
           return;
         }
       } else if (action === 'cancel') {
         setData(await paymentApi.cancelCustomerLink(orderId));
       } else {
-        setData(await paymentApi.reconcileCustomer(orderId));
+        const updated = await paymentApi.reconcileCustomer(orderId);
+        setData(updated);
+        setUnresolved(false);
       }
     } catch (e) {
+      setUnresolved(true);
       setError(e instanceof ApiError ? errors[e.code] || `Không thực hiện được (${e.code}).` : 'Chưa nhận được phản hồi. Hãy đối soát trước khi thử lại.');
     } finally { setBusy(false); }
   }
 
   const payment = data?.payment;
-  const ended = payment && ['CANCELLED', 'EXPIRED', 'FAILED'].includes(payment.status);
-  const uncertain = payment && ['CREATING', 'RECONCILING', 'CANCELLING'].includes(payment.status);
-  const expired = payment && Date.parse(payment.expiresAt) <= Date.now();
-  const checkout = safeUrl(payment?.checkoutUrl || null);
+  const ended = payment && endedPayment(payment.status);
+  const uncertain = unresolved || (payment && payment.status !== 'SUCCESS' && payment.status !== 'PENDING' && !ended);
+  const expired = payment?.expiresAt && Date.parse(payment.expiresAt) <= Date.now();
+  const checkout = payment && usableCheckout(payment);
 
   return <main className="mss-container mss-page mss-stack">
     <header className="mss-page-header"><div>
@@ -81,17 +84,17 @@ export default function CustomerOrderPayment({ orderId }: { orderId: number }) {
             <span>{item.sellerOrderNo}</span><strong>{formatVnd(item.amount)}</strong>
           </li>)}
         </ul>}
-        {payment && <p role="status">Trạng thái: <strong>{payment.status === 'SUCCESS' ? 'Đã thanh toán' :
-          payment.status === 'PENDING' ? 'Chờ thanh toán' : ended ? 'Link đã kết thúc' : 'Đang đối soát'}</strong></p>}
+        {payment && <p role="status">Trạng thái: <StatusBadge map={PAYMENT_STATUS} status={payment.status} /></p>}
+        {expired && <p>Link đã quá thời hạn hiển thị. Cần đối soát để xác nhận trạng thái.</p>}
         {uncertain && <p className="text-amber-800">Đang xác minh với PayOS. Vui lòng đối soát trước khi tạo link mới.</p>}
         <div className="flex flex-wrap gap-2">
-          {(!payment || ended) && data.paidAmount === 0 && <button className="mss-button mss-button--primary" disabled={busy}
+          {(!payment || ended) && !unresolved && data.paidAmount === 0 && <button className="mss-button mss-button--primary" disabled={busy}
             onClick={() => void run('initiate')}>{busy ? 'Đang chuyển đến PayOS…' : `Thanh toán ${formatVnd(data.totalAmount)}`}</button>}
           {payment?.status === 'PENDING' && checkout && !expired &&
             <a className="mss-button mss-button--primary" href={checkout}>Mở QR / thanh toán PayOS <ExternalLink size={16} /></a>}
-          {payment && payment.status !== 'SUCCESS' && !ended && <>
+          {(unresolved || (payment && payment.status !== 'SUCCESS' && !ended)) && <>
             <button className="mss-button mss-button--secondary" disabled={busy} onClick={() => void run('reconcile')}>Đối soát PayOS</button>
-            <button className="mss-button mss-button--secondary" disabled={busy} onClick={() => void run('cancel')}>Hủy link chưa trả</button>
+            {payment && <button className="mss-button mss-button--secondary" disabled={busy} onClick={() => void run('cancel')}>Hủy link chưa trả</button>}
           </>}
         </div>
       </>}
