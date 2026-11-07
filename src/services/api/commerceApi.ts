@@ -24,6 +24,19 @@ type FinanceWire = {
     status: string; dueAt: string | null }>;
   cancellations: Array<{ id: number; status: string; reason: string }>;
 };
+type ShipmentWire = {
+  shipmentId: number;
+  sellerOrderId: number;
+  shippingMethod: string;
+  provider?: string | null;
+  trackingCode?: string | null;
+  expectedShipAt?: string | null;
+  shippedAt?: string | null;
+  expectedDeliveryAt?: string | null;
+  deliveredAt?: string | null;
+  shippingFee: number;
+  status: string;
+};
 export type CheckoutPlaced = { orderId: number; orderNo: string; status: string; grandTotal: number;
   sellerOrders: Array<{ sellerOrderId: number; sellerOrderNo: string; totalAmount: number }> };
 
@@ -108,13 +121,19 @@ export const orderApi = {
   get: async (id: string): Promise<CustomerOrder> => {
     const raw = (await http.get<OrderWire>(`/api/orders/${orderId(id)}`)).data;
     const sellerOrders = await Promise.all(raw.sellerOrders.map(async (seller) => {
-      const finance: FinanceWire = raw.status === 'PENDING_STOCK' ? { payments: [], cancellations: [] } :
-        await http.get<FinanceWire>(`/api/payments/orders/${seller.sellerOrderId}`)
-          .then((response) => response.data)
-          .catch((error: unknown) => {
-            if (error instanceof ApiError && error.status === 404) return { payments: [], cancellations: [] };
-            throw error;
-          });
+      const [finance, rawShipments]: [FinanceWire, ShipmentWire[]] = raw.status === 'PENDING_STOCK'
+        ? [{ payments: [], cancellations: [] }, []]
+        : await Promise.all([
+            http.get<FinanceWire>(`/api/payments/orders/${seller.sellerOrderId}`)
+              .then((response) => response.data)
+              .catch((error: unknown) => {
+                if (error instanceof ApiError && error.status === 404) return { payments: [], cancellations: [] };
+                throw error;
+              }),
+            http.get<ShipmentWire[]>('/api/shipments', { params: { sellerOrderId: seller.sellerOrderId } })
+              .then((response) => (Array.isArray(response.data) ? response.data : []))
+              .catch(() => [])
+          ]);
       const cancellation = finance.cancellations[0];
       const canRequestCancellation = finance.cancellations.length === 0 &&
         !['PENDING_STOCK', 'CANCELLED', 'DELIVERED', 'COMPLETED', 'SETTLED', 'DISPUTED'].includes(seller.status);
@@ -125,7 +144,18 @@ export const orderApi = {
           variantIdRef: item.variantIdRef === null ? undefined : String(item.variantIdRef) })),
         payments: finance.payments.map((p) => ({ paymentId: String(p.paymentId), paymentType: p.paymentType,
           amount: p.amount, status: p.status, dueAt: p.dueAt ?? undefined, provider: 'PAYOS' })),
-        shipments: [],
+        shipments: rawShipments.map((s) => ({
+          shipmentId: String(s.shipmentId),
+          shippingMethod: s.shippingMethod,
+          provider: s.provider ?? undefined,
+          trackingCode: s.trackingCode ?? undefined,
+          expectedShipAt: s.expectedShipAt ?? undefined,
+          shippedAt: s.shippedAt ?? undefined,
+          expectedDeliveryAt: s.expectedDeliveryAt ?? undefined,
+          deliveredAt: s.deliveredAt ?? undefined,
+          shippingFee: s.shippingFee,
+          status: s.status
+        })),
         cancellation: cancellation ? { cancellationId: String(cancellation.id),
           status: cancellation.status, reason: cancellation.reason } : undefined,
         allowedActions: canRequestCancellation ? ['CANCEL'] : []

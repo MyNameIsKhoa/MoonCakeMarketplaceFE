@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { fulfillmentApi } from '../api/fulfillmentApi';
 
-export const ReviewList = ({ variantId }) => {
+/**
+ * @param {{ variantId?: number | string | null; storeId?: number | string | null }} props
+ */
+export const ReviewList = ({ variantId, storeId }) => {
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -14,9 +17,11 @@ export const ReviewList = ({ variantId }) => {
       setError(null);
       setReviews([]);
       try {
-        const data = await fulfillmentApi.getReviewsByVariant(variantId);
+        const data = storeId !== undefined && storeId !== null
+          ? await fulfillmentApi.getReviewsByStore(storeId)
+          : await fulfillmentApi.getReviewsByVariant(variantId);
         if (isMounted) {
-          setReviews(data);
+          setReviews(Array.isArray(data) ? data : []);
         }
       } catch {
         if (isMounted) {
@@ -33,7 +38,7 @@ export const ReviewList = ({ variantId }) => {
     return () => {
       isMounted = false;
     };
-  }, [variantId, reloadKey]);
+  }, [variantId, storeId, reloadKey]);
 
   const calculateAverageRating = () => {
     if (!reviews || reviews.length === 0) return 0;
@@ -76,12 +81,20 @@ export const ReviewList = ({ variantId }) => {
             <div key={review.reviewId} style={styles.reviewItem}>
               <div style={styles.reviewHeader}>
                 <div style={styles.authorBadge}>
-                  {review.customerId ? `Khách hàng #${review.customerId}` : 'Khách hàng ẩn danh'}
+                  <span>{review.displayName || (review.customerId ? `Khách hàng #${review.customerId}` : 'Khách hàng ẩn danh')}</span>
+                  <span style={styles.verifiedBadge}>✓ Đã mua hàng</span>
                 </div>
                 <div style={styles.reviewDate}>
                   {review.createdAt ? new Date(review.createdAt).toLocaleDateString('vi-VN') : ''}
                 </div>
               </div>
+              {(review.productNameSnapshot || review.variantNameSnapshot) && (
+                <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '6px' }}>
+                  {review.productNameSnapshot && <span style={{ fontWeight: 500 }}>{review.productNameSnapshot}</span>}
+                  {review.productNameSnapshot && review.variantNameSnapshot && ' · '}
+                  {review.variantNameSnapshot && <span>Phân loại: {review.variantNameSnapshot}</span>}
+                </div>
+              )}
               <div style={styles.starDisplay}>
                 <span style={{ color: '#f59e0b', fontSize: '16px' }}>
                   {'★'.repeat(review.rating)}
@@ -169,6 +182,19 @@ const styles = {
     fontWeight: '600',
     fontSize: '13px',
     color: '#374151',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  verifiedBadge: {
+    fontSize: '11px',
+    fontWeight: '600',
+    color: '#16a34a',
+    backgroundColor: '#dcfce7',
+    padding: '2px 8px',
+    borderRadius: '9999px',
+    display: 'inline-flex',
+    alignItems: 'center',
   },
   reviewDate: {
     fontSize: '12px',

@@ -53,6 +53,13 @@ export const fulfillmentApi = {
     return response.data;
   },
 
+  getReviewsByStore: async (storeId) => {
+    const response = await apiClient.get('/api/reviews', {
+      params: { storeId },
+    });
+    return response.data;
+  },
+
   getMyReviews: async () => {
     const response = await apiClient.get('/api/reviews', {
       params: { mine: true },

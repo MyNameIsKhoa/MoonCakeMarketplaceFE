@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, ChevronDown, ChevronUp, MapPin, Store, Truck, Wallet } from 'lucide-react';
-import { CustomerOrder, SellerOrder } from '../types';
+import { CheckCircle2, ChevronDown, ChevronUp, MapPin, Star, Store, Truck, Wallet } from 'lucide-react';
+import { CustomerOrder, OrderItem, SellerOrder } from '../types';
 import { orderApi } from '../services/api';
 import { paymentApi } from '../features/payment-settlement/paymentApi';
 import { openCustomerCheckout, openSellerCheckout } from '../features/payment-settlement/openCheckout';
@@ -18,6 +18,7 @@ import {
 import StatusBadge from '../components/ui/StatusBadge';
 import EmptyState from '../components/ui/EmptyState';
 import { fulfillmentApi } from '../features/fulfillment/api/fulfillmentApi';
+import { ReviewModal } from '../features/fulfillment/components/ReviewModal';
 import { ApiError } from '../services/api/http';
 
 interface OrderTrackingProps {
@@ -52,6 +53,8 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, onPa
   const [paymentNotice, setPaymentNotice] = useState<{ message: string; success: boolean } | null>(null);
   const [filter, setFilter] = useState<FilterId>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [reviewedItemMap, setReviewedItemMap] = useState<Record<string, { rating: number; comment?: string }>>({});
+  const [reviewingItem, setReviewingItem] = useState<OrderItem | null>(null);
 
   const load = useCallback(() => {
     setLoadError('');
@@ -64,6 +67,23 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, onPa
         setExpandedId((current) => current ?? visible[0]?.orderId ?? null);
       })
       .catch(() => setLoadError('Không tải được danh sách đơn hàng.'));
+
+    fulfillmentApi
+      .getMyReviews()
+      .then((reviews: Array<{ orderItemId?: number | string; rating?: number; comment?: string }>) => {
+        if (Array.isArray(reviews)) {
+          const map: Record<string, { rating: number; comment?: string }> = {};
+          reviews.forEach((r) => {
+            if (r.orderItemId) {
+              map[String(r.orderItemId)] = { rating: r.rating || 5, comment: r.comment };
+            }
+          });
+          setReviewedItemMap(map);
+        }
+      })
+      .catch(() => {
+        // Ignored if user has no reviews or not authenticated
+      });
   }, []);
 
   useEffect(load, [load]);
@@ -203,9 +223,32 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, onPa
               expanded={expandedId === order.orderId}
               onToggle={() => setExpandedId(expandedId === order.orderId ? null : order.orderId)}
               onUpdated={replaceOrder}
+              reviewedItemMap={reviewedItemMap}
+              onOpenReview={(item) => setReviewingItem(item)}
             />
           ))}
         </div>
+      )}
+
+      {reviewingItem && (
+        <ReviewModal
+          orderItem={reviewingItem}
+          isOpen={Boolean(reviewingItem)}
+          onClose={() => setReviewingItem(null)}
+          onReviewed={(review: { orderItemId?: number | string; rating?: number; comment?: string }) => {
+            if (review && review.orderItemId) {
+              setReviewedItemMap((prev) => ({
+                ...prev,
+                [String(review.orderItemId)]: { rating: review.rating || 5, comment: review.comment }
+              }));
+            }
+            setPaymentNotice({
+              success: true,
+              message: `Đã gửi đánh giá cho "${reviewingItem.productNameSnapshot}" thành công! Cảm ơn bạn đã phản hồi.`
+            });
+            setReviewingItem(null);
+          }}
+        />
       )}
     </div>
   );
@@ -218,9 +261,11 @@ interface OrderCardProps {
   expanded: boolean;
   onToggle: () => void;
   onUpdated: (order: CustomerOrder) => void;
+  reviewedItemMap: Record<string, { rating: number; comment?: string }>;
+  onOpenReview: (item: OrderItem) => void;
 }
 
-function OrderCard({ order, expanded, onToggle, onUpdated }: OrderCardProps) {
+function OrderCard({ order, expanded, onToggle, onUpdated, reviewedItemMap, onOpenReview }: OrderCardProps) {
   const itemCount = order.sellerOrders.reduce((sum, so) => sum + so.items.length, 0);
   const canPayTogether = order.sourceType === 'RETAIL' &&
     !['CANCEL_REQUESTED', 'CANCELLED'].includes(order.status) &&
@@ -319,8 +364,16 @@ function OrderCard({ order, expanded, onToggle, onUpdated }: OrderCardProps) {
           </section>
 
           {order.sellerOrders.map((so) => (
-            <SellerOrderSection key={so.sellerOrderId} orderId={order.orderId} retail={order.sourceType === 'RETAIL'} sellerOrder={so}
-              onUpdated={onUpdated} immediateCancellationAvailable={canCancelUnpaid} />
+            <SellerOrderSection
+              key={so.sellerOrderId}
+              orderId={order.orderId}
+              retail={order.sourceType === 'RETAIL'}
+              sellerOrder={so}
+              onUpdated={onUpdated}
+              immediateCancellationAvailable={canCancelUnpaid}
+              reviewedItemMap={reviewedItemMap}
+              onOpenReview={onOpenReview}
+            />
           ))}
 
           <dl className="text-sm text-gray-700 flex flex-col gap-1 self-end w-full sm:max-w-sm">
@@ -357,9 +410,19 @@ interface SellerOrderSectionProps {
   sellerOrder: SellerOrder;
   onUpdated: (order: CustomerOrder) => void;
   immediateCancellationAvailable: boolean;
+  reviewedItemMap: Record<string, { rating: number; comment?: string }>;
+  onOpenReview: (item: OrderItem) => void;
 }
 
-function SellerOrderSection({ orderId, retail, sellerOrder: so, onUpdated, immediateCancellationAvailable }: SellerOrderSectionProps) {
+function SellerOrderSection({
+  orderId,
+  retail,
+  sellerOrder: so,
+  onUpdated,
+  immediateCancellationAvailable,
+  reviewedItemMap,
+  onOpenReview
+}: SellerOrderSectionProps) {
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -466,33 +529,62 @@ function SellerOrderSection({ orderId, retail, sellerOrder: so, onUpdated, immed
               <th>SL</th>
               <th>Giảm</th>
               <th className="text-right">Thành tiền</th>
+              {['DELIVERED', 'ACCEPTED', 'SETTLED'].includes(so.status) && (
+                <th className="text-center">Đánh giá</th>
+              )}
             </tr>
           </thead>
           <tbody>
-            {so.items.map((item) => (
-              <tr key={item.orderItemId}>
-                <td>
-                  <div className="flex items-center gap-3 min-w-[220px]">
-                    <img
-                      src={item.imageUrlSnapshot}
-                      alt={item.productNameSnapshot}
-                      className="w-12 h-12 aspect-square object-cover rounded-lg border border-gray-200"
-                    />
-                    <div className="min-w-0">
-                      <p className="font-medium text-gray-900">{item.productNameSnapshot}</p>
-                      <p className="text-xs text-gray-500">
-                        {item.variantNameSnapshot}
-                        {item.skuSnapshot && <> · SKU {item.skuSnapshot}</>}
-                      </p>
+            {so.items.map((item) => {
+              const review = reviewedItemMap[item.orderItemId];
+              const canReview = ['DELIVERED', 'ACCEPTED', 'SETTLED'].includes(so.status);
+              return (
+                <tr key={item.orderItemId}>
+                  <td>
+                    <div className="flex items-center gap-3 min-w-[220px]">
+                      <img
+                        src={item.imageUrlSnapshot}
+                        alt={item.productNameSnapshot}
+                        className="w-12 h-12 aspect-square object-cover rounded-lg border border-gray-200"
+                      />
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900">{item.productNameSnapshot}</p>
+                        <p className="text-xs text-gray-500">
+                          {item.variantNameSnapshot}
+                          {item.skuSnapshot && <> · SKU {item.skuSnapshot}</>}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </td>
-                <td className="whitespace-nowrap">{formatVnd(item.unitPrice)}</td>
-                <td>{item.quantity}</td>
-                <td className="whitespace-nowrap">{item.discountAmount > 0 ? `-${formatVnd(item.discountAmount)}` : '—'}</td>
-                <td className="text-right whitespace-nowrap font-semibold">{formatVnd(item.subtotal)}</td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="whitespace-nowrap">{formatVnd(item.unitPrice)}</td>
+                  <td>{item.quantity}</td>
+                  <td className="whitespace-nowrap">{item.discountAmount > 0 ? `-${formatVnd(item.discountAmount)}` : '—'}</td>
+                  <td className="text-right whitespace-nowrap font-semibold">{formatVnd(item.subtotal)}</td>
+                  {canReview && (
+                    <td className="text-center whitespace-nowrap">
+                      {review ? (
+                        <span
+                          className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-green-50 text-green-700 font-medium border border-green-200"
+                          title={review.comment || 'Đã đánh giá'}
+                        >
+                          <span className="text-amber-500">{'★'.repeat(review.rating)}</span>
+                          <span>Đã đánh giá</span>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md bg-amber-50 text-amber-900 border border-amber-300 hover:bg-amber-100 font-medium transition-colors"
+                          onClick={() => onOpenReview(item)}
+                        >
+                          <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                          Đánh giá
+                        </button>
+                      )}
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -594,14 +686,33 @@ function SellerOrderSection({ orderId, retail, sellerOrder: so, onUpdated, immed
             </div>
           ))
         )}
-        {so.status === 'DELIVERED' && <button type="button" className="mss-button mss-button--secondary self-start"
-          disabled={busy} onClick={() => {
-            if (!window.confirm('Xác nhận bạn đã nhận và kiểm tra hàng?')) return;
-            void run(async () => {
-              await fulfillmentApi.acceptSellerOrder(so.sellerOrderId);
-              return orderApi.get(orderId);
-            });
-          }}>Xác nhận nghiệm thu</button>}
+        {so.status === 'DELIVERED' && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-amber-50/80 border border-amber-200 rounded-lg">
+            <div className="text-sm text-amber-900">
+              <span className="font-semibold">Bánh đã giao đến bạn.</span> Vui lòng kiểm tra kỹ bao bì, số lượng và chất lượng bánh trước khi bấm xác nhận.
+            </div>
+            <button
+              type="button"
+              className="mss-button mss-button--primary whitespace-nowrap shrink-0"
+              disabled={busy}
+              onClick={() => {
+                if (!window.confirm('Xác nhận bạn đã nhận và kiểm tra đầy đủ chất lượng bánh? Thao tác này sẽ ghi nhận đơn hàng hoàn tất và tiến hành giải ngân tiền cho Nhà bán hàng.')) return;
+                void run(async () => {
+                  await fulfillmentApi.acceptSellerOrder(so.sellerOrderId);
+                  return orderApi.get(orderId);
+                });
+              }}
+            >
+              ✓ Xác nhận nghiệm thu
+            </button>
+          </div>
+        )}
+        {(so.status === 'ACCEPTED' || so.status === 'SETTLED') && (
+          <div className="flex items-center gap-2 text-sm text-green-800 bg-green-50 px-3 py-2 rounded-lg border border-green-200">
+            <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+            <span>Đơn hàng đã được nghiệm thu hoàn tất. Bạn có thể đánh giá từng món bánh ở bảng bên trên.</span>
+          </div>
+        )}
       </div>
 
       {so.cancellation && (
