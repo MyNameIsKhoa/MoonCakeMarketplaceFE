@@ -16,6 +16,7 @@ import SellerCenter from './pages/seller/SellerCenter';
 import PaymentSettlement from './features/payment-settlement/PaymentSettlement';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
+import VerifyEmail from './pages/auth/VerifyEmail';
 import SupplierOnboarding from './pages/seller/SupplierOnboarding';
 import AdminSupplierReview from './pages/admin/AdminSupplierReview';
 import EmptyState from './components/ui/EmptyState';
@@ -49,7 +50,8 @@ export default function App() {
   });
   const [activeTab, setActiveTab] = useState<string>(() => {
     const params = new URLSearchParams(location.search);
-    return paymentReturnOrderId ? 'orders' : params.has('finance') ? 'payment-settlement' : 'home';
+    return location.pathname === '/verify-email' ? 'verify-email'
+      : paymentReturnOrderId ? 'orders' : params.has('finance') ? 'payment-settlement' : 'home';
   });
   /** Protected tab to return to after login/register. */
   const [returnTab, setReturnTab] = useState<string | null>(null);
@@ -247,6 +249,10 @@ export default function App() {
       )}
 
       <main className="mss-main">
+        {activeTab === 'verify-email' && <VerifyEmail
+          token={new URLSearchParams(location.search).get('token') ?? ''}
+          onLogin={() => { window.history.replaceState({}, '', '/'); setActiveTab('login'); }}
+        />}
         {['home', 'products', 'stores', 'detail', 'store-detail', 'profile', 'wishlist'].includes(activeTab) && <div className="mss-container pt-4"><CatalogNotice /></div>}
         {((activeTab === 'detail' && !selectedProduct) || (activeTab === 'store-detail' && !selectedStore)) && <EmptyState title="Chưa chọn sản phẩm hoặc gian hàng" />}
         {activeTab === 'stores' && source === 'api' && stores.length === 0 && <EmptyState title="Chưa có gian hàng" />}
@@ -260,10 +266,17 @@ export default function App() {
 
         {activeTab === 'register' && (
           <Register
-            onSuccess={(accountType) => finishAuth(accountType === 'supplier' ? 'seller-center' : 'home')}
+            onSuccess={() => { setReturnTab(null); setActiveTab('registration-complete'); }}
             onSwitchToLogin={() => setActiveTab('login')}
             defaultAccountType={returnTab === 'seller-center' ? 'supplier' : 'customer'}
           />
+        )}
+        {activeTab === 'registration-complete' && (
+          <div className="mss-container mss-page"><section className="mss-card mss-stack">
+            <h1 className="mss-page-title">Kiểm tra email của bạn</h1>
+            <p>Tài khoản đã được tạo. Mở email xác minh rồi bấm liên kết để kích hoạt trước khi đăng nhập.</p>
+            <button className="mss-button mss-button--primary" onClick={() => setActiveTab('login')}>Đi tới đăng nhập</button>
+          </section></div>
         )}
 
         {activeTab === 'admin' && <AdminSupplierReview />}
