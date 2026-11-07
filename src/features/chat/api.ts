@@ -10,6 +10,8 @@ export interface Conversation {
   supplierId: string;
   status: ConversationStatus;
   createdAt: string;
+  /** Buyer's name kept on the RFQ; null for RFQs created before names were kept. */
+  customerName?: string | null;
 }
 
 export interface ChatMessage {

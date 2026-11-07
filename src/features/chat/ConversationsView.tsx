@@ -25,7 +25,7 @@ interface Labels {
 const rfqTitles = new Map<string, Promise<string>>();
 function rfqTitle(rfqId: string) {
   if (!rfqTitles.has(rfqId)) {
-    rfqTitles.set(rfqId, rfqApi.get(rfqId).then((r) => r.title).catch(() => `RFQ #${rfqId}`));
+    rfqTitles.set(rfqId, rfqApi.get(rfqId).then((r) => `Yêu cầu báo giá: ${r.title}`).catch(() => `Yêu cầu báo giá #${rfqId}`));
   }
   return rfqTitles.get(rfqId)!;
 }
@@ -66,12 +66,12 @@ export default function ConversationsView({ myUserId, myCustomerId, selectedId, 
       const buyer = c.customerId === myCustomerId;
       Promise.all([
         rfqTitle(c.rfqId),
-        buyer ? lookupApi.supplierStore(c.supplierId).then((s) => s?.name ?? `Nhà cung cấp #${c.supplierId}`) : Promise.resolve('Người mua')
+        buyer ? lookupApi.supplierStore(c.supplierId).then((s) => s?.name ?? `Nhà cung cấp #${c.supplierId}`) : Promise.resolve(c.customerName || 'Người mua')
       ]).then(([title, counterpart]) => setLabels((prev) => ({ ...prev, [c.conversationId]: { title, counterpart } })));
     });
   }, [result, selected, myCustomerId, labels]);
 
-  const label = (c: Conversation): Labels => labels[c.conversationId] ?? { title: `RFQ #${c.rfqId}`, counterpart: '…' };
+  const label = (c: Conversation): Labels => labels[c.conversationId] ?? { title: `Yêu cầu báo giá #${c.rfqId}`, counterpart: '…' };
 
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">

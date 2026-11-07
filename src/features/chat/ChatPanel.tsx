@@ -120,7 +120,7 @@ export default function ChatPanel({ conversationId, conversationStatus, title, s
                   {m.content}
                 </div>
                 <span className="mt-1 px-1 text-xs text-gray-500">
-                  {mine ? 'Bạn' : 'Đối tác'} · {formatDateTime(m.sentAt)}
+                  {mine ? 'Bạn' : title} · {formatDateTime(m.sentAt)}
                 </span>
               </li>
             );
