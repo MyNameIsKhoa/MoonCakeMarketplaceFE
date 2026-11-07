@@ -9,6 +9,7 @@ import { useCatalog } from '../context/CatalogContext';
 import { catalogApi, isApiId, toProduct, toPromotion, toStoreBranch } from '../services/api';
 import { formatDate } from '../utils/format';
 import { PROMOTION_RULE, getStatusMeta } from '../utils/status';
+import { ReviewList } from '../features/fulfillment/components/ReviewList';
 
 /** Category tabs of the mock stores (mock product.category values). */
 const MOCK_CATEGORY_TABS = [
@@ -472,6 +473,12 @@ export default function StoreDetail({
           </div>
         )}
       </section>
+
+      {isLive && (
+        <section>
+          <ReviewList key={`store-${store.storeId}`} storeId={Number(store.storeId)} />
+        </section>
+      )}
     </div>
   );
 }

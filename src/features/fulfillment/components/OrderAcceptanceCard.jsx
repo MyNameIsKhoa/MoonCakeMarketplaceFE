@@ -15,7 +15,8 @@ export const OrderAcceptanceCard = ({ sellerOrder, onAccepted }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fulfillmentApi.acceptSellerOrder(sellerOrder.id);
+      const orderId = sellerOrder.sellerOrderId ?? sellerOrder.id;
+      const response = await fulfillmentApi.acceptSellerOrder(orderId);
       setShowConfirm(false);
       if (onAccepted) {
         onAccepted(response);

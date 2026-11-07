@@ -20,8 +20,10 @@ export const ReviewModal = ({ orderItem, isOpen, onClose, onReviewed }) => {
     setLoading(true);
     setError(null);
     try {
+      const rawId = orderItem.orderItemId ?? orderItem.id;
+      const orderItemId = typeof rawId === 'string' ? Number(rawId) : rawId;
       const response = await fulfillmentApi.createReview({
-        orderItemId: orderItem.id,
+        orderItemId,
         rating,
         comment: comment.trim(),
       });

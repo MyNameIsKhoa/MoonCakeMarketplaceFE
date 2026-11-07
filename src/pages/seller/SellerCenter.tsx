@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { sellerOrderApi, type SellerOrderSummary } from '../../services/api';
 import { formatVnd } from '../../utils/format';
+import { ORDER_STATUS } from '../../utils/status';
+import StatusBadge from '../../components/ui/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import ConversationsView from '../../features/chat/ConversationsView';
 import MyQuotations from '../../features/rfq/components/MyQuotations';
@@ -490,15 +492,17 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
                   <th className="p-3">Mã đơn</th><th className="p-3">Gian hàng</th>
                   <th className="p-3">Trạng thái</th><th className="p-3 text-right">Tổng tiền</th>
                   <th className="p-3">Vận chuyển</th>
-                </tr></thead><tbody>{sellerOrders.map((order) => <tr key={order.sellerOrderId} className="border-t">
-                  <td className="p-3">{order.sellerOrderNo}</td><td className="p-3">{order.storeNameSnapshot}</td>
-                  <td className="p-3">{order.status}</td><td className="p-3 text-right">{formatVnd(order.totalAmount)}</td>
-                  <td className="p-3"><button type="button" className="text-primary-700"
+                </tr></thead><tbody>{sellerOrders.map((order) => <tr key={order.sellerOrderId} className={`border-t ${shipmentOrderId === Number(order.sellerOrderId) ? 'bg-amber-50/40' : ''}`}>
+                  <td className="p-3 font-medium text-gray-900">{order.sellerOrderNo}</td><td className="p-3">{order.storeNameSnapshot}</td>
+                  <td className="p-3"><StatusBadge map={ORDER_STATUS} status={order.status} /></td><td className="p-3 text-right font-semibold">{formatVnd(order.totalAmount)}</td>
+                  <td className="p-3"><button type="button" className="text-primary-700 font-semibold hover:underline"
                     onClick={() => setShipmentOrderId(Number(order.sellerOrderId))}>Quản lý vận đơn</button></td>
                 </tr>)}</tbody></table>
               </div>}
               {shipmentOrderId !== null && <SupplierShipmentManager key={shipmentOrderId}
-                sellerOrderId={shipmentOrderId} onShipmentUpdated={() => {
+                sellerOrderId={shipmentOrderId}
+                sellerOrder={sellerOrders?.find((o) => Number(o.sellerOrderId) === shipmentOrderId) ?? null}
+                onShipmentUpdated={() => {
                   sellerOrderApi.list().then(setSellerOrders)
                     .catch(() => setSellerOrderError('Không tải lại được trạng thái đơn hàng.'));
                 }} />}
