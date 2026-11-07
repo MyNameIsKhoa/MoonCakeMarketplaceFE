@@ -6,6 +6,7 @@ import ConversationsView from '../../features/chat/ConversationsView';
 import MyQuotations from '../../features/rfq/components/MyQuotations';
 import RfqDetail from '../../features/rfq/components/RfqDetail';
 import RfqList from '../../features/rfq/components/RfqList';
+import { SupplierShipmentManager } from '../../features/fulfillment/components/SupplierShipmentManager';
 import { 
   LayoutDashboard, Store, Package, Tag, Receipt, Truck, 
   FileText, DollarSign, MessageSquare, Wallet, Star, 
@@ -34,9 +35,10 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [sellerOrders, setSellerOrders] = useState<SellerOrderSummary[] | null>(null);
   const [sellerOrderError, setSellerOrderError] = useState('');
+  const [shipmentOrderId, setShipmentOrderId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (currentSubTab !== 'don-hang') return;
+    if (currentSubTab !== 'don-hang' && currentSubTab !== 'van-chuyen') return;
     sellerOrderApi.list().then(setSellerOrders)
       .catch((err: unknown) => setSellerOrderError(err instanceof Error ? err.message : 'Không tải được đơn hàng.'));
   }, [currentSubTab]);
@@ -477,7 +479,7 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
           )}
 
           {/* TAB 4: ĐƠN HÀNG & VẬN CHUYỂN (ORDERS & COLD-CHAIN) */}
-          {currentSubTab === 'don-hang' && (
+          {(currentSubTab === 'don-hang' || currentSubTab === 'van-chuyen') && (
             <div className="space-y-6 animate-fadeIn">
               <h1 className="text-2xl font-bold text-gray-900">Đơn hàng của gian hàng</h1>
               {sellerOrderError && <p role="alert" className="text-red-700">{sellerOrderError}</p>}
@@ -487,11 +489,19 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
                 <table className="w-full text-left text-sm"><thead><tr>
                   <th className="p-3">Mã đơn</th><th className="p-3">Gian hàng</th>
                   <th className="p-3">Trạng thái</th><th className="p-3 text-right">Tổng tiền</th>
+                  <th className="p-3">Vận chuyển</th>
                 </tr></thead><tbody>{sellerOrders.map((order) => <tr key={order.sellerOrderId} className="border-t">
                   <td className="p-3">{order.sellerOrderNo}</td><td className="p-3">{order.storeNameSnapshot}</td>
                   <td className="p-3">{order.status}</td><td className="p-3 text-right">{formatVnd(order.totalAmount)}</td>
+                  <td className="p-3"><button type="button" className="text-primary-700"
+                    onClick={() => setShipmentOrderId(Number(order.sellerOrderId))}>Quản lý vận đơn</button></td>
                 </tr>)}</tbody></table>
               </div>}
+              {shipmentOrderId !== null && <SupplierShipmentManager key={shipmentOrderId}
+                sellerOrderId={shipmentOrderId} onShipmentUpdated={() => {
+                  sellerOrderApi.list().then(setSellerOrders)
+                    .catch(() => setSellerOrderError('Không tải lại được trạng thái đơn hàng.'));
+                }} />}
             </div>
           )}
 

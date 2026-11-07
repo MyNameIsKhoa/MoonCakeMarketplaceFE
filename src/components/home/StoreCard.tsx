@@ -77,10 +77,10 @@ export const StoreCard: React.FC<StoreCardProps> = ({
           </p>
 
           {/* Price Range Bar */}
-          <div className="mt-3 flex items-center justify-between text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
+          {store.priceRange && <div className="mt-3 flex items-center justify-between text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-100">
             <span className="text-gray-600 font-medium">Khoảng giá tham khảo:</span>
-            <span className="text-primary-700 font-bold">{store.priceRange || '65.000đ - 2.500.000đ'}</span>
-          </div>
+            <span className="text-primary-700 font-bold">{store.priceRange}</span>
+          </div>}
         </div>
 
         {/* 2-3 Characteristic Products Showcase */}

@@ -2,8 +2,7 @@
  * Storefront catalog (stores, products, categories) loaded once from the API Gateway and shared by
  * Home, Navbar, ProductList and the store directory.
  *
- * Falls back to data/mockData when the Gateway is unreachable, or always when VITE_USE_MOCK_CATALOG=true,
- * so the FE can still be demoed without the backend. `source` tells the UI which one it is showing.
+ * Sample data is available only with VITE_USE_MOCK_CATALOG=true.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Product, Store } from '../types';
@@ -12,7 +11,7 @@ import {
   catalogApi, toCategoryOption, toProduct, toStore, type CategoryOption
 } from '../services/api';
 
-export type CatalogSource = 'loading' | 'api' | 'mock';
+export type CatalogSource = 'loading' | 'api' | 'mock' | 'error';
 
 interface CatalogState {
   stores: Store[];
@@ -20,10 +19,10 @@ interface CatalogState {
   /** First option is always { id: 'all' }. */
   categories: CategoryOption[];
   source: CatalogSource;
-  /** Why the API could not be used (only when source === 'mock' after a failed request). */
+  /** Why the API could not be used. */
   error: string | null;
   reload: () => void;
-  /** Looks up live stores first, then mock stores (mock flash-sale products point at those). */
+  /** Looks up stores from the active catalog only. */
   findStore: (storeId: string) => Store | undefined;
 }
 
@@ -49,7 +48,7 @@ async function loadFromApi() {
   const categorySlugById = new Map(categoryItems.map((c) => [c.categoryId, c.slug]));
   const products = productItems
       // No ACTIVE variant → no price, nothing to buy.
-      .filter((p) => p.minPrice !== null)
+      .filter((p) => p.minPrice !== null && ['ACTIVE', 'OUT_OF_STOCK'].includes(p.status) && storesById.has(String(p.storeId)))
       .map((p) => toProduct(p, storesById, categorySlugById));
 
   return {
@@ -70,6 +69,8 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (USE_MOCK_CATALOG) return;
     let cancelled = false;
+    setData({ stores: [], products: [], categories: [ALL_CATEGORIES] });
+    setError(null);
     setSource('loading');
     loadFromApi()
       .then((loaded) => {
@@ -80,9 +81,9 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setData(MOCK_STATE);
+        setData({ stores: [], products: [], categories: [ALL_CATEGORIES] });
         setError(err instanceof Error ? err.message : 'Không tải được dữ liệu gian hàng.');
-        setSource('mock');
+        setSource('error');
       });
     return () => {
       cancelled = true;
@@ -93,13 +94,12 @@ export function CatalogProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<CatalogState>(() => {
     const storesById = new Map(data.stores.map((s) => [s.storeId, s]));
-    const mockStoresById = new Map(STORES.map((s) => [s.storeId, s]));
     return {
       ...data,
       source,
       error,
       reload,
-      findStore: (storeId) => storesById.get(storeId) ?? mockStoresById.get(storeId)
+      findStore: (storeId) => storesById.get(storeId)
     };
   }, [data, source, error, reload]);
 

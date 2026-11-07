@@ -27,7 +27,7 @@ export interface CustomerPaymentSummary {
   paidAmount: number;
   payment: null | {
     id: number; orderId: number; orderCode: number; amount: number; status: string;
-    linkId: string | null; checkoutUrl: string | null; qrCode: string | null; expiresAt: string;
+    linkId: string | null; checkoutUrl: string | null; qrCode: string | null; expiresAt: string | null;
   };
   allocations: { paymentId: number; sellerOrderId: number; amount: number; sellerOrderNo: string }[];
 }

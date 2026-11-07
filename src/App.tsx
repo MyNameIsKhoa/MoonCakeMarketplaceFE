@@ -14,7 +14,6 @@ import B2BPortal from './pages/B2BPortal';
 import UserProfile from './pages/UserProfile';
 import SellerCenter from './pages/seller/SellerCenter';
 import PaymentSettlement from './features/payment-settlement/PaymentSettlement';
-import { FulfillmentDemoPage } from './features/fulfillment/pages/FulfillmentDemoPage';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import SupplierOnboarding from './pages/seller/SupplierOnboarding';
@@ -22,7 +21,7 @@ import AdminSupplierReview from './pages/admin/AdminSupplierReview';
 import EmptyState from './components/ui/EmptyState';
 
 import { Product, Store, CartItem } from './types';
-import { PRODUCTS, STORES } from './data/mockData';
+import CatalogNotice from './components/CatalogNotice';
 import { useCatalog } from './context/CatalogContext';
 import { useAuth } from './context/AuthContext';
 import { accessLevelOf, canAccess } from './utils/permissions';
@@ -41,7 +40,7 @@ const LOGIN_NOTICES: Record<string, string> = {
 };
 
 export default function App() {
-  const { stores } = useCatalog();
+  const { stores, products, source } = useCatalog();
   const auth = useAuth();
   const [paymentReturnOrderId, setPaymentReturnOrderId] = useState<string | null>(() => {
     const params = new URLSearchParams(location.search);
@@ -56,15 +55,16 @@ export default function App() {
   const [returnTab, setReturnTab] = useState<string | null>(null);
   /** The navbar chat icon opens the B2B portal on "Tin nhắn"; the key remounts it when already open. */
   const [b2bEntry, setB2bEntry] = useState<{ key: number; tab?: 'messages' }>({ key: 0 });
-  const [selectedProduct, setSelectedProduct] = useState<Product>(PRODUCTS[0]);
-  const [selectedStore, setSelectedStore] = useState<Store>(STORES[0]);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedStore, setSelectedStore] = useState<Store | null>(null);
 
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [cartError, setCartError] = useState('');
 
   // No wishlist API exists yet: each account keeps its favourite product IDs in this browser.
-  const [wishlistIds, setWishlistIds] = useState<string[]>([]);
+  const [wishlist, setWishlist] = useState<{ key: string | null; ids: string[] }>({ key: null, ids: [] });
   const wishlistKey = auth.user ? `mooncake.wishlist.${auth.user.userId}` : null;
+  const wishlistIds = wishlist.key === wishlistKey ? wishlist.ids : [];
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -77,23 +77,32 @@ export default function App() {
   }, [paymentReturnOrderId]);
 
   useEffect(() => {
-    if (!auth.isAuthenticated) { setCartItems([]); return; }
-    cartApi.list().then(setCartItems).catch((err: unknown) =>
-      setCartError(err instanceof Error ? err.message : 'Không tải được giỏ hàng.'));
-  }, [auth.isAuthenticated]);
+    let cancelled = false;
+    setCartItems([]);
+    setCartError('');
+    if (auth.isAuthenticated) cartApi.list()
+      .then(items => { if (!cancelled) setCartItems(items); })
+      .catch((err: unknown) => { if (!cancelled) setCartError(err instanceof Error ? err.message : 'Không tải được giỏ hàng.'); });
+    return () => { cancelled = true; };
+  }, [auth.isAuthenticated, auth.user?.userId]);
 
   const refreshCart = async () => setCartItems(await cartApi.list());
   const handleAddToCart = async (product: Product, quantity = 1, _option: string = product.sugarLevel, openCart = true) => {
     if (!auth.isAuthenticated) { setActiveTab('login'); return false; }
     try {
       setCartError('');
-      if (!isApiId(product.id)) throw new Error('Chỉ có thể mua sản phẩm đang có trên API Catalog.');
-      let variantId = product.variantId;
-      if (!variantId) {
-        const detail = await catalogApi.products.get(Number(product.id));
-        variantId = String(detail.variants.find((v) => v.stockQuantity > 0)?.variantId ?? '');
+      if (source !== 'api' || !isApiId(product.id) || !products.some(p => p.id === product.id)) {
+        throw new Error('Chỉ có thể mua sản phẩm đang có trên API Catalog.');
       }
-      if (!variantId || !isApiId(variantId)) throw new Error('Sản phẩm chưa có phân loại còn hàng.');
+      const detail = await catalogApi.products.get(Number(product.id));
+      if (detail.status !== 'ACTIVE') throw new Error('Sản phẩm hiện không bán.');
+      const variant = product.variantId
+        ? detail.variants.find(v => String(v.variantId) === product.variantId)
+        : detail.variants.find(v => v.status === 'ACTIVE' && v.stockQuantity > 0);
+      const variantId = variant ? String(variant.variantId) : '';
+      if (!variant || variant.status !== 'ACTIVE' || variant.stockQuantity < quantity || !isApiId(variantId)) {
+        throw new Error('Sản phẩm chưa có phân loại đủ hàng.');
+      }
       await cartApi.add(variantId, quantity);
       await refreshCart();
       if (openCart) setIsCartOpen(true);
@@ -126,20 +135,21 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (!wishlistKey) { setWishlistIds([]); return; }
+    if (!wishlistKey) { setWishlist({ key: wishlistKey, ids: [] }); return; }
     try {
       const saved: unknown = JSON.parse(localStorage.getItem(wishlistKey) ?? '[]');
-      setWishlistIds(Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : []);
+      setWishlist({ key: wishlistKey, ids: Array.isArray(saved) ? saved.filter((id): id is string => typeof id === 'string') : [] });
     } catch {
-      setWishlistIds([]);
+      setWishlist({ key: wishlistKey, ids: [] });
     }
   }, [wishlistKey]);
 
   const handleToggleWishlist = (productId: string) => {
+    if (source !== 'mock' && !isApiId(productId)) return;
     if (!wishlistKey) { setActiveTab('login'); return; }
     const next = wishlistIds.includes(productId)
       ? wishlistIds.filter(id => id !== productId) : [...wishlistIds, productId];
-    setWishlistIds(next);
+    setWishlist({ key: wishlistKey, ids: next });
     try { localStorage.setItem(wishlistKey, JSON.stringify(next)); } catch { /* storage blocked: keep it for this visit */ }
   };
 
@@ -237,6 +247,9 @@ export default function App() {
       )}
 
       <main className="mss-main">
+        {['home', 'products', 'stores', 'detail', 'store-detail', 'profile', 'wishlist'].includes(activeTab) && <div className="mss-container pt-4"><CatalogNotice /></div>}
+        {((activeTab === 'detail' && !selectedProduct) || (activeTab === 'store-detail' && !selectedStore)) && <EmptyState title="Chưa chọn sản phẩm hoặc gian hàng" />}
+        {activeTab === 'stores' && source === 'api' && stores.length === 0 && <EmptyState title="Chưa có gian hàng" />}
         {!isAllowed ? renderGate() : <>
         {activeTab === 'login' && (
           <Login
@@ -282,7 +295,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'detail' && (
+        {activeTab === 'detail' && selectedProduct && (
           <ProductDetail
             key={selectedProduct.id}
             product={selectedProduct}
@@ -321,7 +334,7 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'store-detail' && (
+        {activeTab === 'store-detail' && selectedStore && (
           <StoreDetail
             key={selectedStore.storeId}
             store={selectedStore}
@@ -361,7 +374,7 @@ export default function App() {
 
         {(activeTab === 'profile' || activeTab === 'wishlist') && (
           <UserProfile
-            key={activeTab}
+            key={`${activeTab}:${auth.user?.userId}`}
             initialTab={activeTab === 'wishlist' ? 'wishlist' : 'info'}
             wishlistIds={wishlistIds}
             onToggleWishlist={handleToggleWishlist}

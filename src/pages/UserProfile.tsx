@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Heart, Award, Plus, Building2 } from 'lucide-react';
-import { Address, Product } from '../types';
-import { STORES, PRODUCTS, PROMOTIONS } from '../data/mockData';
-import { addressApi, ApiError, userApi } from '../services/api';
+import { Heart, Plus, Building2 } from 'lucide-react';
+import { Address, Product, Promotion } from '../types';
+import { PROMOTIONS } from '../data/mockData';
+import { addressApi, ApiError, userApi, catalogApi, toPromotion } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useCatalog } from '../context/CatalogContext';
 import { formatAddress, formatDate } from '../utils/format';
@@ -67,15 +67,34 @@ export default function UserProfile({
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    addressApi.list().then(setAddresses);
+    let cancelled = false;
+    addressApi.list().then(items => { if (!cancelled) setAddresses(items); }).catch(() => { if (!cancelled) setAddresses([]); });
+    return () => { cancelled = true; };
   }, []);
 
-  // Live catalog first; sample products only for items hearted on the home page's sample sections.
-  const { products } = useCatalog();
+  const { products, source, findStore } = useCatalog();
   const wishlistProducts = wishlistIds
-    .map(id => products.find(p => p.id === id) ?? PRODUCTS.find(p => p.id === id))
+    .map(id => products.find(p => p.id === id))
     .filter((p): p is Product => p !== undefined);
-  const activePromotions = PROMOTIONS.filter(p => p.status === 'ACTIVE');
+  const [promotions, setPromotions] = useState<Promotion[]>([]);
+  const [promotionError, setPromotionError] = useState('');
+  const [promotionLoading, setPromotionLoading] = useState(source !== 'mock');
+  const [promotionReload, setPromotionReload] = useState(0);
+  useEffect(() => {
+    if (source === 'mock') { setPromotions(PROMOTIONS); setPromotionLoading(false); return; }
+    let cancelled = false;
+    setPromotionLoading(true); setPromotionError(''); setPromotions([]);
+    async function load() {
+      const first = await catalogApi.promotions.list({ size: 100 });
+      const rest = await Promise.all(Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, i) =>
+        catalogApi.promotions.list({ page: i + 1, size: 100 })));
+      if (!cancelled) setPromotions([first, ...rest].flatMap(page => page.items.map(toPromotion)));
+    }
+    load().catch(() => { if (!cancelled) setPromotionError('Không tải được khuyến mãi.'); })
+      .finally(() => { if (!cancelled) setPromotionLoading(false); });
+    return () => { cancelled = true; };
+  }, [source, promotionReload]);
+  const activePromotions = promotions.filter(p => p.status === 'ACTIVE' && Date.parse(p.startAt) <= Date.now() && Date.parse(p.endAt) > Date.now());
 
   const handleAddAddress = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,12 +136,8 @@ export default function UserProfile({
             </span>
           </div>
           <p className="text-gray-300 text-sm">Email: {user?.email}{user?.phone ? ` • SĐT: ${user.phone}` : ''}</p>
-          <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-sm text-accent-300 pt-1">
-            <span className="flex items-center gap-1"><Award className="w-4 h-4" /> 1,450 Điểm tích lũy</span>
-            <span>•</span>
-            <span>{activePromotions.length} khuyến mãi đang chạy</span>
-            <span>•</span>
-            <span className="text-green-300 font-semibold">✓ Đã xác thực B2B</span>
+          <div className="text-sm text-accent-300 pt-1">
+            {!promotionLoading && !promotionError && <span>{activePromotions.length} khuyến mãi đang chạy</span>}
           </div>
         </div>
       </div>
@@ -280,10 +295,13 @@ export default function UserProfile({
         <section className="mss-card mss-stack max-w-4xl">
           <h2 className="mss-card-title">Khuyến mãi đang chạy</h2>
           <p className="text-sm text-gray-500">Khuyến mãi được hệ thống tự áp dụng theo từng gian hàng khi bạn thanh toán, không cần nhập mã.</p>
+          {promotionLoading && <p role="status">Đang tải khuyến mãi…</p>}
+          {promotionError && <p role="alert">{promotionError} <button className="underline" onClick={() => setPromotionReload(k => k + 1)}>Thử lại</button></p>}
+          {!promotionLoading && !promotionError && activePromotions.length === 0 && <p>Chưa có khuyến mãi đang chạy.</p>}
           <div className="mss-grid-3">
             {activePromotions.map((promo) => (
               <div key={promo.promotionId} className="rounded-xl border border-gray-200 p-4 flex flex-col gap-2">
-                <span className="text-sm font-semibold text-primary-700">{STORES.find((b) => b.storeId === promo.storeId)?.name ?? promo.storeId}</span>
+                <span className="text-sm font-semibold text-primary-700">{findStore(promo.storeId)?.name ?? `Gian hàng #${promo.storeId}`}</span>
                 <h3 className="font-semibold text-gray-900">{promo.name}</h3>
                 <p className="text-sm text-gray-500">
                   {formatDate(promo.startAt)} – {formatDate(promo.endAt)}
@@ -298,6 +316,7 @@ export default function UserProfile({
       {activeProfileTab === 'wishlist' && (
         <div className="space-y-6 max-w-6xl mx-auto">
           <h3 className="font-bold text-gray-900 text-lg border-b border-gray-200 pb-3">Sản Phẩm Yêu Thích ({wishlistProducts.length})</h3>
+          <p className="text-sm text-gray-500">Danh sách yêu thích lưu theo tài khoản trong trình duyệt này, chưa đồng bộ giữa các thiết bị. Sản phẩm không còn công khai sẽ không hiển thị.</p>
           {wishlistProducts.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
               <p className="text-gray-500 text-sm">Bạn chưa có sản phẩm yêu thích nào.</p>
@@ -341,19 +360,7 @@ export default function UserProfile({
             </button>
           </div>
 
-          <div className="space-y-4">
-            <div className="border border-accent-200 bg-accent-50/40 p-5 rounded-2xl space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-sm text-primary-800 bg-accent-200 px-3 py-1 rounded">#RFQ2026-0088</span>
-                <span className="text-sm font-semibold text-green-700 bg-green-100 px-3 py-1 rounded-full">Đang nhận báo giá (3 xưởng phản hồi)</span>
-              </div>
-              <h4 className="font-bold text-gray-900 text-sm">500 hộp bánh trung thu cao cấp quà tặng đối tác VIP 2026</h4>
-              <p className="text-sm text-gray-600">Ngân sách: 150.000.000 ₫ • Giao ngày 20/09/2026 tại Landmark 81, TP.HCM</p>
-              <div className="flex gap-2 pt-2">
-                <button onClick={() => setActiveTab('b2b')} className="px-4 py-2 bg-primary-700 text-white text-sm font-semibold rounded-xl shadow">Xem Báo Giá Từ Xưởng (Kinh Đô, Givral...)</button>
-              </div>
-            </div>
-          </div>
+          <p className="text-sm text-gray-600">Mở cổng doanh nghiệp để xem yêu cầu báo giá của tài khoản.</p>
         </div>
       )}
     </div>

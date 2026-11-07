@@ -14,6 +14,7 @@ export default function AIAssistantModal({ isOpen, onClose }: AIAssistantModalPr
   const [dietary, setDietary] = useState('Thích hợp người lớn tuổi / Giảm đường');
   
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [result, setResult] = useState<{
     recommendation: string;
     teaPairing: string;
@@ -25,21 +26,22 @@ export default function AIAssistantModal({ isOpen, onClose }: AIAssistantModalPr
   const handleConsult = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError('');
+    setResult(null);
     try {
       const res = await fetch('/api/gemini/recommend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipient, taste, budget, dietary })
+        body: JSON.stringify({ recipient, taste, budget, dietary }),
+        signal: AbortSignal.timeout(30000)
       });
       const data = await res.json();
+      if (!res.ok || data.error || !['recommendation', 'teaPairing', 'greetingMessage'].every(key => typeof data[key] === 'string' && data[key].trim())) {
+        throw new Error('Không nhận được tư vấn AI hợp lệ. Vui lòng thử lại.');
+      }
       setResult(data);
     } catch (err) {
-      console.error(err);
-      setResult({
-        recommendation: 'Gợi ý Hộp Quà Trăng Vàng Hoàng Kim Kinh Đô hoặc Bánh Nướng Thập Cẩm Như Lan sẽ là món quà trọn vẹn nghĩa tình.',
-        teaPairing: 'Trà Ô Long thượng hạng',
-        greetingMessage: 'Chúc gia đình mùa Trung Thu an khang thịnh vượng, vạn sự như ý!'
-      });
+      setError('Không thể kết nối với trợ lý AI. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -69,6 +71,7 @@ export default function AIAssistantModal({ isOpen, onClose }: AIAssistantModalPr
 
         {/* Content */}
         <div className="p-6 max-h-[80vh] overflow-y-auto">
+          {error && <p role="alert" className="mss-alert mss-alert--danger">{error}</p>}
           {!result ? (
             <form onSubmit={handleConsult} className="space-y-4">
               <div>
