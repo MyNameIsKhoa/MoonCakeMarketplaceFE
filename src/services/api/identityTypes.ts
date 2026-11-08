@@ -24,6 +24,17 @@ export interface LoginRequest {
   password: string;
 }
 
+/** POST /api/auth/google: the Google Identity Services ID token (JWT `credential`). */
+export interface GoogleLoginRequest {
+  idToken: string;
+}
+
+/** POST /api/auth/password-resets: `token` from the email link /reset-password?token=…; password 6–100 chars. */
+export interface PasswordResetRequest {
+  token: string;
+  newPassword: string;
+}
+
 export interface UserSummaryResponse {
   userId: number;
   customerId: number | null;
@@ -65,12 +76,30 @@ export interface SupplierProfileResponse {
   verificationStatus: SupplierVerificationStatus;
   createdAt: string;
   updatedAt: string;
+  /** Latest admin decision (VERIFIED / REJECTED / SUSPENDED) and its reason; null before any review. */
+  lastDecisionStatus: Exclude<SupplierVerificationStatus, 'PENDING'> | null;
+  lastDecisionReason: string | null;
+  lastDecisionAt: string | null;
 }
 
-/** Creating starts at PENDING; editing a REJECTED or VERIFIED profile sends it back to PENDING. */
+/**
+ * Creating starts at PENDING. PATCH on a REJECTED profile always resubmits it (back to PENDING, even with
+ * unchanged fields); changing a VERIFIED profile also sends it back to PENDING.
+ */
 export interface SupplierProfileRequest {
   companyName: string;
   taxCode: string;
+}
+
+/**
+ * Supplier fields typed on the register form. POST /api/supplier-profile needs a token, which only exists after
+ * email verification + login, so the form keeps them in this browser until the seller center can submit them.
+ */
+export interface SupplierProfileDraft extends SupplierProfileRequest {
+  /** Lower-cased email of the account that registered; the draft is only used for that account. */
+  email: string;
+  /** false after an automatic submit failed: later visits only prefill the form. */
+  autoSubmit: boolean;
 }
 
 /** Allowed: PENDING → VERIFIED/REJECTED, VERIFIED → SUSPENDED, SUSPENDED → VERIFIED. */

@@ -31,6 +31,8 @@ export const FINANCE_STATUS: StatusMap = {
   RESOLVED: { label: 'Đã phân xử', variant: 'success' },
   READY: { label: 'Sẵn sàng giải ngân', variant: 'info' },
   PROCESSING: { label: 'Đang xử lý', variant: 'warning' },
+  BLOCKED: { label: 'Chưa đủ điều kiện giải ngân', variant: 'neutral' },
+  PAID: { label: 'Đã giải ngân', variant: 'success' },
 };
 
 export const ORDER_STATUS: StatusMap = {
@@ -79,15 +81,20 @@ export const PAYMENT_PROVIDER: StatusMap = {
   COD: { label: 'Thanh toán khi nhận hàng (COD)', variant: 'neutral' }
 };
 
+/** Commerce ShipmentStatus. */
 export const SHIPMENT_STATUS: StatusMap = {
+  PLANNED: { label: 'Đã lên kế hoạch', variant: 'neutral' },
   READY_TO_SHIP: { label: 'Chờ bàn giao vận chuyển', variant: 'warning' },
-  IN_TRANSIT: { label: 'Đang vận chuyển', variant: 'info' },
+  SHIPPED: { label: 'Đang vận chuyển', variant: 'info' },
   DELIVERED: { label: 'Đã giao', variant: 'success' },
-  FAILED: { label: 'Giao thất bại', variant: 'danger' }
+  FAILED: { label: 'Giao thất bại', variant: 'danger' },
+  RETURNED: { label: 'Hoàn trả', variant: 'neutral' },
+  CANCELLED: { label: 'Đã hủy kiện', variant: 'neutral' }
 };
 
 export const CANCELLATION_STATUS: StatusMap = {
   REQUESTED: { label: 'Đã gửi yêu cầu hủy', variant: 'warning' },
+  MANUAL_REVIEW: { label: 'Chờ xử lý thủ công', variant: 'warning' },
   APPROVED: { label: 'Đã chấp nhận hủy', variant: 'danger' },
   REJECTED: { label: 'Từ chối hủy', variant: 'neutral' }
 };
@@ -126,7 +133,8 @@ export const QUOTATION_STATUS: StatusMap = {
   ACCEPTED: { label: 'Đã chấp nhận', variant: 'success' },
   REJECTED: { label: 'Bị từ chối', variant: 'danger' },
   EXPIRED: { label: 'Hết hiệu lực', variant: 'warning' },
-  CANCELLED: { label: 'Nhà cung cấp đã rút', variant: 'neutral' }
+  CANCELLED: { label: 'Nhà cung cấp đã rút', variant: 'neutral' },
+  ORDER_CANCELLED: { label: 'Đơn đã hủy', variant: 'danger' }
 };
 
 export const QUOTATION_CONVERSION_STATUS: StatusMap = {

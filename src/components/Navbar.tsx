@@ -7,6 +7,8 @@ import { Store, Product } from '../types';
 import { useCatalog } from '../context/CatalogContext';
 import { useAuth } from '../context/AuthContext';
 import { useUnreadMessages } from '../features/chat/useUnreadMessages';
+import NotificationBell from '../features/notifications/NotificationBell';
+import type { NotificationDestination } from '../features/notifications/targets';
 import UserMenu from './UserMenu';
 
 interface NavbarProps {
@@ -98,6 +100,11 @@ export default function Navbar({
     setActiveTab('detail');
     setIsSearchFocused(false);
     setMobileMenuOpen(false);
+  };
+
+  const openNotification = (destination: NotificationDestination) => {
+    if (destination === 'messages') onOpenMessages();
+    else setActiveTab(destination);
   };
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -345,6 +352,9 @@ export default function Navbar({
             </button>
           )}
 
+          {/* In-app notifications (Identity): unread badge + panel */}
+          {isAuthenticated && <NotificationBell onOpen={openNotification} />}
+
           {/* High-priority Cart Button */}
           <button
             onClick={onOpenCart}
@@ -481,10 +491,10 @@ export default function Navbar({
               Doanh Nghiệp
             </button>
 
-            {/* Fulfillment */}
+            {/* Fulfillment: shipments are tracked per order on the orders page. */}
             <button
-              onClick={() => setActiveTab('fulfillment')}
-              className={`px-4 py-3 border-b-2 transition ${activeTab === 'fulfillment'
+              onClick={() => setActiveTab('orders')}
+              className={`px-4 py-3 border-b-2 transition ${activeTab === 'orders'
                 ? 'border-primary-700 text-primary-700 font-bold'
                 : 'border-transparent text-gray-700 hover:text-primary-700'
                 }`}

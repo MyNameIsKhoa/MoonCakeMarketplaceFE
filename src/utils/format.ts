@@ -8,12 +8,26 @@ export function formatVnd(amount: Money | undefined | null): string {
   return `${vnd.format(amount)} ₫`;
 }
 
-// DATETIME2(0) carries no timezone; until the API contract pins one,
-// parse as-is (no appended "Z") and display in the viewer's locale.
-function parse(value?: string): Date | null {
+/**
+ * Backend DATETIME2 values are UTC. Identity, Catalog and Commerce serialize them without a zone
+ * suffix (RFQ adds "Z"), so a date-time without an offset is read as UTC. Date-only values
+ * (YYYY-MM-DD) stay calendar dates.
+ */
+export function parseApiDate(value?: string | null): Date | null {
   if (!value) return null;
-  const date = new Date(value);
+  const hasZone = /([zZ]|[+-]\d\d:?\d\d)$/.test(value);
+  const date = new Date(value.includes('T') && !hasZone ? `${value}Z` : value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+const parse = parseApiDate;
+
+/** Value for an `<input type="datetime-local">` in the viewer's time zone. */
+export function toLocalDateTimeInput(value?: string | null): string {
+  const date = parseApiDate(value);
+  if (!date) return '';
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
 }
 
 export function formatDate(value?: string): string {
