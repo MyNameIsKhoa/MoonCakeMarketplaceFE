@@ -331,6 +331,11 @@
     outline-offset: 2px;
   }
 
+  .admin-center {
+    --mss-primary: #1d4ed8;
+    --mss-primary-hover: #1e40af;
+  }
+
   .mss-button--primary {
     background: var(--mss-primary);
     color: #fff;

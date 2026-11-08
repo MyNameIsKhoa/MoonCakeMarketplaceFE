@@ -24,6 +24,7 @@ const messages: Record<string, string> = {
   SETTLEMENT_NOT_ELIGIBLE: 'Đơn chưa đủ điều kiện giải ngân.',
   DISPUTE_AUTHORITY_NOT_CONFIGURED: 'Quyền phân xử chưa được cấu hình.',
   PAYOUT_ALREADY_RESERVED: 'Khoản giải ngân đang được xử lý hoặc đã hoàn tất.',
+  SETTLEMENT_SNAPSHOT_STALE: 'Khoản giải ngân đã tính không khớp số tiền hiện tại. Tạm dừng chuyển tiền và liên hệ quản trị.',
 };
 function errorMessage(error: unknown) {
   if (error instanceof ApiError) {
@@ -44,7 +45,7 @@ export default function PaymentSettlement() {
   return <SellerPaymentSettlement />;
 }
 
-function SellerPaymentSettlement() {
+export function SellerPaymentSettlement() {
   const [orderInput, setOrderInput] = useState(() => sessionStorage.getItem('financeOrderId') || '');
   const [orderId, setOrderId] = useState<number | null>(null);
   const [data, setData] = useState<FinanceSummary | null>(null);
@@ -172,7 +173,7 @@ function SellerPaymentSettlement() {
         <form onSubmit={submitCase} className="mss-stack">
           <label className="mss-field">Thao tác<select className="mss-select" value={action} onChange={e => setAction(e.target.value)}>
             <option value="cancellations">Gửi yêu cầu hủy đơn</option><option value="disputes">Mở tranh chấp</option><option value="disputes/{id}/evidence">Bổ sung bằng chứng tranh chấp</option>
-            <optgroup label="Dành cho người xử lý được cấp quyền"><option value="cancellations/{id}/decision">Duyệt / từ chối hủy</option><option value="refunds">Đề xuất hoàn tiền thủ công</option><option value="refunds/{id}/reject">Từ chối hoàn tiền</option><option value="refunds/{id}/confirm">Xác nhận đã hoàn tiền</option><option value="disputes/{id}/resolve">Ghi kết quả phân xử</option><option value="settlements">Tạo khoản giải ngân</option><option value="settlements/{id}/payout">Bắt đầu giải ngân thủ công</option><option value="settlements/{id}/confirm">Xác nhận đã giải ngân</option></optgroup>
+            <optgroup label="Dành cho người xử lý được cấp quyền"><option value="cancellations/{id}/decision">Duyệt / từ chối hủy</option><option value="refunds">Đề xuất hoàn tiền thủ công</option><option value="refunds/{id}/reject">Từ chối hoàn tiền</option><option value="refunds/{id}/confirm">Xác nhận đã hoàn tiền</option><option value="settlements">Tạo khoản giải ngân</option><option value="settlements/{id}/payout">Bắt đầu giải ngân thủ công</option><option value="settlements/{id}/confirm">Xác nhận đã giải ngân</option></optgroup>
           </select></label>
           {needsId && <label className="mss-field">{action === 'refunds' ? 'Mã giao dịch thanh toán' : 'Mã yêu cầu / khoản giải ngân'}<input className="mss-input" type="number" min="1" step="1" required value={resourceId} onChange={e => setResourceId(e.target.value)} /></label>}
           {!noReason && <label className="mss-field">Lý do / kết quả xử lý<textarea className="mss-textarea" required maxLength={500} value={reason} onChange={e => setReason(e.target.value)} /></label>}
@@ -185,8 +186,8 @@ function SellerPaymentSettlement() {
         </form>
       </section>
       <section className="mss-card mss-stack"><h2 className="mss-section-title">Giải ngân</h2><p>{data.eligibility.eligible ? 'Đã đủ điều kiện xem xét giải ngân.' : 'Chưa đủ điều kiện giải ngân.'}</p>
-        {data.eligibility.blockingReasons.map(code => <p className="text-sm text-amber-800" key={code}>{({ OPEN_DISPUTE: 'Có tranh chấp đang mở', CANCELLATION: 'Có yêu cầu hủy đang chặn', REFUND: 'Có khoản hoàn tiền cần xử lý', ORDER_NOT_ACCEPTED: 'Đơn chưa được chấp nhận', NOT_FULLY_PAID: 'Chưa thu đủ tiền', DELIVERY_ACCEPTANCE_REQUIRED: 'Chờ giao hàng và nghiệm thu', FEE_BASIS_NOT_AGREED: 'Chờ chốt cơ sở tính phí', ROUNDING_NOT_AGREED: 'Chờ chốt quy tắc làm tròn', PAYMENT_RECONCILIATION_REQUIRED: 'Có giao dịch cần đối soát' } as Record<string, string>)[code] || code}</p>)}
-        {data.settlements.map(s => <div className="border-t border-gray-200 pt-3" key={s.settlementId}><p>Giải ngân #{s.settlementId} <StatusBadge map={FINANCE_STATUS} status={s.status} /></p><p>Phí 5%: {formatVnd(s.feeAmount)} · Thực nhận: {formatVnd(s.supplierPayoutAmount)}</p></div>)}
+        {data.eligibility.blockingReasons.map(code => <p className="text-sm text-amber-800" key={code}>{({ OPEN_DISPUTE: 'Có tranh chấp đang mở', CANCELLATION: 'Có yêu cầu hủy đang chặn', REFUND: 'Có khoản hoàn tiền cần xử lý', FULLY_REFUNDED: 'Đã hoàn toàn bộ tiền đơn', DISPUTE_WINDOW_OPEN: 'Chưa hết 7 ngày kể từ khi giao hàng', ORDER_NOT_ACCEPTED: 'Đơn chưa được chấp nhận', NOT_FULLY_PAID: 'Chưa thu đủ tiền', DELIVERY_ACCEPTANCE_REQUIRED: 'Chờ giao hàng và nghiệm thu', FEE_BASIS_NOT_AGREED: 'Chờ chốt cơ sở tính phí', ROUNDING_NOT_AGREED: 'Chờ chốt quy tắc làm tròn', PAYMENT_RECONCILIATION_REQUIRED: 'Có giao dịch cần đối soát' } as Record<string, string>)[code] || code}</p>)}
+        {data.settlements.map(s => <div className="border-t border-gray-200 pt-3" key={s.settlementId}><p>Giải ngân #{s.settlementId} <StatusBadge map={FINANCE_STATUS} status={s.status} /></p><p>Đã hoàn: {formatVnd(s.refundedAmount || 0)} · Phí 5%: {formatVnd(s.feeAmount)} · Thực nhận: {formatVnd(s.supplierPayoutAmount)}</p></div>)}
       </section>
       <section className="mss-card mss-stack"><h2 className="mss-section-title">Lịch sử giao dịch</h2>{data.history.length ? data.history.map(h => <div className="border-b border-gray-200 pb-3" key={h.auditId}><p><strong>{h.eventType}</strong> · {date(h.createdAt)}</p><p className="text-sm text-gray-600">{h.detail}</p></div>) : <p>Chưa có lịch sử.</p>}</section>
     </>}

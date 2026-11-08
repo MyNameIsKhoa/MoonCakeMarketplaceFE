@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
-import { LayoutDashboard, ShieldCheck, Users, ArrowLeft, RefreshCw, Store, Tags, ClipboardX } from 'lucide-react';
+import { LayoutDashboard, ShieldCheck, Users, ArrowLeft, RefreshCw, Store, Tags, ClipboardX, MessageSquareWarning, Wallet } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { http } from '../../services/api/http';
 import AdminSupplierReview from './AdminSupplierReview';
 import AdminCatalog from './AdminCatalog';
 import AdminCancellations from './AdminCancellations';
+import AdminDisputes from './AdminDisputes';
+import { SellerPaymentSettlement } from '../../features/payment-settlement/PaymentSettlement';
 
-type Tab = 'dashboard' | 'users' | 'suppliers' | 'stores' | 'categories' | 'cancellations';
+type Tab = 'dashboard' | 'users' | 'suppliers' | 'stores' | 'categories' | 'cancellations' | 'disputes' | 'finance';
 type Page<T> = { content: T[]; totalPages: number; totalElements: number; number: number };
 type User = { userId: number; email: string; status: string; emailVerified: boolean; createdAt: string | null };
 type Metrics = { users: number; orders: number; rfqs: number; collectedThisMonth: number; month: string };
@@ -18,6 +20,8 @@ const items: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'stores', label: 'Gian hàng', icon: Store },
   { id: 'categories', label: 'Danh mục', icon: Tags },
   { id: 'cancellations', label: 'Yêu cầu hủy', icon: ClipboardX },
+  { id: 'disputes', label: 'Khiếu nại', icon: MessageSquareWarning },
+  { id: 'finance', label: 'Đối soát & giải ngân', icon: Wallet },
 ];
 
 export default function AdminCenter({ onBackToShop }: { onBackToShop: () => void }) {
@@ -57,7 +61,7 @@ export default function AdminCenter({ onBackToShop }: { onBackToShop: () => void
   }, [tab, query, status, page, reload]);
 
   const money = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 });
-  return <div className="min-h-screen bg-slate-50 text-slate-900 md:flex">
+  return <div className="admin-center min-h-screen bg-slate-50 text-slate-900 md:flex">
     <aside className="bg-blue-950 text-white md:w-64 md:min-h-screen shrink-0 p-5 flex flex-col gap-6">
       <div><p className="text-blue-200 text-xs uppercase tracking-widest">Mooncake Marketplace</p><h1 className="text-xl font-bold mt-1">Quản trị sàn</h1></div>
       <nav aria-label="Điều hướng quản trị" className="flex md:flex-col gap-2 overflow-x-auto">
@@ -95,6 +99,8 @@ export default function AdminCenter({ onBackToShop }: { onBackToShop: () => void
       {tab === 'stores' && <AdminCatalog kind="stores" />}
       {tab === 'categories' && <AdminCatalog kind="categories" />}
       {tab === 'cancellations' && <AdminCancellations />}
+      {tab === 'disputes' && <AdminDisputes />}
+      {tab === 'finance' && <SellerPaymentSettlement />}
     </main>
   </div>;
 }
