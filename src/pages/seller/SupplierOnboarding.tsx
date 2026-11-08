@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Building2, CheckCircle2, Clock, LogIn, RefreshCw, ShieldAlert, XCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import StatusBadge from '../../components/ui/StatusBadge';
+import { supplierDraftStorage } from '../../services/api/identityApi';
 import { SUPPLIER_VERIFICATION } from '../../utils/status';
 import { formatDateTime } from '../../utils/format';
 import { authErrorMessage } from '../auth/AuthLayout';
@@ -17,14 +18,49 @@ interface SupplierOnboardingProps {
  * apply (no profile), wait (PENDING), fix and resubmit (REJECTED) or contact the platform (SUSPENDED).
  */
 export default function SupplierOnboarding({ onBackToShop, onRelogin }: SupplierOnboardingProps) {
-  const { supplierProfile, submitSupplierProfile, refreshSupplierProfile } = useAuth();
+  const { user, supplierProfile, submitSupplierProfile, refreshSupplierProfile } = useAuth();
   const status = supplierProfile?.verificationStatus;
-  const [companyName, setCompanyName] = useState(supplierProfile?.companyName ?? '');
-  const [taxCode, setTaxCode] = useState(supplierProfile?.taxCode ?? '');
+  // Hồ sơ nhập lúc đăng ký (chưa gửi được vì chưa có token) — chỉ dùng khi tài khoản chưa có hồ sơ supplier.
+  const [draft] = useState(() => (!supplierProfile && user ? supplierDraftStorage.load(user.email) : null));
+  const [companyName, setCompanyName] = useState(supplierProfile?.companyName ?? draft?.companyName ?? '');
+  const [taxCode, setTaxCode] = useState(supplierProfile?.taxCode ?? draft?.taxCode ?? '');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const autoSubmitStarted = useRef(false);
 
   const canSubmit = !status || status === 'REJECTED';
+  /** Lý do admin ghi khi từ chối / tạm khóa; chỉ hiện khi khớp trạng thái hiện tại. */
+  const decisionReason = supplierProfile?.lastDecisionStatus === status ? supplierProfile?.lastDecisionReason : null;
+
+  const submit = async (input: { companyName: string; taxCode: string }) => {
+    const resubmit = status === 'REJECTED';
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await submitSupplierProfile(input);
+      supplierDraftStorage.clear();
+      setNotice(resubmit
+        ? 'Đã gửi lại hồ sơ. Quản trị viên sẽ xét duyệt lại trong thời gian sớm nhất.'
+        : 'Đã gửi hồ sơ nhà cung cấp. Vui lòng chờ quản trị viên xét duyệt.');
+      return true;
+    } catch (err) {
+      setError(authErrorMessage(err, 'supplier'));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Tự gửi bản nháp từ form đăng ký một lần; lỗi (vd. trùng mã số thuế) thì giữ nháp để người dùng sửa và gửi tay.
+  useEffect(() => {
+    if (!draft?.autoSubmit || supplierProfile || autoSubmitStarted.current) return;
+    autoSubmitStarted.current = true;
+    void submit({ companyName: draft.companyName, taxCode: draft.taxCode }).then((ok) => {
+      if (!ok) supplierDraftStorage.save({ ...draft, autoSubmit: false });
+    });
+  }, [draft, supplierProfile, submit]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,15 +68,7 @@ export default function SupplierOnboarding({ onBackToShop, onRelogin }: Supplier
       setError('Vui lòng nhập đủ tên công ty và mã số thuế.');
       return;
     }
-    setBusy(true);
-    setError(null);
-    try {
-      await submitSupplierProfile({ companyName: companyName.trim(), taxCode: taxCode.trim() });
-    } catch (err) {
-      setError(authErrorMessage(err, 'supplier'));
-    } finally {
-      setBusy(false);
-    }
+    await submit({ companyName: companyName.trim(), taxCode: taxCode.trim() });
   };
 
   const handleRefresh = async () => {
@@ -60,6 +88,8 @@ export default function SupplierOnboarding({ onBackToShop, onRelogin }: Supplier
           Chỉ nhà cung cấp đã được sàn xác minh mới có thể tạo gian hàng và đăng bán sản phẩm.
         </p>
       </header>
+
+      {notice && <div className="mss-alert flex items-start gap-2 mb-4" role="status"><CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-green-700" /><span>{notice}</span></div>}
 
       {supplierProfile && (
         <section className="mss-card mss-stack">
@@ -93,13 +123,21 @@ export default function SupplierOnboarding({ onBackToShop, onRelogin }: Supplier
           {status === 'REJECTED' && (
             <div className="mss-alert mss-alert--danger flex items-start gap-2">
               <XCircle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>Hồ sơ chưa được duyệt. Vui lòng kiểm tra lại thông tin bên dưới và gửi lại.</span>
+              <span>
+                Hồ sơ chưa được duyệt.
+                {decisionReason && <> Lý do: <strong>{decisionReason}</strong>.</>}
+                {' '}Vui lòng kiểm tra, sửa thông tin bên dưới (nếu cần) rồi bấm “Gửi lại hồ sơ”.
+              </span>
             </div>
           )}
           {status === 'SUSPENDED' && (
             <div className="mss-alert mss-alert--danger flex items-start gap-2">
               <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>Tài khoản nhà cung cấp đang bị tạm khóa. Vui lòng liên hệ sàn qua hotline 1900 1509.</span>
+              <span>
+                Tài khoản nhà cung cấp đang bị tạm khóa.
+                {decisionReason && <> Lý do: <strong>{decisionReason}</strong>.</>}
+                {' '}Vui lòng liên hệ sàn qua hotline 1900 1509.
+              </span>
             </div>
           )}
 
@@ -120,6 +158,9 @@ export default function SupplierOnboarding({ onBackToShop, onRelogin }: Supplier
         <form onSubmit={handleSubmit} className="mss-card mss-stack" noValidate>
           <h2 className="mss-card-title">{status === 'REJECTED' ? 'Gửi lại hồ sơ nhà cung cấp' : 'Đăng ký trở thành nhà cung cấp'}</h2>
           {error && <div className="mss-alert mss-alert--danger" role="alert">{error}</div>}
+          {draft && !status && !busy && (
+            <p className="mss-card-meta">Thông tin bạn nhập khi đăng ký đã được điền sẵn. Kiểm tra lại rồi bấm gửi.</p>
+          )}
           <label className="mss-field">
             Tên công ty / xưởng bánh
             <input className="mss-input" value={companyName} onChange={(e) => setCompanyName(e.target.value)} maxLength={255} autoComplete="organization" />
@@ -130,7 +171,7 @@ export default function SupplierOnboarding({ onBackToShop, onRelogin }: Supplier
           </label>
           <div className="flex flex-wrap gap-2">
             <button type="submit" className="mss-button mss-button--primary" disabled={busy}>
-              {busy ? 'Đang gửi…' : 'Gửi hồ sơ xét duyệt'}
+              {busy ? 'Đang gửi…' : status === 'REJECTED' ? 'Gửi lại hồ sơ' : 'Gửi hồ sơ xét duyệt'}
             </button>
             <button type="button" className="mss-button mss-button--secondary" onClick={onBackToShop}>
               Để sau

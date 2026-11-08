@@ -287,9 +287,10 @@ export default function ProductList({
 
                       <button
                         onClick={() => onAddToCart(product)}
-                        className="w-full mt-3 py-3 bg-primary-700 hover:bg-primary-800 text-white text-sm font-semibold rounded-xl shadow transition flex items-center justify-center gap-2"
+                        disabled={product.inStock === false}
+                        className="w-full mt-3 py-3 bg-primary-700 hover:bg-primary-800 disabled:bg-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl shadow transition flex items-center justify-center gap-2"
                       >
-                        <span>Thêm Vào Giỏ</span>
+                        <span>{product.inStock === false ? 'Hết hàng' : 'Thêm Vào Giỏ'}</span>
                       </button>
                     </div>
                   </div>

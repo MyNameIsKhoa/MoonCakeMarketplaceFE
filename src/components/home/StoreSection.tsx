@@ -4,6 +4,14 @@ import { Store, Product } from '../../types';
 import { StoreCard } from './StoreCard';
 import { StoreFilter, StoreCategoryKey } from './StoreFilter';
 
+/** Which product category slugs (from the Catalog API) put a store in each home filter tab. */
+const CATEGORY_SLUG_HINTS: Record<Exclude<StoreCategoryKey, 'all'>, string[]> = {
+  'truyen-thong': ['truyen-thong'],
+  'cao-cap': ['cao-cap'],
+  'hien-dai': ['hien-dai', 'thieu-nhi'],
+  healthy: ['chay', 'healthy']
+};
+
 interface StoreSectionProps {
   stores: Store[];
   products: Product[];
@@ -40,9 +48,13 @@ export const StoreSection: React.FC<StoreSectionProps> = ({
   // Filter stores
   const filteredStores = useMemo(() => {
     return stores.filter((store) => {
-      // Category filter
+      // Category filter: API stores carry no categoryType, so derive it from their products' category slugs.
       if (activeCategory !== 'all') {
-        if (store.categoryType !== activeCategory) {
+        const matches = store.categoryType
+          ? store.categoryType === activeCategory
+          : (productsByStore.get(store.storeId) ?? []).some((p) =>
+              CATEGORY_SLUG_HINTS[activeCategory].some((hint) => String(p.category).includes(hint)));
+        if (!matches) {
           return false;
         }
       }
@@ -61,7 +73,7 @@ export const StoreSection: React.FC<StoreSectionProps> = ({
 
       return true;
     });
-  }, [stores, activeCategory, searchFilter]);
+  }, [stores, activeCategory, searchFilter, productsByStore]);
 
   return (
     <section id="stores-section" className="mss-container space-y-6 scroll-mt-24">

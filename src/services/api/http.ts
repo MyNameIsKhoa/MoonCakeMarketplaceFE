@@ -87,9 +87,9 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
     this.status = status;
-    this.code = code ?? `HTTP_${status}`;
+    // Some services put the machine code only in `message`; never use a human sentence as the code.
+    this.code = code || (/^[A-Z][A-Z0-9_]+$/.test(message) ? message : `HTTP_${status}`);
     this.fieldErrors = fieldErrors;
-    this.code = code || message;
   }
 }
 

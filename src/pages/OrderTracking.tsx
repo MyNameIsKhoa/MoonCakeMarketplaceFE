@@ -5,7 +5,7 @@ import { orderApi } from '../services/api';
 import { paymentApi } from '../features/payment-settlement/paymentApi';
 import { endedPayment } from '../features/payment-settlement/paymentState';
 import { openCustomerCheckout, openSellerCheckout } from '../features/payment-settlement/openCheckout';
-import { formatAddress, formatDate, formatDateTime, formatVnd } from '../utils/format';
+import { formatAddress, formatDate, formatDateTime, formatVnd, parseApiDate } from '../utils/format';
 import {
   CANCELLATION_STATUS,
   ORDER_SOURCE,
@@ -20,6 +20,8 @@ import StatusBadge from '../components/ui/StatusBadge';
 import EmptyState from '../components/ui/EmptyState';
 import { fulfillmentApi } from '../features/fulfillment/api/fulfillmentApi';
 import { ReviewModal } from '../features/fulfillment/components/ReviewModal';
+import { ShipmentLineList } from '../features/fulfillment/components/ShipmentLineList';
+import { useShipmentLines } from '../features/fulfillment/useShipmentLines';
 import { ApiError } from '../services/api/http';
 import DisputePanel from '../features/payment-settlement/DisputePanel';
 
@@ -45,6 +47,13 @@ function isFullyPaid(sellerOrder: SellerOrder) {
     sellerOrder.payments.every((payment) => ['SUCCESS', 'PAID'].includes(payment.status));
 }
 
+function isRemainingOverdue(so: SellerOrder) {
+  if (!so.remainingDueAt || so.status === 'CANCELLED') return false;
+  const due = parseApiDate(so.remainingDueAt);
+  const remainingPaid = so.payments.some((p) => p.paymentType === 'REMAINING' && ['SUCCESS', 'PAID'].includes(p.status));
+  return !!due && due.getTime() < Date.now() && !remainingPaid;
+}
+
 function isUnpaidCancelled(order: CustomerOrder) {
   return order.status === 'CANCELLED' && order.sourceType === 'RETAIL' &&
     order.sellerOrders.every(so => so.payments.every(p => !['SUCCESS', 'PAID'].includes(p.status)));
@@ -53,7 +62,7 @@ function isUnpaidCancelled(order: CustomerOrder) {
 export default function OrderTracking({ setActiveTab, paymentReturnOrderId, paymentReturnSellerPaymentId, onPaymentReturnHandled }: OrderTrackingProps) {
   const [orders, setOrders] = useState<CustomerOrder[] | null>(null);
   const [loadError, setLoadError] = useState('');
-  const [paymentNotice, setPaymentNotice] = useState<{ message: string; success: boolean } | null>(null);
+  const [paymentNotice, setPaymentNotice] = useState<{ message: string; success: boolean; title?: string } | null>(null);
   const [filter, setFilter] = useState<FilterId>('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [reviewedItemMap, setReviewedItemMap] = useState<Record<string, { rating: number; comment?: string }>>({});
@@ -191,9 +200,9 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, paym
               <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 ring-8 ring-emerald-50">
                 <CheckCircle2 className="h-11 w-11 text-emerald-600" aria-hidden="true" />
               </div>
-              <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">MoocakeHub</p>
+              <p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-emerald-700">MooncakeHub</p>
               <h2 id="payment-success-title" className="text-2xl font-bold text-gray-900">
-                Thanh toán thành công!
+                {paymentNotice.title ?? 'Thanh toán thành công!'}
               </h2>
               <p id="payment-success-message" className="mt-3 leading-6 text-gray-600">
                 {paymentNotice.message}
@@ -276,6 +285,7 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, paym
             }
             setPaymentNotice({
               success: true,
+              title: 'Đã gửi đánh giá',
               message: `Đã gửi đánh giá cho "${reviewingItem.productNameSnapshot}" thành công! Cảm ơn bạn đã phản hồi.`
             });
             setReviewingItem(null);
@@ -303,12 +313,16 @@ function OrderCard({ order, expanded, onToggle, onUpdated, reviewedItemMap, onOp
     !['CANCEL_REQUESTED', 'CANCELLED'].includes(order.status) &&
     order.sellerOrders.every(so => !so.cancellation) &&
     order.sellerOrders.some(so => so.payments.some(payment => payment.status !== 'SUCCESS'));
-  const canCancelUnpaid = order.sourceType === 'RETAIL' &&
-    order.status !== 'CANCELLED' &&
+  // An RFQ order waits for its deposit (or full payment at 0% deposit) instead of seller confirmation.
+  const unpaidStatuses = order.sourceType === 'RFQ'
+    ? ['AWAITING_DEPOSIT', 'AWAITING_PAYMENT']
+    : ['AWAITING_PAYMENT', 'PENDING_CONFIRMATION'];
+  const canCancelUnpaid = order.status !== 'CANCELLED' &&
     order.sellerOrders.length > 0 &&
     order.sellerOrders.every((so) =>
-      ['AWAITING_PAYMENT', 'PENDING_CONFIRMATION'].includes(so.status) &&
+      unpaidStatuses.includes(so.status) &&
       so.payments.every((payment) => !['SUCCESS', 'PAID'].includes(payment.status)));
+  const awaitingRfqDeposit = order.sourceType === 'RFQ' && canCancelUnpaid;
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelError, setCancelError] = useState('');
   const [paymentBusy, setPaymentBusy] = useState(false);
@@ -365,6 +379,9 @@ function OrderCard({ order, expanded, onToggle, onUpdated, reviewedItemMap, onOp
           >
             {isCancelling ? 'Đang hủy…' : 'Hủy ngay (chưa thanh toán)'}
           </button>}
+          {awaitingRfqDeposit && (
+            <p className="m-0 mt-2 text-xs text-gray-600">Đơn từ báo giá chưa thanh toán sẽ tự hủy sau 48 giờ kể từ lúc đặt.</p>
+          )}
           {canPayTogether && <button disabled={paymentBusy} className="mss-button mss-button--primary mss-button--sm mt-2" onClick={() => void pay()}>{paymentBusy ? 'Đang mở PayOS…' : 'Thanh toán tổng đơn'}</button>}
         </div>
       </div>
@@ -461,6 +478,8 @@ function SellerOrderSection({
   const [actionError, setActionError] = useState('');
   const [paymentMessage, setPaymentMessage] = useState('');
   const [paymentBusy, setPaymentBusy] = useState(false);
+  // Which items each shipment carries (reloaded whenever the shipment list or a status changes).
+  const shipmentLines = useShipmentLines(so.sellerOrderId, so.shipments.map((s) => `${s.shipmentId}:${s.status}`).join(','));
 
   const paySeller = async () => {
     setPaymentBusy(true); setActionError(''); setPaymentMessage('');
@@ -680,6 +699,11 @@ function SellerOrderSection({
           </>
         )}
       </dl>
+      {isRemainingOverdue(so) && (
+        <p role="alert" className="mss-alert mss-alert--danger m-0 text-sm">
+          Đã quá hạn thanh toán phần còn lại. Nhà bán chưa thể giao hàng cho tới khi đơn được thanh toán đủ.
+        </p>
+      )}
 
       {/* Payments */}
       <div className="flex flex-col gap-2">
@@ -742,6 +766,7 @@ function SellerOrderSection({
                   ? `Đã giao: ${formatDateTime(s.deliveredAt)}`
                   : `Dự kiến giao: ${formatDateTime(s.expectedDeliveryAt)}`}
               </span>
+              <ShipmentLineList lines={shipmentLines[s.shipmentId]} />
             </div>
           ))
         )}

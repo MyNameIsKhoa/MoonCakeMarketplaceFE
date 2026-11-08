@@ -150,6 +150,7 @@ export default function QuotationDetail({ quotationId, viewer, storeName, isLate
           {link.conversionStatus === 'COMPLETED' && (
             <span>
               Đơn hàng #{link.orderId} · đơn nhà bán #{link.sellerOrderId}
+              {(link.orderStatus === 'CANCELLED' || quotation.status === 'ORDER_CANCELLED') && ' · đơn đã bị hủy'}
             </span>
           )}
           {link.conversionStatus === 'PENDING' && <span>Hệ thống đơn hàng đang xác nhận; trang sẽ cập nhật khi hoàn tất.</span>}
