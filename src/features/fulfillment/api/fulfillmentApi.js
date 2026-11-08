@@ -14,6 +14,17 @@ export const fulfillmentApi = {
     return response.data;
   },
 
+  /**
+   * Per order item: orderedQuantity, allocatedQuantity (in non-cancelled shipments), shippedQuantity,
+   * deliveredQuantity and remainingQuantity (what a new shipment may still carry).
+   */
+  getShipmentItems: async (sellerOrderId) => {
+    const response = await apiClient.get('/api/shipments/items', {
+      params: { sellerOrderId },
+    });
+    return response.data;
+  },
+
   getShipmentById: async (id) => {
     const response = await apiClient.get(`/api/shipments/${id}`);
     return response.data;
@@ -26,6 +37,12 @@ export const fulfillmentApi = {
 
   markAsShipped: async (id) => {
     const response = await apiClient.post(`/api/shipments/${id}/ship`);
+    return response.data;
+  },
+
+  /** Only a PLANNED shipment can be cancelled; it then no longer blocks the order. */
+  cancelShipment: async (id) => {
+    const response = await apiClient.post(`/api/shipments/${id}/cancel`);
     return response.data;
   },
 

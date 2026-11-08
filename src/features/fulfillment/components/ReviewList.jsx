@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fulfillmentApi } from '../api/fulfillmentApi';
+import { formatDate } from '../../../utils/format';
 
 /**
  * @param {{ variantId?: number | string | null; storeId?: number | string | null }} props
@@ -85,7 +86,7 @@ export const ReviewList = ({ variantId, storeId }) => {
                   <span style={styles.verifiedBadge}>✓ Đã mua hàng</span>
                 </div>
                 <div style={styles.reviewDate}>
-                  {review.createdAt ? new Date(review.createdAt).toLocaleDateString('vi-VN') : ''}
+                  {review.createdAt ? formatDate(review.createdAt) : ''}
                 </div>
               </div>
               {(review.productNameSnapshot || review.variantNameSnapshot) && (
