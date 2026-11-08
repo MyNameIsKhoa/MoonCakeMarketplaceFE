@@ -22,7 +22,14 @@ function dueObligation(payments: Payment[]): Payment | undefined {
 }
 
 function redirectCustomer(orderId: number, url: string) {
+  sessionStorage.removeItem('financeSellerPaymentId');
   sessionStorage.setItem('financeCustomerOrderId', String(orderId));
+  window.location.assign(url);
+}
+
+function redirectSeller(payment: Payment, url: string) {
+  sessionStorage.removeItem('financeCustomerOrderId');
+  sessionStorage.setItem('financeSellerPaymentId', String(payment.paymentId));
   window.location.assign(url);
 }
 
@@ -52,7 +59,7 @@ export async function openSellerCheckout(sellerOrderId: number) {
   let obligation = dueObligation(summary.payments);
   if (!obligation) throw new Error('Đơn này đã được thanh toán đủ.');
   let url = usableCheckout(obligation);
-  if (url) { window.location.assign(url); return; }
+  if (url) { redirectSeller(obligation, url); return; }
   const unresolved = summary.payments.filter(needsReconcile);
   if (unresolved.length) {
     for (const payment of unresolved) {
@@ -64,7 +71,7 @@ export async function openSellerCheckout(sellerOrderId: number) {
     obligation = dueObligation(summary.payments);
     if (!obligation) throw new Error('Đơn này đã được thanh toán đủ.');
     url = usableCheckout(obligation);
-    if (url) { window.location.assign(url); return; }
+    if (url) { redirectSeller(obligation, url); return; }
     const unresolvedAttempt = summary.payments.some(needsReconcile);
     if (unresolvedAttempt) throw new Error('Giao dịch đang được xác minh với PayOS. Vui lòng đối soát lại sau.');
   }
@@ -74,5 +81,5 @@ export async function openSellerCheckout(sellerOrderId: number) {
   const payment = await paymentApi.initiate(obligation.paymentId, sellerInitiationKey(obligation));
   url = usableCheckout(payment);
   if (!url) throw new Error('Chưa có link thanh toán hợp lệ. Vui lòng đối soát PayOS trước khi thử lại.');
-  window.location.assign(url);
+  redirectSeller(payment, url);
 }

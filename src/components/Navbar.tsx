@@ -583,7 +583,7 @@ export default function Navbar({
                 className="p-2 text-left hover:bg-accent-50 rounded-lg flex items-center gap-2 text-accent-800"
               >
                 <span>🛡️</span>
-                <span>Duyệt nhà cung cấp</span>
+                <span>Quản trị sàn</span>
               </button>
             )}
 

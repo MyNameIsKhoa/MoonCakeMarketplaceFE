@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ChevronDown, LogOut, Package, ShieldCheck, Store as StoreIcon, User } from 'lucide-react';
+import { ChevronDown, LayoutDashboard, LogOut, Package, ShieldCheck, Store as StoreIcon, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ROLE_LABELS } from '../utils/permissions';
 import { SUPPLIER_VERIFICATION } from '../utils/status';
@@ -100,7 +100,7 @@ export default function UserMenu({ activeTab, setActiveTab, onLogin, onRegister,
               : item('seller-center', supplierProfile
                 ? `Hồ sơ nhà cung cấp (${SUPPLIER_VERIFICATION[supplierProfile.verificationStatus]?.label ?? supplierProfile.verificationStatus})`
                 : 'Trở thành nhà cung cấp', <StoreIcon className="w-4 h-4" />)}
-            {isAdmin && item('admin', 'Duyệt nhà cung cấp', <ShieldCheck className="w-4 h-4" />)}
+            {isAdmin && item('admin', 'Quản trị sàn', <LayoutDashboard className="w-4 h-4" />)}
           </div>
 
           <div className="pt-1 border-t border-gray-100">

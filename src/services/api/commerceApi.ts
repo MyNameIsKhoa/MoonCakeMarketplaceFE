@@ -136,7 +136,7 @@ export const orderApi = {
           ]);
       const cancellation = finance.cancellations[0];
       const canRequestCancellation = finance.cancellations.length === 0 &&
-        !['PENDING_STOCK', 'CANCELLED', 'DELIVERED', 'COMPLETED', 'SETTLED', 'DISPUTED'].includes(seller.status);
+        !['PENDING_STOCK', 'CANCEL_REQUESTED', 'CANCELLED', 'DELIVERED', 'ACCEPTED', 'COMPLETED', 'SETTLED', 'DISPUTED'].includes(seller.status);
       return {
         ...seller, sellerOrderId: String(seller.sellerOrderId), storeIdRef: String(seller.storeIdRef),
         supplierIdRef: String(seller.supplierIdRef), discountTotal: seller.items.reduce((n, i) => n + i.discountAmount, 0),
@@ -188,7 +188,7 @@ export const orderApi = {
 
 export interface SellerOrderSummary {
   sellerOrderId: number; orderId: number; sellerOrderNo: string; storeIdRef: number;
-  storeNameSnapshot: string; status: string; totalAmount: number;
+  storeNameSnapshot: string; status: string; totalAmount: number; cancellationPending: boolean;
 }
 
 export const sellerOrderApi = {

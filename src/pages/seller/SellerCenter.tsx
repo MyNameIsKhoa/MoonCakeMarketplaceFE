@@ -80,7 +80,6 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
     { id: 'bao-gia-cua-toi', label: 'Báo giá của tôi', icon: DollarSign },
     { id: 'tin-nhan', label: 'Tin nhắn', icon: MessageSquare },
     { id: 'doi-soat', label: 'Đối soát', icon: Wallet },
-    { id: 'admin-duyet', label: 'Quản trị Sàn & Duyệt người bán', icon: ShieldCheck },
   ];
 
   return (
@@ -494,7 +493,7 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
                   <th className="p-3">Vận chuyển</th>
                 </tr></thead><tbody>{sellerOrders.map((order) => <tr key={order.sellerOrderId} className={`border-t ${shipmentOrderId === Number(order.sellerOrderId) ? 'bg-amber-50/40' : ''}`}>
                   <td className="p-3 font-medium text-gray-900">{order.sellerOrderNo}</td><td className="p-3">{order.storeNameSnapshot}</td>
-                  <td className="p-3"><StatusBadge map={ORDER_STATUS} status={order.status} /></td><td className="p-3 text-right font-semibold">{formatVnd(order.totalAmount)}</td>
+                  <td className="p-3"><StatusBadge map={ORDER_STATUS} status={order.cancellationPending ? 'CANCEL_REQUESTED' : order.status} /></td><td className="p-3 text-right font-semibold">{formatVnd(order.totalAmount)}</td>
                   <td className="p-3"><button type="button" className="text-primary-700 font-semibold hover:underline"
                     onClick={() => setShipmentOrderId(Number(order.sellerOrderId))}>Quản lý vận đơn</button></td>
                 </tr>)}</tbody></table>
