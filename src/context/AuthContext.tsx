@@ -26,6 +26,8 @@ interface AuthState {
   /** Profile was verified after this token was issued: log in again to receive ROLE_SUPPLIER. */
   needsReloginForSupplier: boolean;
   login: (email: string, password: string) => Promise<void>;
+  /** Logs in (or signs up) with a Google Identity Services ID token; same session as `login`. */
+  loginWithGoogle: (idToken: string) => Promise<void>;
   /** Creates the account and logs in. */
   register: (input: RegisterRequest) => Promise<void>;
   logout: () => void;
@@ -97,6 +99,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loadSession();
   }, [loadSession]);
 
+  const loginWithGoogle = useCallback(async (idToken: string) => {
+    const result = await authApi.loginWithGoogle({ idToken });
+    setAccessToken(result.accessToken);
+    await loadSession();
+  }, [loadSession]);
+
   const register = useCallback(async (input: RegisterRequest) => {
     await authApi.register({ ...input, email: input.email.trim() });
   }, []);
@@ -126,13 +134,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isSupplier: authenticated && hasSupplierRole && profileVerified,
       needsReloginForSupplier: authenticated && profileVerified && !hasSupplierRole,
       login,
+      loginWithGoogle,
       register,
       logout: clear,
       submitSupplierProfile,
       refreshSupplierProfile,
       setUser
     };
-  }, [status, user, roles, supplierProfile, login, register, clear, submitSupplierProfile, refreshSupplierProfile]);
+  }, [status, user, roles, supplierProfile, login, loginWithGoogle, register, clear, submitSupplierProfile,
+    refreshSupplierProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

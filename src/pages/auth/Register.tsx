@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { Building2, User, UserPlus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { supplierDraftStorage } from '../../services/api/identityApi';
 import AuthLayout, { authErrorMessage, EMAIL_PATTERN } from './AuthLayout';
+import GoogleSignInButton from './GoogleSignInButton';
 
 type AccountType = 'customer' | 'supplier';
 
 interface RegisterProps {
   /** Called once registration succeeds; email verification is required before login. */
   onSuccess: (accountType: AccountType) => void;
+  /** Called after signing up/in with Google: the account is verified and already logged in. */
+  onGoogleLogin: () => void;
   onSwitchToLogin: () => void;
   defaultAccountType?: AccountType;
 }
@@ -23,7 +27,8 @@ function validate(form: typeof EMPTY_FORM, accountType: AccountType) {
   if (!form.fullName.trim()) errors.fullName = 'Vui lòng nhập họ và tên.';
   else if (form.fullName.trim().length > 255) errors.fullName = 'Họ và tên tối đa 255 ký tự.';
   if (!EMAIL_PATTERN.test(form.email.trim())) errors.email = 'Vui lòng nhập email hợp lệ.';
-  if (form.phone && !/^[0-9+\s.-]{8,30}$/.test(form.phone.trim())) errors.phone = 'Số điện thoại không hợp lệ.';
+  // Cùng quy tắc với Identity (ValidationPatterns.PHONE_OR_EMPTY).
+  if (form.phone.trim() && !/^\+?[0-9][0-9 .-]{6,28}[0-9]$/.test(form.phone.trim())) errors.phone = 'Số điện thoại không hợp lệ.';
   if (form.password.length < 6 || form.password.length > 100) errors.password = 'Mật khẩu cần từ 6 đến 100 ký tự.';
   if (form.confirmPassword !== form.password) errors.confirmPassword = 'Mật khẩu nhập lại không khớp.';
   if (accountType === 'supplier') {
@@ -34,13 +39,15 @@ function validate(form: typeof EMPTY_FORM, accountType: AccountType) {
   return errors;
 }
 
-export default function Register({ onSuccess, onSwitchToLogin, defaultAccountType = 'customer' }: RegisterProps) {
-  const { register, submitSupplierProfile } = useAuth();
+export default function Register({ onSuccess, onGoogleLogin, onSwitchToLogin, defaultAccountType = 'customer' }: RegisterProps) {
+  const { register, loginWithGoogle } = useAuth();
   const [accountType, setAccountType] = useState<AccountType>(defaultAccountType);
   const [form, setForm] = useState(EMPTY_FORM);
   const [errors, setErrors] = useState<Partial<Record<FormField, string>>>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  /** Account created but the supplier draft could not be kept: tell the user before leaving this page. */
+  const [draftLostNotice, setDraftLostNotice] = useState<string | null>(null);
 
   const update = (field: FormField) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((prev) => ({ ...prev, [field]: e.target.value }));
@@ -65,12 +72,48 @@ export default function Register({ onSuccess, onSwitchToLogin, defaultAccountTyp
       setSubmitting(false);
       return;
     }
-    if (accountType === 'supplier') {
-      await submitSupplierProfile({ companyName: form.companyName.trim(), taxCode: form.taxCode.trim() }).catch(() => undefined);
-    }
     setSubmitting(false);
+    if (accountType === 'supplier') {
+      // POST /api/supplier-profile cần token, mà token chỉ có sau khi xác minh email + đăng nhập:
+      // giữ bản nháp trên trình duyệt, Kênh Người Bán tự gửi hồ sơ ở lần đăng nhập đầu tiên.
+      const saved = supplierDraftStorage.save({
+        email: form.email, companyName: form.companyName.trim(), taxCode: form.taxCode.trim(), autoSubmit: true
+      });
+      if (!saved) {
+        setDraftLostNotice('Tài khoản đã được tạo, nhưng trình duyệt không lưu được thông tin nhà cung cấp. '
+          + `Sau khi xác minh email và đăng nhập, hãy vào Kênh Người Bán và nhập lại: ${form.companyName.trim()} — MST ${form.taxCode.trim()}.`);
+        return;
+      }
+    }
     onSuccess('customer');
   };
+
+  const handleGoogleIdToken = async (idToken: string) => {
+    if (submitting) return;
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      await loginWithGoogle(idToken);
+      onGoogleLogin();
+    } catch (err) {
+      setFormError(authErrorMessage(err, 'google'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (draftLostNotice) {
+    return (
+      <AuthLayout title="Tạo tài khoản" subtitle="Đăng ký miễn phí để mua hàng hoặc mở gian hàng trên sàn.">
+        <div className="mss-stack">
+          <div className="mss-alert mss-alert--warning" role="alert">{draftLostNotice}</div>
+          <button type="button" className="mss-button mss-button--primary mss-button--full" onClick={() => onSuccess('customer')}>
+            Tiếp tục
+          </button>
+        </div>
+      </AuthLayout>
+    );
+  }
 
   const field = (name: FormField, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
     <label className="mss-field">
@@ -125,6 +168,10 @@ export default function Register({ onSuccess, onSwitchToLogin, defaultAccountTyp
             <p className="text-xs text-accent-900">
               Hồ sơ nhà cung cấp sẽ được quản trị viên xét duyệt. Sau khi được duyệt, bạn có thể tạo gian hàng và đăng bán sản phẩm.
             </p>
+            <p className="text-xs text-accent-900">
+              Thông tin dưới đây được lưu trên trình duyệt này và tự động gửi xét duyệt khi bạn xác minh email, đăng nhập
+              và mở <b>Kênh Người Bán</b> lần đầu.
+            </p>
             {field('companyName', 'Tên công ty / xưởng bánh', { autoComplete: 'organization' })}
             {field('taxCode', 'Mã số thuế')}
           </div>
@@ -134,6 +181,14 @@ export default function Register({ onSuccess, onSwitchToLogin, defaultAccountTyp
           <UserPlus className="w-4 h-4" />
           {submitting ? 'Đang tạo tài khoản…' : 'Đăng ký'}
         </button>
+
+        <GoogleSignInButton
+          onIdToken={handleGoogleIdToken}
+          text="signup_with"
+          hint={accountType === 'supplier'
+            ? 'Đăng ký bằng Google tạo tài khoản khách hàng; sau đó mở Kênh Người Bán để gửi hồ sơ nhà cung cấp.'
+            : undefined}
+        />
 
         <p className="text-sm text-gray-600 text-center">
           Đã có tài khoản?{' '}
