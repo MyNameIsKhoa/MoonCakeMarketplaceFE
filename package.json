@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "test:regression": "node scripts/regression.mjs",
+    "test:regression": "node tests/regression.mjs",
     "dev": "tsx server.ts",
     "start": "node server.ts --prod",
     "build": "vite build",
