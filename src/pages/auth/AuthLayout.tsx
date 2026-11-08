@@ -46,9 +46,16 @@ export default function AuthLayout({ title, subtitle, notice, children }: AuthLa
 }
 
 /** Identity returns English messages; show Vietnamese ones keyed by status instead. */
-export function authErrorMessage(err: unknown, action: 'login' | 'register' | 'supplier'): string {
+export function authErrorMessage(
+  err: unknown, action: 'login' | 'register' | 'supplier' | 'google' | 'password-reset' | 'email-request'
+): string {
   if (!(err instanceof ApiError)) return 'Đã có lỗi xảy ra, vui lòng thử lại.';
   if (err.status === 0) return err.message;
+  if (action === 'google' && err.status === 401) return 'Không xác thực được tài khoản Google. Vui lòng thử lại.';
+  if (action === 'google' && err.status === 403) return 'Tài khoản đang bị khóa hoặc chưa được kích hoạt.';
+  if (action === 'password-reset' && err.status === 401) {
+    return 'Liên kết đặt lại mật khẩu không hợp lệ, đã hết hạn hoặc đã được sử dụng. Hãy yêu cầu liên kết mới.';
+  }
   if (action === 'login' && err.status === 401) return 'Email hoặc mật khẩu không đúng.';
   if (action === 'login' && err.status === 403 && err.message.includes('EMAIL_NOT_VERIFIED')) return 'Email chưa được xác minh. Hãy mở link trong email trước khi đăng nhập.';
   if (action === 'login' && err.status === 403 && err.message.includes('ACCOUNT_NOT_ACTIVE')) return 'Tài khoản đang bị khóa hoặc chưa được kích hoạt.';

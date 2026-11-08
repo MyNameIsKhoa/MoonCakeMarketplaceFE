@@ -17,6 +17,8 @@ import PaymentSettlement from './features/payment-settlement/PaymentSettlement';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import VerifyEmail from './pages/auth/VerifyEmail';
+import ForgotPassword from './pages/auth/ForgotPassword';
+import ResetPassword from './pages/auth/ResetPassword';
 import SupplierOnboarding from './pages/seller/SupplierOnboarding';
 import AdminCenter from './pages/admin/AdminCenter';
 import EmptyState from './components/ui/EmptyState';
@@ -55,7 +57,9 @@ export default function App() {
   });
   const [activeTab, setActiveTab] = useState<string>(() => {
     const params = new URLSearchParams(location.search);
+    // Identity email links: ${APP_FRONTEND_URL}/verify-email?token=… and /reset-password?token=…
     return location.pathname === '/verify-email' ? 'verify-email'
+      : location.pathname === '/reset-password' ? 'reset-password'
       : paymentReturnOrderId || paymentReturnSellerPaymentId ? 'orders' : params.has('finance') ? 'payment-settlement' : 'home';
   });
   /** Protected tab to return to after login/register. */
@@ -174,7 +178,7 @@ export default function App() {
   const isSellerCenter = activeTab === 'seller-center' && isAllowed;
   const isAdminCenter = activeTab === 'admin' && isAllowed;
 
-  const goToAuth = (mode: 'login' | 'register') => {
+  const goToAuth = (mode: 'login' | 'register' | 'forgot-password') => {
     setReturnTab(accessLevel !== 'public' ? activeTab : returnTab);
     setActiveTab(mode);
   };
@@ -211,6 +215,7 @@ export default function App() {
           notice={LOGIN_NOTICES[activeTab]}
           onSuccess={() => setReturnTab(null)}
           onSwitchToRegister={() => goToAuth('register')}
+          onForgotPassword={() => goToAuth('forgot-password')}
         />
       );
     }
@@ -263,6 +268,11 @@ export default function App() {
           token={new URLSearchParams(location.search).get('token') ?? ''}
           onLogin={() => { window.history.replaceState({}, '', '/'); setActiveTab('login'); }}
         />}
+        {activeTab === 'reset-password' && <ResetPassword
+          token={new URLSearchParams(location.search).get('token') ?? ''}
+          onLogin={() => { window.history.replaceState({}, '', '/'); setActiveTab('login'); }}
+          onRequestNewLink={() => { window.history.replaceState({}, '', '/'); setActiveTab('forgot-password'); }}
+        />}
         {['home', 'products', 'stores', 'detail', 'store-detail', 'profile', 'wishlist'].includes(activeTab) && <div className="mss-container pt-4"><CatalogNotice /></div>}
         {((activeTab === 'detail' && !selectedProduct) || (activeTab === 'store-detail' && !selectedStore)) && <EmptyState title="Chưa chọn sản phẩm hoặc gian hàng" />}
         {activeTab === 'stores' && source === 'api' && stores.length === 0 && <EmptyState title="Chưa có gian hàng" />}
@@ -271,12 +281,15 @@ export default function App() {
           <Login
             onSuccess={() => finishAuth()}
             onSwitchToRegister={() => setActiveTab('register')}
+            onForgotPassword={() => setActiveTab('forgot-password')}
           />
         )}
+        {activeTab === 'forgot-password' && <ForgotPassword onBackToLogin={() => setActiveTab('login')} />}
 
         {activeTab === 'register' && (
           <Register
             onSuccess={() => { setReturnTab(null); setActiveTab('registration-complete'); }}
+            onGoogleLogin={() => finishAuth()}
             onSwitchToLogin={() => setActiveTab('login')}
             defaultAccountType={returnTab === 'seller-center' ? 'supplier' : 'customer'}
           />

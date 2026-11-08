@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Heart, Plus, Building2 } from 'lucide-react';
+import { Heart, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Address, Product, Promotion } from '../types';
 import { PROMOTIONS } from '../data/mockData';
 import { addressApi, ApiError, userApi, catalogApi, toPromotion } from '../services/api';
+import { errorMessage } from '../services/api/http';
 import { useAuth } from '../context/AuthContext';
 import { useCatalog } from '../context/CatalogContext';
 import { formatAddress, formatDate } from '../utils/format';
@@ -16,6 +17,145 @@ const EMPTY_ADDRESS = {
   city: 'TP. Hồ Chí Minh',
   isDefault: false
 };
+
+type AddressDraft = typeof EMPTY_ADDRESS;
+type AddressField = Exclude<keyof AddressDraft, 'isDefault'>;
+type AddressErrors = Partial<Record<AddressField, string>>;
+
+/** Identity ValidationPatterns.PHONE_OR_EMPTY (the field is required, so only the non-empty branch applies). */
+const PHONE_PATTERN = /^\+?[0-9][0-9 .-]{6,28}[0-9]$/;
+const PHONE_MESSAGE = "Số điện thoại không hợp lệ: chỉ gồm chữ số, khoảng trắng, '.', '-' (có thể bắt đầu bằng '+'), tối thiểu 8 chữ số/ký tự.";
+
+/** Identity validates the raw values (pattern, max length), so the form always sends them trimmed. */
+const trimAddress = (d: AddressDraft): AddressDraft => ({
+  recipientName: d.recipientName.trim(),
+  recipientPhone: d.recipientPhone.trim(),
+  addressLine: d.addressLine.trim(),
+  ward: d.ward.trim(),
+  district: d.district.trim(),
+  city: d.city.trim(),
+  isDefault: d.isDefault
+});
+
+/** Same rules as Identity AddressRequest (create) / UpdateAddressRequest (edit). Expects trimmed values. */
+function validateAddress(d: AddressDraft): AddressErrors {
+  const errors: AddressErrors = {};
+  if (!d.recipientName) errors.recipientName = 'Vui lòng nhập họ tên người nhận.';
+  else if (d.recipientName.length > 255) errors.recipientName = 'Họ tên người nhận tối đa 255 ký tự.';
+  if (!d.recipientPhone) errors.recipientPhone = 'Vui lòng nhập số điện thoại.';
+  else if (d.recipientPhone.length > 30 || !PHONE_PATTERN.test(d.recipientPhone)) errors.recipientPhone = PHONE_MESSAGE;
+  if (!d.addressLine) errors.addressLine = 'Vui lòng nhập địa chỉ cụ thể.';
+  else if (d.addressLine.length > 500) errors.addressLine = 'Địa chỉ cụ thể tối đa 500 ký tự.';
+  if (d.ward.length > 100) errors.ward = 'Phường/xã tối đa 100 ký tự.';
+  if (d.district.length > 100) errors.district = 'Quận/huyện tối đa 100 ký tự.';
+  if (!d.city) errors.city = 'Vui lòng nhập tỉnh/thành phố.';
+  else if (d.city.length > 100) errors.city = 'Tỉnh/thành phố tối đa 100 ký tự.';
+  return errors;
+}
+
+/** errorMessage(), with Vietnamese text where Identity answers in English. */
+function addressErrorMessage(err: unknown): string {
+  if (err instanceof ApiError && err.status === 400) return 'Thông tin địa chỉ chưa hợp lệ, vui lòng kiểm tra lại các trường.';
+  if (err instanceof ApiError && err.status === 404) return 'Địa chỉ không còn tồn tại (có thể đã bị xóa).';
+  if (err instanceof ApiError && err.status === 409) return 'Không thể bỏ địa chỉ mặc định; hãy đặt một địa chỉ khác làm mặc định.';
+  return errorMessage(err);
+}
+
+const toDraft = (a: Address): AddressDraft => ({
+  recipientName: a.recipientName,
+  recipientPhone: a.recipientPhone,
+  addressLine: a.addressLine,
+  ward: a.ward ?? '',
+  district: a.district ?? '',
+  city: a.city,
+  isDefault: a.isDefault
+});
+
+interface AddressFormProps {
+  idPrefix: string;
+  initial: AddressDraft;
+  /** Editing the current default: Identity rejects un-setting it, so the checkbox is locked. */
+  isCurrentDefault?: boolean;
+  submitLabel: string;
+  /** Receives trimmed, validated values; a rejection is shown inside the form. */
+  onSubmit: (draft: AddressDraft) => Promise<void>;
+  onCancel: () => void;
+}
+
+/** Create and edit share the same fields and validation. */
+function AddressForm({ idPrefix, initial, isCurrentDefault = false, submitLabel, onSubmit, onCancel }: AddressFormProps) {
+  const [draft, setDraft] = useState(initial);
+  const [errors, setErrors] = useState<AddressErrors>({});
+  const [formError, setFormError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const update = (field: keyof AddressDraft) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    setDraft(prev => ({ ...prev, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const values = trimAddress(draft);
+    const nextErrors = validateAddress(values);
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+    setIsSaving(true);
+    setFormError('');
+    try {
+      await onSubmit(values);
+    } catch (err) {
+      setFormError(addressErrorMessage(err));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const field = (name: AddressField, label: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
+    <div className="mss-field">
+      <label className="mss-label" htmlFor={`${idPrefix}-${name}`}>{label}</label>
+      <input
+        id={`${idPrefix}-${name}`}
+        className="mss-input"
+        value={draft[name]}
+        onChange={update(name)}
+        aria-invalid={!!errors[name]}
+        {...props}
+      />
+      {errors[name] && <span className="mss-field-error">{errors[name]}</span>}
+    </div>
+  );
+
+  return (
+    <form onSubmit={handleSubmit} noValidate className="mss-stack rounded-xl border border-gray-200 bg-gray-50 p-4 animate-fadeIn">
+      {formError && <p role="alert" className="mss-alert mss-alert--danger m-0 text-sm">{formError}</p>}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {field('recipientName', 'Họ tên người nhận *', { required: true, maxLength: 255, placeholder: 'VD: Nguyễn Văn A', autoComplete: 'name' })}
+        {field('recipientPhone', 'Số điện thoại *', { required: true, maxLength: 30, type: 'tel', placeholder: 'VD: 0912345678', autoComplete: 'tel' })}
+      </div>
+      {field('addressLine', 'Địa chỉ cụ thể (số nhà, đường) *', { required: true, maxLength: 500, placeholder: 'VD: 123 Lê Duẩn' })}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {field('ward', 'Phường/xã', { maxLength: 100 })}
+        {field('district', 'Quận/huyện', { maxLength: 100 })}
+        {field('city', 'Tỉnh/thành phố *', { required: true, maxLength: 100 })}
+      </div>
+      {isCurrentDefault ? (
+        <p className="text-sm text-gray-600 m-0">
+          Đây là địa chỉ mặc định. Muốn đổi, hãy chọn “Đặt làm mặc định” ở một địa chỉ khác.
+        </p>
+      ) : (
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={draft.isDefault} onChange={update('isDefault')} />
+          Đặt làm địa chỉ mặc định
+        </label>
+      )}
+      <div className="flex flex-wrap gap-2 justify-end">
+        <button type="button" onClick={onCancel} disabled={isSaving} className="mss-button mss-button--secondary mss-button--sm">Hủy</button>
+        <button type="submit" disabled={isSaving} className="mss-button mss-button--primary mss-button--sm">
+          {isSaving ? 'Đang lưu…' : submitLabel}
+        </button>
+      </div>
+    </form>
+  );
+}
 
 type ProfileTab = 'info' | 'addresses' | 'promotions' | 'wishlist' | 'rfq';
 
@@ -63,12 +203,22 @@ export default function UserProfile({
 
   const [addresses, setAddresses] = useState<Address[] | null>(null);
   const [showAddAddress, setShowAddAddress] = useState(false);
-  const [draft, setDraft] = useState(EMPTY_ADDRESS);
-  const [isSaving, setIsSaving] = useState(false);
+  const [addressError, setAddressError] = useState('');
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  /** Delete failure shown inside the card it belongs to. */
+  const [cardError, setCardError] = useState<{ addressId: string; text: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    addressApi.list().then(items => { if (!cancelled) setAddresses(items); }).catch(() => { if (!cancelled) setAddresses([]); });
+    addressApi.list()
+      .then(items => { if (!cancelled) setAddresses(items); })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setAddresses([]);
+        setAddressError(errorMessage(err));
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -96,30 +246,87 @@ export default function UserProfile({
   }, [source, promotionReload]);
   const activePromotions = promotions.filter(p => p.status === 'ACTIVE' && Date.parse(p.startAt) <= Date.now() && Date.parse(p.endAt) > Date.now());
 
-  const handleAddAddress = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaving(true);
+  /** Never throws: a failed reload is shown above the list. */
+  const reloadAddresses = async () => {
     try {
-      await addressApi.create({
-        ...draft,
-        ward: draft.ward || undefined,
-        district: draft.district || undefined,
-        isDefault: draft.isDefault || addresses?.length === 0
-      });
       setAddresses(await addressApi.list());
-      setDraft(EMPTY_ADDRESS);
-      setShowAddAddress(false);
-    } finally {
-      setIsSaving(false);
+    } catch (err) {
+      setAddressError(errorMessage(err));
     }
   };
 
-  const handleSetDefault = async (addressId: string) => {
-    setAddresses(await addressApi.setDefault(addressId));
+  // Form handlers throw on failure so AddressForm shows the error inline; once the write succeeded the form
+  // closes before the reload, so a failed reload can never lead to a duplicate submit.
+  const handleAddAddress = async (draft: AddressDraft) => {
+    setAddressError('');
+    await addressApi.create({
+      ...draft,
+      ward: draft.ward || undefined,
+      district: draft.district || undefined,
+      isDefault: draft.isDefault || addresses?.length === 0
+    });
+    setShowAddAddress(false);
+    await reloadAddresses();
   };
 
-  const updateDraft = (field: keyof typeof EMPTY_ADDRESS) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setDraft(prev => ({ ...prev, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+  const handleUpdateAddress = async (addr: Address, draft: AddressDraft) => {
+    setAddressError('');
+    await addressApi.update(addr.addressId, {
+      recipientName: draft.recipientName,
+      recipientPhone: draft.recipientPhone,
+      addressLine: draft.addressLine,
+      // '' clears the optional parts (Identity ignores null/omitted ward and district).
+      ward: draft.ward,
+      district: draft.district,
+      city: draft.city,
+      // Only ever sets a new default: un-setting the current default is rejected by Identity (409).
+      ...(draft.isDefault && !addr.isDefault ? { isDefault: true } : {})
+    });
+    setEditingAddressId(null);
+    await reloadAddresses();
+  };
+
+  const handleDeleteAddress = async (addressId: string) => {
+    setDeletingId(addressId);
+    setCardError(null);
+    setAddressError('');
+    try {
+      await addressApi.remove(addressId);
+      setConfirmDeleteId(null);
+      // Identity may have moved the default to another address: always reload.
+      await reloadAddresses();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        // Already gone (deleted in another tab): just refresh the list.
+        setConfirmDeleteId(null);
+        await reloadAddresses();
+      } else {
+        setCardError({ addressId, text: addressErrorMessage(err) });
+      }
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  /** Identity hands the default to the oldest remaining address (lowest id) when the default is deleted. */
+  const deleteWarning = (addr: Address, all: Address[]) => {
+    if (!addr.isDefault) return 'Xóa địa chỉ này khỏi sổ địa chỉ? Thao tác không thể hoàn tác.';
+    const next = all
+      .filter(a => a.addressId !== addr.addressId)
+      .sort((a, b) => Number(a.addressId) - Number(b.addressId))[0];
+    return next
+      ? `Đây là địa chỉ mặc định. Sau khi xóa, địa chỉ “${next.recipientName} – ${formatAddress(next)}” sẽ trở thành mặc định. Xóa địa chỉ này?`
+      : 'Đây là địa chỉ duy nhất của bạn. Sau khi xóa, bạn cần thêm địa chỉ mới trước khi đặt hàng. Xóa địa chỉ này?';
+  };
+
+  const handleSetDefault = async (addressId: string) => {
+    setAddressError('');
+    try {
+      setAddresses(await addressApi.setDefault(addressId));
+    } catch (err) {
+      setAddressError(errorMessage(err));
+    }
+  };
 
   return (
     <div className="mss-container mss-page">
@@ -183,23 +390,6 @@ export default function UserProfile({
               <input type="email" value={user?.email ?? ''} disabled className="w-full p-3 bg-gray-50 border border-gray-300 rounded-xl text-sm text-gray-500" />
             </div>
 
-            <div className="pt-4 border-t border-gray-100 space-y-3">
-              <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-primary-700" />
-                <span>Thông tin xuất hóa đơn VAT công ty (B2B)</span>
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Tên công ty</label>
-                  <input type="text" defaultValue="Công ty TNHH Giải Pháp Công Nghệ MoonCorp" className="w-full p-3 border border-gray-300 rounded-xl text-sm" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Mã số thuế</label>
-                  <input type="text" defaultValue="0316892341" className="w-full p-3 border border-gray-300 rounded-xl text-sm" />
-                </div>
-              </div>
-            </div>
-
             {profileMessage && (
               <div className={`mss-alert ${profileMessage.ok ? '' : 'mss-alert--danger'}`} role="status">{profileMessage.text}</div>
             )}
@@ -222,55 +412,34 @@ export default function UserProfile({
           </div>
 
           {showAddAddress && (
-            <form onSubmit={handleAddAddress} className="mss-stack rounded-xl border border-gray-200 bg-gray-50 p-4 animate-fadeIn">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="mss-field">
-                  <label className="mss-label" htmlFor="addr-name">Họ tên người nhận *</label>
-                  <input id="addr-name" className="mss-input" required value={draft.recipientName} onChange={updateDraft('recipientName')} placeholder="VD: Nguyễn Văn A" />
-                </div>
-                <div className="mss-field">
-                  <label className="mss-label" htmlFor="addr-phone">Số điện thoại *</label>
-                  <input id="addr-phone" className="mss-input" required type="tel" value={draft.recipientPhone} onChange={updateDraft('recipientPhone')} placeholder="VD: 0912345678" />
-                </div>
-              </div>
-              <div className="mss-field">
-                <label className="mss-label" htmlFor="addr-line">Địa chỉ cụ thể (số nhà, đường) *</label>
-                <input id="addr-line" className="mss-input" required value={draft.addressLine} onChange={updateDraft('addressLine')} placeholder="VD: 123 Lê Duẩn" />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="mss-field">
-                  <label className="mss-label" htmlFor="addr-ward">Phường/xã</label>
-                  <input id="addr-ward" className="mss-input" value={draft.ward} onChange={updateDraft('ward')} />
-                </div>
-                <div className="mss-field">
-                  <label className="mss-label" htmlFor="addr-district">Quận/huyện</label>
-                  <input id="addr-district" className="mss-input" value={draft.district} onChange={updateDraft('district')} />
-                </div>
-                <div className="mss-field">
-                  <label className="mss-label" htmlFor="addr-city">Tỉnh/thành phố *</label>
-                  <input id="addr-city" className="mss-input" required value={draft.city} onChange={updateDraft('city')} />
-                </div>
-              </div>
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input type="checkbox" checked={draft.isDefault} onChange={updateDraft('isDefault')} />
-                Đặt làm địa chỉ mặc định
-              </label>
-              <div className="flex flex-wrap gap-2 justify-end">
-                <button type="button" onClick={() => setShowAddAddress(false)} className="mss-button mss-button--secondary mss-button--sm">Hủy</button>
-                <button type="submit" disabled={isSaving} className="mss-button mss-button--primary mss-button--sm">
-                  {isSaving ? 'Đang lưu…' : 'Lưu địa chỉ'}
-                </button>
-              </div>
-            </form>
+            <AddressForm
+              idPrefix="addr-new"
+              initial={EMPTY_ADDRESS}
+              submitLabel="Lưu địa chỉ"
+              onSubmit={handleAddAddress}
+              onCancel={() => setShowAddAddress(false)}
+            />
           )}
 
+          {addressError && <p role="alert" className="mss-alert mss-alert--danger m-0 text-sm">{addressError}</p>}
           {addresses === null ? (
             <p className="text-sm text-gray-500">Đang tải sổ địa chỉ…</p>
           ) : addresses.length === 0 ? (
             <p className="text-sm text-gray-500">Bạn chưa lưu địa chỉ nào.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {addresses.map((addr) => (
+              {addresses.map((addr) => editingAddressId === addr.addressId ? (
+                <div key={addr.addressId} className="md:col-span-2">
+                  <AddressForm
+                    idPrefix={`addr-${addr.addressId}`}
+                    initial={toDraft(addr)}
+                    isCurrentDefault={addr.isDefault}
+                    submitLabel="Lưu thay đổi"
+                    onSubmit={(draft) => handleUpdateAddress(addr, draft)}
+                    onCancel={() => setEditingAddressId(null)}
+                  />
+                </div>
+              ) : (
                 <div key={addr.addressId} className="p-4 rounded-xl border border-gray-200 flex flex-col gap-2 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-semibold text-gray-900">{addr.recipientName}</h3>
@@ -278,10 +447,53 @@ export default function UserProfile({
                   </div>
                   <p className="text-sm text-gray-600">{addr.recipientPhone}</p>
                   <p className="text-sm text-gray-600">{formatAddress(addr)}</p>
-                  {!addr.isDefault && (
-                    <button onClick={() => handleSetDefault(addr.addressId)} className="self-start text-sm font-semibold text-primary-700 hover:underline">
-                      Đặt làm mặc định
-                    </button>
+                  {confirmDeleteId === addr.addressId ? (
+                    <div className="mss-alert mss-alert--danger mss-stack" role="alert">
+                      <p className="m-0">{deleteWarning(addr, addresses)}</p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAddress(addr.addressId)}
+                          disabled={deletingId === addr.addressId}
+                          className="mss-button mss-button--danger mss-button--sm"
+                        >
+                          {deletingId === addr.addressId ? 'Đang xóa…' : 'Xóa địa chỉ'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setConfirmDeleteId(null); setCardError(null); }}
+                          disabled={deletingId === addr.addressId}
+                          className="mss-button mss-button--secondary mss-button--sm"
+                        >
+                          Hủy
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                      {!addr.isDefault && (
+                        <button onClick={() => handleSetDefault(addr.addressId)} className="text-sm font-semibold text-primary-700 hover:underline">
+                          Đặt làm mặc định
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => { setEditingAddressId(addr.addressId); setConfirmDeleteId(null); setCardError(null); }}
+                        className="inline-flex items-center gap-1 text-sm font-semibold text-primary-700 hover:underline"
+                      >
+                        <Pencil className="w-3.5 h-3.5" /> Sửa
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setConfirmDeleteId(addr.addressId); setCardError(null); }}
+                        className="inline-flex items-center gap-1 text-sm font-semibold text-red-700 hover:underline"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Xóa
+                      </button>
+                    </div>
+                  )}
+                  {cardError?.addressId === addr.addressId && (
+                    <p role="alert" className="mss-field-error m-0">{cardError.text}</p>
                   )}
                 </div>
               ))}
