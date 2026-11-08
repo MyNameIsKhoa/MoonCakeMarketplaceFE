@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Building2, FileText, Inbox, MessageSquare, Store, UserRound } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { SUPPLIER_VERIFICATION } from '../../utils/status';
 import ConversationsView from '../chat/ConversationsView';
 import MyQuotations from './components/MyQuotations';
 import RfqCreateForm from './components/RfqCreateForm';
@@ -37,7 +38,9 @@ export default function RfqPortal({ initialTab = 'feed' }: { initialTab?: Tab })
 
   if (!user) return null;
 
-  const visibleTabs = TABS.filter((t) => !t.needs || !!supplier);
+  // Only a VERIFIED supplier may quote; PENDING/REJECTED/SUSPENDED profiles get 403 from the API.
+  const verifiedSupplier = supplier?.verificationStatus === 'VERIFIED';
+  const visibleTabs = TABS.filter((t) => !t.needs || verifiedSupplier);
 
   const goTab = (next: Tab) => {
     setTab(next);
@@ -114,7 +117,7 @@ export default function RfqPortal({ initialTab = 'feed' }: { initialTab?: Tab })
             <span className="truncate font-semibold">{user.fullName ?? user.email}</span>
             {supplier && (
               <span className={`mss-badge ${supplier.verificationStatus === 'VERIFIED' ? 'mss-badge--success' : 'mss-badge--warning'}`}>
-                {supplier.verificationStatus === 'VERIFIED' ? 'Nhà cung cấp đã xác minh' : 'Nhà cung cấp chờ xác minh'}
+                Nhà cung cấp: {SUPPLIER_VERIFICATION[supplier.verificationStatus]?.label ?? supplier.verificationStatus}
               </span>
             )}
           </span>

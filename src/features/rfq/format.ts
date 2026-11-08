@@ -38,8 +38,11 @@ export function vietnamIsoDate(offsetDays = 0): string {
   return date.toISOString().slice(0, 10);
 }
 
-/** A deposit between 0% and 100% leaves a remaining balance due 3 days before delivery (TV5). */
-export const MIN_DELIVERY_DAYS_WITH_REMAINING = 4;
+/**
+ * A deposit between 0% and 100% leaves a remaining balance due 3 days before delivery (TV5), and an unpaid RFQ
+ * order is cancelled 48 hours after it is placed — same rule as RFQService DeliveryDateRule.
+ */
+export const MIN_DELIVERY_DAYS_WITH_REMAINING = 6;
 
 const MONEY_PATTERN = /^\d{1,16}(\.\d{1,2})?$/;
 

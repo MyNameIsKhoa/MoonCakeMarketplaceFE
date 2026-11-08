@@ -5,7 +5,8 @@
 export type RfqStatus = 'DRAFT' | 'OPEN' | 'CLOSED' | 'CANCELLED';
 /** ALL: public feed. SELECTED_STORES: only the invited stores see the RFQ and quote. */
 export type RfqAudience = 'ALL' | 'SELECTED_STORES';
-export type QuotationStatus = 'DRAFT' | 'SUBMITTED' | 'REVISED' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED';
+/** ORDER_CANCELLED: accepted, then the order created from it was cancelled. */
+export type QuotationStatus = 'DRAFT' | 'SUBMITTED' | 'REVISED' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED' | 'ORDER_CANCELLED';
 export type ConversionStatus = 'PENDING' | 'COMPLETED' | 'FAILED';
 
 export interface PageResult<T> {
@@ -123,6 +124,8 @@ export interface QuotationAccepted {
   orderId: string | null;
   sellerOrderId: string | null;
   conversionStatus: ConversionStatus;
+  /** Last order status read from Commerce (e.g. CANCELLED); null until first synced. */
+  orderStatus?: string | null;
 }
 
 // --- Identity / Catalog lookups used by TV4 screens -------------------------
