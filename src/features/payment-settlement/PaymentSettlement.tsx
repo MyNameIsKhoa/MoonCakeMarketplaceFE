@@ -135,7 +135,10 @@ function SellerPaymentSettlement() {
       {expired && <p className="text-amber-800">Link đã quá thời hạn hiển thị. Đối soát để xác nhận trạng thái.</p>}
       <div className="flex flex-wrap gap-2">
         {!p.checkoutUrl && !uncertain && p.status === 'PENDING' && !p.expiresAt && <button disabled={busy} className="mss-button mss-button--primary" onClick={() => void run(`initiate:${p.paymentId}`, () => paymentApi.initiate(p.paymentId, sellerInitiationKey(p)))}>Tạo link thanh toán</button>}
-        {checkout && <a className="mss-button mss-button--primary" href={checkout} target="_blank" rel="noreferrer">Mở QR / thanh toán payOS <ExternalLink size={16} /></a>}
+        {checkout && <a className="mss-button mss-button--primary" href={checkout}
+          onClick={() => { sessionStorage.removeItem('financeCustomerOrderId'); sessionStorage.setItem('financeSellerPaymentId', String(p.paymentId)); }}>
+          Mở QR / thanh toán payOS <ExternalLink size={16} />
+        </a>}
         {p.status !== 'SUCCESS' && !ended && <>
           <button disabled={busy} className="mss-button mss-button--secondary" onClick={() => void run(`reconcile:${p.paymentId}`, () => paymentApi.reconcile(p.paymentId))}>Đối soát</button>
           <button disabled={busy} className="mss-button mss-button--secondary" onClick={() => void run(`cancel-link:${p.paymentId}`, () => paymentApi.cancelLink(p.paymentId))}>Hủy link chưa trả</button>

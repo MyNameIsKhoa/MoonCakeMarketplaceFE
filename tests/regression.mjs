@@ -139,7 +139,7 @@ test('AI HTTP errors show an error without a recommendation', async () => {
 test('customer checkout reconciles missing URL and opens the recovered link', async () => {
   let reconciled = 0, initiated = 0; const redirects = [];
   globalThis.window = { location: { assign: url => redirects.push(url) } };
-  globalThis.sessionStorage = { setItem() {}, getItem() { return null; } };
+  globalThis.sessionStorage = storage();
   const pending = { id: 23, status: 'PENDING', checkoutUrl: null, expiresAt: '2099-01-01' };
   const summary = payment => ({ payment, paidAmount: 0, totalAmount: 100 });
   const h = await load('src/features/payment-settlement/openCheckout.ts', { api: {
@@ -272,7 +272,8 @@ test('seller unknown state reconciles without issuing a new link', async () => {
 });
 
 test('fresh RFQ deposit initiates PayOS without reconciling a missing order code', async () => {
-  globalThis.window = { location: { assign() {} } };
+  const redirects = [];
+  globalThis.window = { location: { assign: url => redirects.push(url) } };
   globalThis.sessionStorage = storage();
   let initiated = 0, reconciled = 0;
   const obligation = { paymentId: 72, paymentType: 'DEPOSIT', status: 'PENDING',
@@ -285,6 +286,8 @@ test('fresh RFQ deposit initiates PayOS without reconciling a missing order code
   } });
   await h.exports.openSellerCheckout(9);
   assert.equal(reconciled, 0); assert.equal(initiated, 1);
+  assert.deepEqual(redirects, ['https://pay.example/deposit']);
+  assert.equal(globalThis.sessionStorage.getItem('financeSellerPaymentId'), '72');
 });
 
 test('seller link retry uses a fresh key after termination and preserves it after a timeout', async () => {

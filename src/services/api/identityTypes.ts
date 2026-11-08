@@ -47,8 +47,8 @@ export interface UserProfileResponse {
   fullName: string | null;
   phone: string | null;
   status: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string | null;
+  updatedAt: string | null;
 }
 
 /** Omitted fields keep their current value. */

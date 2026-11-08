@@ -3,6 +3,7 @@ import { CheckCircle2, ChevronDown, ChevronUp, MapPin, Star, Store, Truck, Walle
 import { CustomerOrder, OrderItem, SellerOrder } from '../types';
 import { orderApi } from '../services/api';
 import { paymentApi } from '../features/payment-settlement/paymentApi';
+import { endedPayment } from '../features/payment-settlement/paymentState';
 import { openCustomerCheckout, openSellerCheckout } from '../features/payment-settlement/openCheckout';
 import { formatAddress, formatDate, formatDateTime, formatVnd } from '../utils/format';
 import {
@@ -24,6 +25,7 @@ import { ApiError } from '../services/api/http';
 interface OrderTrackingProps {
   setActiveTab: (tab: string) => void;
   paymentReturnOrderId: string | null;
+  paymentReturnSellerPaymentId: string | null;
   onPaymentReturnHandled: () => void;
 }
 
@@ -47,7 +49,7 @@ function isUnpaidCancelled(order: CustomerOrder) {
     order.sellerOrders.every(so => so.payments.every(p => !['SUCCESS', 'PAID'].includes(p.status)));
 }
 
-export default function OrderTracking({ setActiveTab, paymentReturnOrderId, onPaymentReturnHandled }: OrderTrackingProps) {
+export default function OrderTracking({ setActiveTab, paymentReturnOrderId, paymentReturnSellerPaymentId, onPaymentReturnHandled }: OrderTrackingProps) {
   const [orders, setOrders] = useState<CustomerOrder[] | null>(null);
   const [loadError, setLoadError] = useState('');
   const [paymentNotice, setPaymentNotice] = useState<{ message: string; success: boolean } | null>(null);
@@ -116,6 +118,35 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, onPa
     });
     return () => { active = false; };
   }, [paymentReturnOrderId, load, onPaymentReturnHandled]);
+
+  useEffect(() => {
+    if (!paymentReturnSellerPaymentId) return;
+    let active = true;
+    const paymentId = Number(paymentReturnSellerPaymentId);
+    paymentApi.reconcile(paymentId).then(async (payment) => {
+      if (!active) return;
+      const success = payment.status === 'SUCCESS';
+      setPaymentNotice({
+        success,
+        message: success
+          ? `${payment.paymentType === 'DEPOSIT' ? 'Đã ghi nhận tiền cọc' : 'Đã ghi nhận thanh toán'} ${formatVnd(payment.amount)} cho đơn nhà bán #${payment.sellerOrderId}.`
+          : 'PayOS chưa xác nhận khoản thanh toán này. Nếu đã chuyển tiền, vui lòng đợi và bấm Tải lại; không thanh toán thêm.'
+      });
+      load();
+      onPaymentReturnHandled();
+    }).catch((error: unknown) => {
+      if (!active) return;
+      setPaymentNotice({
+        success: false,
+        message: error instanceof Error
+          ? `Chưa đối soát được khoản thanh toán: ${error.message}. Nếu đã chuyển tiền, không thanh toán thêm.`
+          : 'Chưa đối soát được khoản thanh toán. Nếu đã chuyển tiền, không thanh toán thêm.'
+      });
+      load();
+      onPaymentReturnHandled();
+    });
+    return () => { active = false; };
+  }, [paymentReturnSellerPaymentId, load, onPaymentReturnHandled]);
 
   const replaceOrder = (updated: CustomerOrder) =>
     setOrders((prev) => isUnpaidCancelled(updated)
@@ -303,7 +334,8 @@ function OrderCard({ order, expanded, onToggle, onUpdated, reviewedItemMap, onOp
       setIsCancelling(false);
     }
   };
-  const displayStatus = order.sellerOrders.length > 0 && order.sellerOrders.every(isFullyPaid)
+  const cancellationPending = order.sellerOrders.some(so => so.cancellation?.status === 'REQUESTED');
+  const displayStatus = cancellationPending ? 'CANCEL_REQUESTED' : order.sellerOrders.length > 0 && order.sellerOrders.every(isFullyPaid)
     ? 'PAYMENT_COMPLETED'
     : order.status;
 
@@ -314,8 +346,6 @@ function OrderCard({ order, expanded, onToggle, onUpdated, reviewedItemMap, onOp
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="mss-card-title">Đơn {order.orderNo}</h2>
             <StatusBadge map={ORDER_STATUS} status={displayStatus} />
-            {order.sellerOrders.some((so) => so.cancellation?.status === 'REQUESTED') &&
-              <StatusBadge map={ORDER_STATUS} status="CANCEL_REQUESTED" />}
             <StatusBadge map={ORDER_SOURCE} status={order.sourceType} />
           </div>
           <p className="mss-card-meta">
@@ -427,13 +457,37 @@ function SellerOrderSection({
   const [cancelReason, setCancelReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
+  const [paymentMessage, setPaymentMessage] = useState('');
   const [paymentBusy, setPaymentBusy] = useState(false);
 
   const paySeller = async () => {
-    setPaymentBusy(true); setActionError('');
+    setPaymentBusy(true); setActionError(''); setPaymentMessage('');
     try { await openSellerCheckout(Number(so.sellerOrderId)); }
-    catch (error) { setActionError(error instanceof Error ? error.message : 'Không mở được PayOS.'); }
+    catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Không mở được PayOS.');
+      try { onUpdated(await orderApi.get(orderId)); } catch { /* Keep the payment error visible. */ }
+    }
     finally { setPaymentBusy(false); }
+  };
+
+  const reconcileSeller = async () => {
+    setPaymentBusy(true); setActionError(''); setPaymentMessage('');
+    try {
+      const summary = await paymentApi.summary(Number(so.sellerOrderId));
+      const payment = summary.payments.find(p => p.status !== 'SUCCESS' && !endedPayment(p.status) &&
+        (p.checkoutUrl || p.expiresAt));
+      if (!payment) {
+        setPaymentMessage('Không còn link PayOS cần đối soát.');
+      } else {
+        const result = await paymentApi.reconcile(payment.paymentId);
+        setPaymentMessage(result.status === 'SUCCESS'
+          ? `${result.paymentType === 'DEPOSIT' ? 'Đã ghi nhận tiền cọc' : 'Đã ghi nhận thanh toán'} ${formatVnd(result.amount)}.`
+          : 'PayOS chưa xác nhận thanh toán. Nếu đã chuyển tiền, vui lòng đợi và đối soát lại; không thanh toán thêm.');
+      }
+      onUpdated(await orderApi.get(orderId));
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Chưa đối soát được PayOS.');
+    } finally { setPaymentBusy(false); }
   };
 
   const canCancel = so.allowedActions.includes('CANCEL');
@@ -468,6 +522,8 @@ function SellerOrderSection({
           <StatusBadge map={ORDER_STATUS} status={displayStatus} />
           {!retail && !so.cancellation && so.payments.some((p) => p.status !== 'SUCCESS') &&
             <button disabled={paymentBusy} className="text-sm text-primary-700 underline" onClick={() => void paySeller()}>{paymentBusy ? 'Đang mở PayOS…' : 'Thanh toán PayOS'}</button>}
+          {!retail && !so.cancellation && so.payments.some((p) => p.status !== 'SUCCESS') &&
+            <button disabled={paymentBusy} className="text-sm text-primary-700 underline" onClick={() => void reconcileSeller()}>Đối soát PayOS</button>}
           {canCancel && !immediateCancellationAvailable && !showCancel &&
             <button type="button" className="mss-button mss-button--danger mss-button--sm"
               onClick={() => { setActionError(''); setCancelReason('Tôi thay đổi ý định mua hàng.'); setShowCancel(true); }}>
@@ -507,6 +563,7 @@ function SellerOrderSection({
         </form>
       )}
       {actionError && <div className="mss-alert mss-alert--danger">{actionError}</div>}
+      {paymentMessage && <p role="status" className="text-sm text-primary-700">{paymentMessage}</p>}
 
       {(so.deliveryDateSnapshot || so.shippingMethodSnapshot) && (
         <p className="text-sm text-gray-700 flex flex-wrap items-center gap-x-4 gap-y-1">

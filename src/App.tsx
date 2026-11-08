@@ -18,7 +18,7 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import VerifyEmail from './pages/auth/VerifyEmail';
 import SupplierOnboarding from './pages/seller/SupplierOnboarding';
-import AdminSupplierReview from './pages/admin/AdminSupplierReview';
+import AdminCenter from './pages/admin/AdminCenter';
 import EmptyState from './components/ui/EmptyState';
 
 import { Product, Store, CartItem } from './types';
@@ -46,12 +46,17 @@ export default function App() {
   const [paymentReturnOrderId, setPaymentReturnOrderId] = useState<string | null>(() => {
     const params = new URLSearchParams(location.search);
     const orderId = sessionStorage.getItem('financeCustomerOrderId');
-    return params.get('finance') === 'return' && orderId && /^\d+$/.test(orderId) ? orderId : null;
+    return ['return', 'cancel'].includes(params.get('finance') || '') && orderId && /^\d+$/.test(orderId) ? orderId : null;
+  });
+  const [paymentReturnSellerPaymentId, setPaymentReturnSellerPaymentId] = useState<string | null>(() => {
+    const params = new URLSearchParams(location.search);
+    const paymentId = sessionStorage.getItem('financeSellerPaymentId');
+    return ['return', 'cancel'].includes(params.get('finance') || '') && paymentId && /^\d+$/.test(paymentId) ? paymentId : null;
   });
   const [activeTab, setActiveTab] = useState<string>(() => {
     const params = new URLSearchParams(location.search);
     return location.pathname === '/verify-email' ? 'verify-email'
-      : paymentReturnOrderId ? 'orders' : params.has('finance') ? 'payment-settlement' : 'home';
+      : paymentReturnOrderId || paymentReturnSellerPaymentId ? 'orders' : params.has('finance') ? 'payment-settlement' : 'home';
   });
   /** Protected tab to return to after login/register. */
   const [returnTab, setReturnTab] = useState<string | null>(null);
@@ -70,13 +75,17 @@ export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isAIOpen, setIsAIOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const handlePaymentReturnHandled = useCallback(() => setPaymentReturnOrderId(null), []);
+  const handlePaymentReturnHandled = useCallback(() => {
+    setPaymentReturnOrderId(null);
+    setPaymentReturnSellerPaymentId(null);
+  }, []);
 
   useEffect(() => {
-    if (!paymentReturnOrderId) return;
+    if (!paymentReturnOrderId && !paymentReturnSellerPaymentId) return;
     window.history.replaceState({}, '', window.location.pathname);
     sessionStorage.removeItem('financeCustomerOrderId');
-  }, [paymentReturnOrderId]);
+    sessionStorage.removeItem('financeSellerPaymentId');
+  }, [paymentReturnOrderId, paymentReturnSellerPaymentId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,6 +172,7 @@ export default function App() {
   const accessLevel = accessLevelOf(activeTab);
   const isAllowed = canAccess(accessLevel, auth);
   const isSellerCenter = activeTab === 'seller-center' && isAllowed;
+  const isAdminCenter = activeTab === 'admin' && isAllowed;
 
   const goToAuth = (mode: 'login' | 'register') => {
     setReturnTab(accessLevel !== 'public' ? activeTab : returnTab);
@@ -229,7 +239,7 @@ export default function App() {
 
   return (
     <div className="mss-app selection:bg-accent-200 selection:text-primary-950">
-      {!isSellerCenter && (
+      {!isSellerCenter && !isAdminCenter && (
         <Navbar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
@@ -279,7 +289,7 @@ export default function App() {
           </section></div>
         )}
 
-        {activeTab === 'admin' && <AdminSupplierReview />}
+        {activeTab === 'admin' && <AdminCenter onBackToShop={() => setActiveTab('home')} />}
 
         {activeTab === 'home' && (
           <Home
@@ -374,6 +384,7 @@ export default function App() {
           <OrderTracking
             setActiveTab={setActiveTab}
             paymentReturnOrderId={paymentReturnOrderId}
+            paymentReturnSellerPaymentId={paymentReturnSellerPaymentId}
             onPaymentReturnHandled={handlePaymentReturnHandled}
           />
         )}
@@ -401,7 +412,7 @@ export default function App() {
         </>}
       </main>
 
-      {!isSellerCenter && <Footer />}
+      {!isSellerCenter && !isAdminCenter && <Footer />}
 
       <CartDrawer
         isOpen={isCartOpen}
