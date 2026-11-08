@@ -3,7 +3,13 @@ import { paymentApi, type Payment } from './paymentApi';
 import { endedPayment, initiationKey, sellerInitiationKey, usableCheckout } from './paymentState';
 
 const PAY_ORDER = ['FULL', 'DEPOSIT', 'REMAINING'];
-const needsReconcile = (p: Payment) => p.status !== 'SUCCESS' && !endedPayment(p.status);
+// A pristine obligation is created with PENDING but has not been sent to PayOS yet.
+// It has no provider order/link metadata, so reconciling it would fail with
+// PAYMENT_LINK_NOT_CREATED instead of letting the initiate call create the link.
+const pristineObligation = (p: Payment) =>
+  p.status === 'PENDING' && !p.checkoutUrl && !p.expiresAt;
+const needsReconcile = (p: Payment) =>
+  p.status !== 'SUCCESS' && !endedPayment(p.status) && !pristineObligation(p);
 
 /** Newest row of the first unpaid obligation; undefined when everything is paid. */
 function dueObligation(payments: Payment[]): Payment | undefined {
@@ -59,11 +65,10 @@ export async function openSellerCheckout(sellerOrderId: number) {
     if (!obligation) throw new Error('Đơn này đã được thanh toán đủ.');
     url = usableCheckout(obligation);
     if (url) { window.location.assign(url); return; }
-    const unresolvedAttempt = summary.payments.some(p => needsReconcile(p) &&
-      !(p.status === 'PENDING' && !p.checkoutUrl && !p.expiresAt));
+    const unresolvedAttempt = summary.payments.some(needsReconcile);
     if (unresolvedAttempt) throw new Error('Giao dịch đang được xác minh với PayOS. Vui lòng đối soát lại sau.');
   }
-  if (!endedPayment(obligation.status) && !(obligation.status === 'PENDING' && !obligation.checkoutUrl && !obligation.expiresAt)) {
+  if (!endedPayment(obligation.status) && !pristineObligation(obligation)) {
     throw new Error('Đơn này chưa có khoản thanh toán sẵn sàng.');
   }
   const payment = await paymentApi.initiate(obligation.paymentId, sellerInitiationKey(obligation));

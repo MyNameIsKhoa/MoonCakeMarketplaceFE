@@ -271,6 +271,22 @@ test('seller unknown state reconciles without issuing a new link', async () => {
   assert.equal(initiated, 0); assert.equal(reconciled, 1);
 });
 
+test('fresh RFQ deposit initiates PayOS without reconciling a missing order code', async () => {
+  globalThis.window = { location: { assign() {} } };
+  globalThis.sessionStorage = storage();
+  let initiated = 0, reconciled = 0;
+  const obligation = { paymentId: 72, paymentType: 'DEPOSIT', status: 'PENDING',
+    checkoutUrl: null, expiresAt: null };
+  const h = await load('src/features/payment-settlement/openCheckout.ts', { api: {
+    summary: async () => ({ payments: [obligation] }),
+    reconcile: async () => { reconciled++; throw Error('PAYMENT_LINK_NOT_CREATED'); },
+    initiate: async () => { initiated++; return { ...obligation, expiresAt: '2099-01-01',
+      checkoutUrl: 'https://pay.example/deposit' }; },
+  } });
+  await h.exports.openSellerCheckout(9);
+  assert.equal(reconciled, 0); assert.equal(initiated, 1);
+});
+
 test('seller link retry uses a fresh key after termination and preserves it after a timeout', async () => {
   globalThis.sessionStorage = storage();
   let status = 'PENDING';
