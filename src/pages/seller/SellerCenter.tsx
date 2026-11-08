@@ -9,6 +9,7 @@ import MyQuotations from '../../features/rfq/components/MyQuotations';
 import RfqDetail from '../../features/rfq/components/RfqDetail';
 import RfqList from '../../features/rfq/components/RfqList';
 import { SupplierShipmentManager } from '../../features/fulfillment/components/SupplierShipmentManager';
+import DisputePanel from '../../features/payment-settlement/DisputePanel';
 import { 
   LayoutDashboard, Store, Package, Tag, Receipt, Truck, 
   FileText, DollarSign, MessageSquare, Wallet, Star, 
@@ -495,7 +496,7 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
                   <td className="p-3 font-medium text-gray-900">{order.sellerOrderNo}</td><td className="p-3">{order.storeNameSnapshot}</td>
                   <td className="p-3"><StatusBadge map={ORDER_STATUS} status={order.cancellationPending ? 'CANCEL_REQUESTED' : order.status} /></td><td className="p-3 text-right font-semibold">{formatVnd(order.totalAmount)}</td>
                   <td className="p-3"><button type="button" className="text-primary-700 font-semibold hover:underline"
-                    onClick={() => setShipmentOrderId(Number(order.sellerOrderId))}>Quản lý vận đơn</button></td>
+                    onClick={() => setShipmentOrderId(Number(order.sellerOrderId))}>Vận đơn / Khiếu nại</button></td>
                 </tr>)}</tbody></table>
               </div>}
               {shipmentOrderId !== null && <SupplierShipmentManager key={shipmentOrderId}
@@ -505,6 +506,7 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
                   sellerOrderApi.list().then(setSellerOrders)
                     .catch(() => setSellerOrderError('Không tải lại được trạng thái đơn hàng.'));
                 }} />}
+              {shipmentOrderId !== null && <DisputePanel key={`dispute-${shipmentOrderId}`} sellerOrderId={shipmentOrderId} role="seller" />}
             </div>
           )}
 

@@ -21,6 +21,7 @@ import EmptyState from '../components/ui/EmptyState';
 import { fulfillmentApi } from '../features/fulfillment/api/fulfillmentApi';
 import { ReviewModal } from '../features/fulfillment/components/ReviewModal';
 import { ApiError } from '../services/api/http';
+import DisputePanel from '../features/payment-settlement/DisputePanel';
 
 interface OrderTrackingProps {
   setActiveTab: (tab: string) => void;
@@ -454,6 +455,7 @@ function SellerOrderSection({
   onOpenReview
 }: SellerOrderSectionProps) {
   const [showCancel, setShowCancel] = useState(false);
+  const [showDispute, setShowDispute] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState('');
@@ -753,7 +755,7 @@ function SellerOrderSection({
               className="mss-button mss-button--primary whitespace-nowrap shrink-0"
               disabled={busy}
               onClick={() => {
-                if (!window.confirm('Xác nhận bạn đã nhận và kiểm tra đầy đủ chất lượng bánh? Thao tác này sẽ ghi nhận đơn hàng hoàn tất và tiến hành giải ngân tiền cho Nhà bán hàng.')) return;
+                if (!window.confirm('Xác nhận bạn đã nhận và kiểm tra hàng? Khoản giải ngân chỉ được xử lý sau thời hạn khiếu nại.')) return;
                 void run(async () => {
                   await fulfillmentApi.acceptSellerOrder(so.sellerOrderId);
                   return orderApi.get(orderId);
@@ -786,6 +788,20 @@ function SellerOrderSection({
           </span>
           {so.cancellation.status === 'REQUESTED' &&
             <span>Đơn đang chờ xét duyệt. Nếu đã có link PayOS, vui lòng không tiếp tục thanh toán.</span>}
+        </div>
+      )}
+
+      {so.payments.some(p => ['SUCCESS', 'PAID'].includes(p.status)) && (
+        <div className="space-y-3">
+          <button
+            type="button"
+            className="mss-button mss-button--secondary mss-button--sm"
+            aria-expanded={showDispute}
+            onClick={() => setShowDispute(open => !open)}
+          >
+            {showDispute ? 'Đóng khiếu nại' : 'Khiếu nại / Xem khiếu nại'}
+          </button>
+          {showDispute && <DisputePanel sellerOrderId={Number(so.sellerOrderId)} role="buyer" />}
         </div>
       )}
 

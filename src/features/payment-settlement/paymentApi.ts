@@ -8,18 +8,21 @@ export interface Payment {
 export interface FinanceCase {
   id: number; status: string; reason: string; amount: number | null;
   evidenceUrl: string | null; resolution: string | null;
+  sellerResponse: string | null; openedAt: string | null; respondedAt: string | null;
+  escalatedAt: string | null; decisionType: string | null; disputeId: number | null;
 }
 export interface Settlement {
   settlementId: number; grossAmount: number; feeBasis: string; roundingRule: string;
-  feeAmount: number; supplierPayoutAmount: number; status: string;
+  feeAmount: number; supplierPayoutAmount: number; status: string; refundedAmount: number;
 }
 export interface FinanceSummary {
   context: { sellerOrderId: number; totalAmount: number; depositAmount: number | null;
-    deliveryDate: string | null; accepted: boolean; paidAmount: number; remainingDueAt: string | null };
+    deliveryDate: string | null; accepted: boolean; paidAmount: number; remainingDueAt: string | null;
+    disputeDeadlineAt: string | null };
   payments: Payment[]; cancellations: FinanceCase[]; refunds: FinanceCase[];
   disputes: FinanceCase[]; settlements: Settlement[];
   eligibility: { eligible: boolean; blockingReasons: string[] };
-  history: { auditId: number; eventType: string; actor: string; detail: string; createdAt: string }[];
+  history: { auditId: number; eventType: string; resourceId: number; actor: string; detail: string; createdAt: string }[];
 }
 export interface CustomerPaymentSummary {
   customerOrderId: number;
