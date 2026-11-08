@@ -9,7 +9,11 @@ type CartLine = { cartItemId: number; variantId: number; productName: string; va
   discountAmount: number };
 type StorePrice = { storeId: number; supplierId: number; storeName: string; subtotal: number;
   discountTotal: number; totalAmount: number; promotions: string[]; items: CartLine[] };
-type CartPricing = { subtotal: number; discountTotal: number; totalAmount: number; stores: StorePrice[] };
+/** A line Catalog no longer sells: not priced, shown so the buyer can remove it before checkout. */
+type UnavailableLine = { cartItemId: number; variantId: number; productName: string; variantName: string;
+  sku: string; imageUrl: string | null; quantity: number; reason: string };
+type CartPricing = { subtotal: number; discountTotal: number; totalAmount: number; stores: StorePrice[];
+  unavailableItems?: UnavailableLine[] };
 type OrderWire = Omit<CustomerOrder, 'orderId' | 'sellerOrders' | 'deliveryAddress'> & {
   orderId: number; deliveryAddress: CustomerOrder['deliveryAddress'] & { sourceAddressIdRef: number | null };
   sellerOrders: Array<Omit<CustomerOrder['sellerOrders'][number],
@@ -53,6 +57,14 @@ export const addressApi = {
   setDefault: async (id: string) => {
     await http.patch(`/api/addresses/${orderId(id)}`, { isDefault: true });
     return addressApi.list();
+  },
+  /** PATCH: omitted/blank name, phone, line and city keep their value; '' clears ward/district.
+   *  `isDefault: false` on the default address is rejected (409): set another default instead. */
+  update: async (id: string, input: Partial<Omit<Address, 'addressId'>>) =>
+    address((await http.patch<AddressWire>(`/api/addresses/${orderId(id)}`, input)).data),
+  /** 204. Deleting the default address makes the oldest remaining address the default. */
+  remove: async (id: string) => {
+    await http.delete(`/api/addresses/${orderId(id)}`);
   }
 };
 
@@ -69,6 +81,16 @@ export const cartApi = {
         storeName: store.storeName, price: line.unitPrice, rating: 0, reviewCount: 0,
         image: line.imageUrl || IMAGE_FALLBACK, gallery: [], category: '', flavor: '', weight: '',
         ingredients: [], sugarLevel: 'Tiêu chuẩn', description: '', salesCount: 0, inStock: true,
+        variantId: String(line.variantId)
+      };
+      return { id: String(line.cartItemId), productId: product.id, product,
+        quantity: line.quantity, sugarLevel: line.variantName, variantId: String(line.variantId) };
+    })).concat((data.unavailableItems ?? []).map((line): CartItem => {
+      const product: Product = {
+        id: `variant-${line.variantId}`, name: `${line.productName} (ngừng bán — hãy xóa khỏi giỏ)`, storeId: '',
+        storeName: '', price: 0, rating: 0, reviewCount: 0,
+        image: line.imageUrl || IMAGE_FALLBACK, gallery: [], category: '', flavor: '', weight: '',
+        ingredients: [], sugarLevel: 'Tiêu chuẩn', description: '', salesCount: 0, inStock: false,
         variantId: String(line.variantId)
       };
       return { id: String(line.cartItemId), productId: product.id, product,
@@ -134,8 +156,9 @@ export const orderApi = {
               .then((response) => (Array.isArray(response.data) ? response.data : []))
               .catch(() => [])
           ]);
-      const cancellation = finance.cancellations[0];
-      const canRequestCancellation = finance.cancellations.length === 0 &&
+      // Cases come oldest first; a REJECTED case may be followed by a new request.
+      const cancellation = finance.cancellations.at(-1);
+      const canRequestCancellation = finance.cancellations.every((c) => c.status === 'REJECTED') &&
         !['PENDING_STOCK', 'CANCEL_REQUESTED', 'CANCELLED', 'DELIVERED', 'ACCEPTED', 'COMPLETED', 'SETTLED', 'DISPUTED'].includes(seller.status);
       return {
         ...seller, sellerOrderId: String(seller.sellerOrderId), storeIdRef: String(seller.storeIdRef),
@@ -191,7 +214,38 @@ export interface SellerOrderSummary {
   storeNameSnapshot: string; status: string; totalAmount: number; cancellationPending: boolean;
 }
 
+/** OrderItemResponse. Retail lines: subtotal = unitPrice × quantity (before discount); RFQ lines: after discount. */
+export interface SellerOrderItem {
+  orderItemId: number; variantIdRef: number | null; productCodeSnapshot: string | null;
+  productNameSnapshot: string; skuSnapshot: string | null; variantNameSnapshot: string | null;
+  imageUrlSnapshot: string | null; quantity: number; unitPrice: number; discountAmount: number; subtotal: number;
+}
+
+export interface SellerOrderDeliveryAddress {
+  recipientName: string; recipientPhone: string; addressLine: string;
+  ward: string | null; district: string | null; city: string;
+}
+
+/**
+ * GET /api/seller-orders/{id} (SellerOrderResponse) — the order's supplier or buyer; anyone else gets 404.
+ * `subtotal` is before discount for retail orders but after line discounts for RFQ orders (quotationIdRef set).
+ * remainingDueAt is UTC without offset; deliveryDateSnapshot is a date (YYYY-MM-DD).
+ */
+export interface SellerOrderDetailResponse {
+  sellerOrderId: number; orderId: number; sellerOrderNo: string; storeIdRef: number; supplierIdRef: number;
+  quotationIdRef: number | null; storeNameSnapshot: string; supplierNameSnapshot: string; status: string;
+  subtotal: number; shippingFee: number; totalAmount: number;
+  depositPercent: number | null; depositAmount: number | null; remainingAmount: number | null;
+  remainingDueAt: string | null; deliveryDateSnapshot: string | null;
+  shippingMethodSnapshot: string | null; paymentTermsSnapshot: string | null;
+  /** Being added by the backend; absent on older builds. */
+  deliveryAddress?: SellerOrderDeliveryAddress | null;
+  items: SellerOrderItem[];
+}
+
 export const sellerOrderApi = {
+  get: async (sellerOrderId: number): Promise<SellerOrderDetailResponse> =>
+    (await http.get<SellerOrderDetailResponse>(`/api/seller-orders/${orderId(String(sellerOrderId))}`)).data,
   list: async (): Promise<SellerOrderSummary[]> => {
     const first = (await http.get<{ content: SellerOrderSummary[]; totalPages: number }>(
       '/api/seller-orders', { params: { size: 100 } })).data;
