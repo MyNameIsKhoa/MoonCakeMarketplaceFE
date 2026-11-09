@@ -87,7 +87,7 @@ export const StoreCard: React.FC<StoreCardProps> = ({
         {previewProducts.length > 0 && (
           <div>
             <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-              <span className="font-medium">Bánh tiêu biểu của shop:</span>
+              <span className="font-medium">Sản phẩm tiêu biểu:</span>
               <span className="text-primary-700 font-semibold group-hover:underline">Xem thêm</span>
             </div>
             <div className="grid grid-cols-3 gap-2">

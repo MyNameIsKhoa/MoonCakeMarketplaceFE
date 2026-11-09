@@ -1,17 +1,14 @@
 /**
  * Storefront catalog (stores, products, categories) loaded once from the API Gateway and shared by
  * Home, Navbar, ProductList and the store directory.
- *
- * Sample data is available only with VITE_USE_MOCK_CATALOG=true.
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { Product, Store } from '../types';
-import { CATEGORIES, PRODUCTS, STORES } from '../data/mockData';
 import {
   catalogApi, toCategoryOption, toProduct, toStore, type CategoryOption
 } from '../services/api';
 
-export type CatalogSource = 'loading' | 'api' | 'mock' | 'error';
+export type CatalogSource = 'loading' | 'api' | 'error';
 
 interface CatalogState {
   stores: Store[];
@@ -26,14 +23,7 @@ interface CatalogState {
   findStore: (storeId: string) => Store | undefined;
 }
 
-const USE_MOCK_CATALOG = import.meta.env?.VITE_USE_MOCK_CATALOG === 'true';
 const ALL_CATEGORIES: CategoryOption = { id: 'all', name: 'Tất cả sản phẩm' };
-
-const MOCK_STATE = {
-  stores: STORES,
-  products: PRODUCTS,
-  categories: CATEGORIES.map(({ id, name }) => ({ id, name }))
-};
 
 const CatalogContext = createContext<CatalogState | null>(null);
 
@@ -59,15 +49,16 @@ async function loadFromApi() {
 }
 
 export function CatalogProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<Pick<CatalogState, 'stores' | 'products' | 'categories'>>(
-    USE_MOCK_CATALOG ? MOCK_STATE : { stores: [], products: [], categories: [ALL_CATEGORIES] }
-  );
-  const [source, setSource] = useState<CatalogSource>(USE_MOCK_CATALOG ? 'mock' : 'loading');
+  const [data, setData] = useState<Pick<CatalogState, 'stores' | 'products' | 'categories'>>({
+    stores: [],
+    products: [],
+    categories: [ALL_CATEGORIES]
+  });
+  const [source, setSource] = useState<CatalogSource>('loading');
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    if (USE_MOCK_CATALOG) return;
     let cancelled = false;
     setData({ stores: [], products: [], categories: [ALL_CATEGORIES] });
     setError(null);

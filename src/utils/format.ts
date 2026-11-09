@@ -1,4 +1,4 @@
-import { Money } from '../types';
+import { Money, PromotionRule } from '../types';
 
 const vnd = new Intl.NumberFormat('vi-VN');
 
@@ -6,6 +6,20 @@ const vnd = new Intl.NumberFormat('vi-VN');
 export function formatVnd(amount: Money | undefined | null): string {
   if (amount === undefined || amount === null) return '—';
   return `${vnd.format(amount)} ₫`;
+}
+
+export function formatPromotionRule(rule: PromotionRule): string {
+  const minQty = rule.minQuantity && rule.minQuantity > 1 ? ` · từ ${rule.minQuantity} sản phẩm` : '';
+  if (rule.ruleType === 'PERCENT_DISCOUNT' && rule.discountPercent != null) {
+    return `Giảm ${vnd.format(rule.discountPercent)}%${minQty}`;
+  }
+  if (rule.ruleType === 'FIXED_DISCOUNT' && rule.discountAmount != null) {
+    return `Giảm ${formatVnd(rule.discountAmount)}${minQty}`;
+  }
+  if (rule.ruleType === 'BUY_X_GET_Y') {
+    return `Mua ${rule.minQuantity ?? 1} tặng ${rule.rewardQuantity ?? 1}`;
+  }
+  return 'Ưu đãi gian hàng';
 }
 
 /**

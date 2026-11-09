@@ -1,23 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Star, ShieldCheck, Tag, ShoppingBag, Heart, ChevronRight,
-  ArrowLeft, Search, Filter, Phone, MapPin, Store as StoreIcon, Clock
+  Star, ShieldCheck, Tag, ShoppingBag, Heart,
+  ArrowLeft, Search, Phone, MapPin, Store as StoreIcon, Clock
 } from 'lucide-react';
 import { Store, Product, Promotion, StoreBranch } from '../types';
-import { PRODUCTS, PROMOTIONS } from '../data/mockData';
 import { useCatalog } from '../context/CatalogContext';
 import { catalogApi, isApiId, toProduct, toPromotion, toStoreBranch } from '../services/api';
-import { formatDate } from '../utils/format';
-import { PROMOTION_RULE, getStatusMeta } from '../utils/status';
+import { formatDate, formatPromotionRule, parseApiDate } from '../utils/format';
 import { ReviewList } from '../features/fulfillment/components/ReviewList';
-
-/** Category tabs of the mock stores (mock product.category values). */
-const MOCK_CATEGORY_TABS = [
-  { id: 'truyen-thong', name: 'Bánh Truyền Thống' },
-  { id: 'cao-cap', name: 'Hộp Quà Cao Cấp' },
-  { id: 'hiện-đại', name: 'Lava & Hiện Đại' },
-  { id: 'chay', name: 'Ăn Kiêng / Chay' }
-];
 
 /** Backend PageQuery.MAX_SIZE. */
 const PAGE_SIZE = 100;
@@ -49,10 +39,8 @@ export default function StoreDetail({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc'>('default');
 
-  // Stores from the API Gateway have numeric IDs; mock stores keep reading data/mockData.
-  const { categories, source } = useCatalog();
-  const isDemo = source === 'mock';
-  const isLive = !isDemo && isApiId(store.storeId);
+  const { categories } = useCatalog();
+  const isLive = isApiId(store.storeId);
   const [live, setLive] = useState<LiveStoreData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -63,7 +51,7 @@ export default function StoreDetail({
     const storeId = Number(store.storeId);
     setLoadError(null);
     setLive(null);
-    // Promotions and branches are extras: a failure there should not hide the menu.
+    // Promotions and branches are extras: a failure there should not hide the product list.
     Promise.allSettled([
       catalogApi.products.all({ storeId }),
       catalogApi.promotions.list({ storeId, size: PAGE_SIZE }),
@@ -93,19 +81,19 @@ export default function StoreDetail({
   }, [isLive, store, reloadKey]);
 
   const loading = isLive && !live && !loadError;
-  const storeProducts = useMemo(
-    () => (isDemo ? PRODUCTS.filter(p => p.storeId === store.storeId) : live?.products ?? []),
-    [isDemo, live, store.storeId]
-  );
-  const storePromotions = (isDemo ? PROMOTIONS.filter(p => p.storeId === store.storeId) : live?.promotions ?? [])
-    .filter(p => p.status === 'ACTIVE');
-  const storeBranches = isDemo ? store.branches ?? [] : live?.branches ?? [];
+  const storeProducts = useMemo(() => live?.products ?? [], [live]);
+  const nowMs = Date.now();
+  const storePromotions = (live?.promotions ?? []).filter((p) => {
+    const startMs = parseApiDate(p.startAt)?.getTime() ?? Date.parse(p.startAt);
+    const endMs = parseApiDate(p.endAt)?.getTime() ?? Date.parse(p.endAt);
+    return p.status === 'ACTIVE' && startMs <= nowMs && endMs > nowMs;
+  });
+  const storeBranches = live?.branches ?? [];
 
   const categoryTabs = useMemo(() => {
-    if (isDemo) return MOCK_CATEGORY_TABS;
     const slugs = new Set(storeProducts.map(p => p.category).filter(Boolean));
     return categories.filter(c => slugs.has(c.id));
-  }, [isDemo, storeProducts, categories]);
+  }, [storeProducts, categories]);
 
   // Filter products belonging to this store
   const filteredProducts = useMemo(() => {
@@ -114,8 +102,8 @@ export default function StoreDetail({
     // Internal search
     if (internalSearch.trim()) {
       const q = internalSearch.toLowerCase();
-      list = list.filter(p => 
-        p.name.toLowerCase().includes(q) || 
+      list = list.filter(p =>
+        p.name.toLowerCase().includes(q) ||
         p.flavor.toLowerCase().includes(q) ||
         p.description.toLowerCase().includes(q)
       );
@@ -146,11 +134,11 @@ export default function StoreDetail({
             className="flex items-center gap-1.5 text-accent-300 hover:text-white font-semibold transition"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Quay lại trang chủ / Sàn gian hàng</span>
+            <span>Quay lại trang chủ</span>
           </button>
 
           <div className="flex items-center gap-2 text-gray-300">
-            <span>Sàn Đa Gian Hàng</span>
+            <span>Gian hàng đối tác</span>
             <span>/</span>
             <span className="text-white font-bold">{store.name}</span>
           </div>
@@ -160,10 +148,10 @@ export default function StoreDetail({
       {/* Store Header & Hero Presentation */}
       <div className="relative bg-primary-950 text-white">
         <div className="h-52 md:h-72 w-full overflow-hidden relative">
-          <img 
-            src={store.bannerUrl} 
-            alt={store.name} 
-            className="w-full h-full object-cover opacity-50" 
+          <img
+            src={store.bannerUrl}
+            alt={store.name}
+            className="w-full h-full object-cover opacity-50"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-primary-950 via-primary-950/50 to-transparent"></div>
         </div>
@@ -171,10 +159,10 @@ export default function StoreDetail({
         <div className="mss-container relative -mt-20 pb-6">
           <div className="flex flex-col md:flex-row items-center md:items-end gap-6">
             <div className="relative">
-              <img 
-                src={store.logoUrl} 
-                alt={store.name} 
-                className="w-28 h-28 md:w-32 md:h-32 rounded-2xl object-contain p-1.5 border-4 border-white shadow-2xl bg-white" 
+              <img
+                src={store.logoUrl}
+                alt={store.name}
+                className="w-28 h-28 md:w-32 md:h-32 rounded-2xl object-contain p-1.5 border-4 border-white shadow-2xl bg-white"
               />
               <span className="absolute bottom-2 right-2 w-4 h-4 rounded-full bg-green-500 border-2 border-white" title="Gian hàng chính hãng hoạt động"></span>
             </div>
@@ -184,13 +172,15 @@ export default function StoreDetail({
                 <h1 className="text-2xl md:text-3xl font-black">{store.name}</h1>
                 <span className="bg-accent-400 text-primary-950 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Gian Hàng Chính Hãng 100%</span>
+                  <span>Gian Hàng Chính Hãng</span>
                 </span>
               </div>
 
-              <p className="text-gray-300 text-xs md:text-sm max-w-2xl leading-relaxed">
-                {store.description}
-              </p>
+              {store.description && (
+                <p className="text-gray-300 text-xs md:text-sm max-w-2xl leading-relaxed">
+                  {store.description}
+                </p>
+              )}
 
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 sm:gap-5 text-xs text-accent-300 pt-1">
                 {store.categoryLabel && (
@@ -205,12 +195,6 @@ export default function StoreDetail({
                     </span>
                   </>
                 )}
-                {isDemo && store.priceRange && (
-                  <>
-                    <span>•</span>
-                    <span>Khoảng giá: <strong className="text-white">{store.priceRange}</strong></span>
-                  </>
-                )}
               </div>
             </div>
 
@@ -220,7 +204,7 @@ export default function StoreDetail({
                 className="w-full sm:w-auto px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold border border-white/20 transition flex items-center justify-center gap-1.5"
               >
                 <Phone className="w-3.5 h-3.5 text-accent-300" />
-                <span>Liên hệ shop</span>
+                <span>Liên hệ gian hàng</span>
               </a>
               <button
                 onClick={() => {
@@ -229,7 +213,7 @@ export default function StoreDetail({
                 }}
                 className="w-full sm:w-auto px-5 py-2.5 bg-accent-400 hover:bg-accent-500 text-primary-950 rounded-xl text-xs font-black shadow-lg transition flex items-center justify-center gap-1.5"
               >
-                <span>Xem menu bánh ({filteredProducts.length})</span>
+                <span>Xem sản phẩm ({filteredProducts.length})</span>
               </button>
             </div>
           </div>
@@ -242,22 +226,23 @@ export default function StoreDetail({
           <div className="bg-accent-50/80 border border-accent-200/80 rounded-2xl p-4 sm:p-5">
             <h2 className="text-sm font-bold text-primary-900 flex items-center gap-1.5 mb-3">
               <Tag className="w-4 h-4 text-primary-700" />
-              <span>Chương Trình Khuyến Mãi Đang Áp Dụng Của {store.name}</span>
+              <span>Ưu Đãi Đang Áp Dụng Tại {store.name}</span>
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {storePromotions.map((promo) => (
                 <div key={promo.promotionId} className="bg-white p-3.5 rounded-xl border border-accent-200/60 shadow-sm space-y-1.5">
                   <h3 className="font-bold text-xs sm:text-sm text-gray-900">{promo.name}</h3>
-                  <div className="flex flex-wrap gap-1.5">
-                    {promo.rules.map((rule) => (
-                      <span key={rule.promotionRuleId} className="bg-red-50 text-red-700 border border-red-200 text-[11px] font-bold px-2 py-0.5 rounded-md">
-                        {getStatusMeta(PROMOTION_RULE, rule.ruleType).label}
-                        {rule.minQuantity ? ` · từ ${rule.minQuantity} bánh` : ''}
-                      </span>
-                    ))}
-                  </div>
+                  {promo.rules.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {promo.rules.map((rule) => (
+                        <span key={rule.promotionRuleId} className="bg-red-50 text-red-700 border border-red-200 text-[11px] font-bold px-2 py-0.5 rounded-md">
+                          {formatPromotionRule(rule)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <p className="text-[11px] text-gray-500">
-                    Áp dụng từ {formatDate(promo.startAt)} đến {formatDate(promo.endAt)} · Tự động trừ tiền khi thanh toán
+                    Hiệu lực: {formatDate(promo.startAt)} – {formatDate(promo.endAt)} · Tự động áp dụng khi thanh toán
                   </p>
                 </div>
               ))}
@@ -348,7 +333,7 @@ export default function StoreDetail({
                   type="text"
                   value={internalSearch}
                   onChange={(e) => setInternalSearch(e.target.value)}
-                  placeholder="Tìm bánh trong shop..."
+                  placeholder="Tìm sản phẩm trong gian hàng..."
                   className="w-full pl-8 pr-3 py-1.5 text-xs bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-primary-700 focus:bg-white"
                 />
               </div>
@@ -358,7 +343,7 @@ export default function StoreDetail({
                 onChange={(e) => setSortBy(e.target.value as any)}
                 className="text-xs bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-primary-700"
               >
-                <option value="default">Sắp xếp: Phổ biến</option>
+                <option value="default">Sắp xếp: Mặc định</option>
                 <option value="price-asc">Giá: Thấp đến cao</option>
                 <option value="price-desc">Giá: Cao đến thấp</option>
               </select>
@@ -376,7 +361,7 @@ export default function StoreDetail({
         ) : loadError ? (
           <div className="text-center py-12 bg-white rounded-2xl border border-gray-200 space-y-3">
             <StoreIcon className="w-12 h-12 text-gray-300 mx-auto" />
-            <h3 className="font-bold text-gray-800 text-sm">Không tải được menu của gian hàng</h3>
+            <h3 className="font-bold text-gray-800 text-sm">Không tải được sản phẩm của gian hàng</h3>
             <p className="text-xs text-gray-500">{loadError}</p>
             <button
               onClick={() => setReloadKey((k) => k + 1)}
@@ -398,7 +383,7 @@ export default function StoreDetail({
               }}
               className="text-xs font-bold text-primary-700 bg-primary-50 px-4 py-2 rounded-xl hover:bg-primary-100 transition"
             >
-              Xem tất cả sản phẩm của shop
+              Xem tất cả sản phẩm
             </button>
           </div>
         ) : (
@@ -408,14 +393,14 @@ export default function StoreDetail({
                 key={product.id}
                 className="bg-white rounded-2xl overflow-hidden shadow-sm border border-accent-200/60 flex flex-col group hover:shadow-xl hover:border-primary-700 transition duration-300"
               >
-                <div 
-                  className="relative overflow-hidden cursor-pointer" 
+                <div
+                  className="relative overflow-hidden cursor-pointer"
                   onClick={() => { setSelectedProduct(product); setActiveTab('detail'); }}
                 >
-                  <img 
-                    src={product.image} 
-                    alt={product.name} 
-                    className="w-full aspect-square object-cover group-hover:scale-105 transition duration-500" 
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="w-full aspect-square object-cover group-hover:scale-105 transition duration-500"
                   />
                   {product.originalPrice && (
                     <span className="absolute top-2 left-2 bg-red-600 text-white text-[11px] font-bold px-2 py-0.5 rounded shadow">
@@ -440,7 +425,7 @@ export default function StoreDetail({
                     >
                       {product.name}
                     </h3>
-                    <p className="text-xs text-gray-500 mt-1 line-clamp-1">{product.flavor}</p>
+                    {product.flavor && <p className="text-xs text-gray-500 mt-1 line-clamp-1">{product.flavor}</p>}
                   </div>
 
                   <div>
@@ -464,7 +449,7 @@ export default function StoreDetail({
                       className="w-full mt-3 py-2.5 bg-primary-700 hover:bg-primary-800 text-white text-xs font-bold rounded-xl shadow transition flex items-center justify-center gap-1.5 active:scale-95"
                     >
                       <ShoppingBag className="w-3.5 h-3.5" />
-                      <span>Thêm Vào Giỏ</span>
+                      <span>Thêm vào giỏ</span>
                     </button>
                   </div>
                 </div>

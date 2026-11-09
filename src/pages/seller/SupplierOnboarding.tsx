@@ -113,7 +113,7 @@ export default function SupplierOnboarding({ onBackToShop, onRelogin }: Supplier
             <div className="mss-alert flex flex-wrap items-center justify-between gap-3">
               <span className="flex items-start gap-2">
                 <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-green-700" />
-                <span>Hồ sơ đã được duyệt. Vui lòng đăng nhập lại để kích hoạt quyền nhà cung cấp (ROLE_SUPPLIER).</span>
+                <span>Hồ sơ đã được duyệt. Vui lòng đăng nhập lại để truy cập Kênh Người Bán.</span>
               </span>
               <button type="button" className="mss-button mss-button--primary mss-button--sm" onClick={onRelogin}>
                 <LogIn className="w-4 h-4" /> Đăng nhập lại

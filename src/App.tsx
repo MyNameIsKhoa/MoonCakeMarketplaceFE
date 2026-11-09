@@ -107,7 +107,7 @@ export default function App() {
     try {
       setCartError('');
       if (source !== 'api' || !isApiId(product.id) || !products.some(p => p.id === product.id)) {
-        throw new Error('Chỉ có thể mua sản phẩm đang có trên API Catalog.');
+        throw new Error('Sản phẩm hiện không khả dụng để đặt mua.');
       }
       const detail = await catalogApi.products.get(Number(product.id));
       if (detail.status !== 'ACTIVE') throw new Error('Sản phẩm hiện không bán.');
@@ -116,7 +116,7 @@ export default function App() {
         : detail.variants.find(v => v.status === 'ACTIVE' && v.stockQuantity > 0);
       const variantId = variant ? String(variant.variantId) : '';
       if (!variant || variant.status !== 'ACTIVE' || variant.stockQuantity < quantity || !isApiId(variantId)) {
-        throw new Error('Sản phẩm chưa có phân loại đủ hàng.');
+        throw new Error('Phân loại sản phẩm đã hết hàng hoặc không đủ số lượng tồn kho.');
       }
       await cartApi.add(variantId, quantity);
       await refreshCart();
@@ -160,7 +160,7 @@ export default function App() {
   }, [wishlistKey]);
 
   const handleToggleWishlist = (productId: string) => {
-    if (source !== 'mock' && !isApiId(productId)) return;
+    if (!isApiId(productId)) return;
     if (!wishlistKey) { setActiveTab('login'); return; }
     const next = wishlistIds.includes(productId)
       ? wishlistIds.filter(id => id !== productId) : [...wishlistIds, productId];
@@ -418,6 +418,10 @@ export default function App() {
             setSelectedProduct={(p) => {
               setSelectedProduct(p);
               setActiveTab('detail');
+            }}
+            setSelectedStore={(s) => {
+              setSelectedStore(s);
+              setActiveTab('store-detail');
             }}
             setActiveTab={setActiveTab}
           />

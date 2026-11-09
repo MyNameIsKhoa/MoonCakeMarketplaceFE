@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Heart, Pencil, Plus, Trash2 } from 'lucide-react';
-import { Address, Product, Promotion } from '../types';
-import { PROMOTIONS } from '../data/mockData';
+import { Heart, Pencil, Plus, Tag, Trash2 } from 'lucide-react';
+import { Address, Product, Promotion, Store } from '../types';
 import { addressApi, ApiError, userApi, catalogApi, toPromotion } from '../services/api';
 import { errorMessage } from '../services/api/http';
 import { useAuth } from '../context/AuthContext';
 import { useCatalog } from '../context/CatalogContext';
-import { formatAddress, formatDate } from '../utils/format';
+import { formatAddress, formatDate, formatPromotionRule, parseApiDate } from '../utils/format';
 
 const EMPTY_ADDRESS = {
   recipientName: '',
@@ -164,6 +163,7 @@ interface UserProfileProps {
   wishlistIds: string[];
   onToggleWishlist: (productId: string) => void;
   setSelectedProduct: (p: Product) => void;
+  setSelectedStore?: (s: Store) => void;
   setActiveTab: (tab: string) => void;
 }
 
@@ -172,17 +172,18 @@ export default function UserProfile({
   wishlistIds,
   onToggleWishlist,
   setSelectedProduct,
+  setSelectedStore,
   setActiveTab
 }: UserProfileProps) {
   const [activeProfileTab, setActiveProfileTab] = useState<ProfileTab>(initialTab);
 
   // Account info: GET/PATCH /api/users/me (the page is only reachable when logged in).
-  const { user, setUser, isAdmin, isSupplier } = useAuth();
-  const [fullName, setFullName] = useState(user?.fullName ?? '');
+  const { user, setUser, isAdmin, isSupplier, supplierProfile } = useAuth();
+  const [fullName, setFullName] = useState(user?.fullName ?? supplierProfile?.companyName ?? '');
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [profileMessage, setProfileMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const displayName = user?.fullName || user?.email || 'Tài khoản';
+  const displayName = user?.fullName || supplierProfile?.companyName || user?.email || 'Tài khoản';
 
   const handleSaveProfile = async () => {
     if (!fullName.trim()) {
@@ -222,16 +223,15 @@ export default function UserProfile({
     return () => { cancelled = true; };
   }, []);
 
-  const { products, source, findStore } = useCatalog();
+  const { products, findStore } = useCatalog();
   const wishlistProducts = wishlistIds
     .map(id => products.find(p => p.id === id))
     .filter((p): p is Product => p !== undefined);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [promotionError, setPromotionError] = useState('');
-  const [promotionLoading, setPromotionLoading] = useState(source !== 'mock');
+  const [promotionLoading, setPromotionLoading] = useState(true);
   const [promotionReload, setPromotionReload] = useState(0);
   useEffect(() => {
-    if (source === 'mock') { setPromotions(PROMOTIONS); setPromotionLoading(false); return; }
     let cancelled = false;
     setPromotionLoading(true); setPromotionError(''); setPromotions([]);
     async function load() {
@@ -240,11 +240,17 @@ export default function UserProfile({
         catalogApi.promotions.list({ page: i + 1, size: 100 })));
       if (!cancelled) setPromotions([first, ...rest].flatMap(page => page.items.map(toPromotion)));
     }
-    load().catch(() => { if (!cancelled) setPromotionError('Không tải được khuyến mãi.'); })
+    load().catch(() => { if (!cancelled) setPromotionError('Không tải được danh sách ưu đãi.'); })
       .finally(() => { if (!cancelled) setPromotionLoading(false); });
     return () => { cancelled = true; };
-  }, [source, promotionReload]);
-  const activePromotions = promotions.filter(p => p.status === 'ACTIVE' && Date.parse(p.startAt) <= Date.now() && Date.parse(p.endAt) > Date.now());
+  }, [promotionReload]);
+
+  const nowMs = Date.now();
+  const activePromotions = promotions.filter(p => {
+    const startMs = parseApiDate(p.startAt)?.getTime() ?? Date.parse(p.startAt);
+    const endMs = parseApiDate(p.endAt)?.getTime() ?? Date.parse(p.endAt);
+    return p.status === 'ACTIVE' && startMs <= nowMs && endMs > nowMs;
+  });
 
   /** Never throws: a failed reload is shown above the list. */
   const reloadAddresses = async () => {
@@ -343,9 +349,11 @@ export default function UserProfile({
             </span>
           </div>
           <p className="text-gray-300 text-sm">Email: {user?.email}{user?.phone ? ` • SĐT: ${user.phone}` : ''}</p>
-          <div className="text-sm text-accent-300 pt-1">
-            {!promotionLoading && !promotionError && <span>{activePromotions.length} khuyến mãi đang chạy</span>}
-          </div>
+          {!promotionLoading && !promotionError && activePromotions.length > 0 && (
+            <div className="text-sm text-accent-300 pt-1">
+              <span>{activePromotions.length} ưu đãi gian hàng đang áp dụng trên sàn</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -354,9 +362,9 @@ export default function UserProfile({
         {[
           { id: 'info', label: 'Thông tin tài khoản' },
           { id: 'addresses', label: 'Sổ địa chỉ nhận hàng' },
-          { id: 'promotions', label: 'Khuyến mãi gian hàng' },
+          { id: 'promotions', label: `Ưu đãi gian hàng${!promotionLoading && activePromotions.length > 0 ? ` (${activePromotions.length})` : ''}` },
           { id: 'wishlist', label: `Sản phẩm yêu thích (${wishlistIds.length})` },
-          { id: 'rfq', label: 'Yêu cầu báo giá của tôi (RFQ)' },
+          { id: 'rfq', label: 'Yêu cầu báo giá (RFQ)' },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -373,7 +381,7 @@ export default function UserProfile({
       {/* Tab Content: INFO */}
       {activeProfileTab === 'info' && (
         <div className="bg-white p-6 md:p-8 rounded-2xl border border-accent-200/70 shadow-sm space-y-6 max-w-3xl">
-          <h3 className="font-bold text-gray-900 text-lg border-b border-gray-100 pb-3">Thông Tin Cá Nhân & Xuất Hóa Đơn VAT B2B</h3>
+          <h3 className="font-bold text-gray-900 text-lg border-b border-gray-100 pb-3">Thông Tin Tài Khoản</h3>
           <div className="space-y-4 text-sm">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -394,7 +402,7 @@ export default function UserProfile({
               <div className={`mss-alert ${profileMessage.ok ? '' : 'mss-alert--danger'}`} role="status">{profileMessage.text}</div>
             )}
             <button onClick={handleSaveProfile} disabled={isSavingProfile} className="px-6 py-3 bg-primary-700 hover:bg-primary-800 disabled:opacity-60 text-white font-semibold rounded-xl shadow transition text-sm">
-              {isSavingProfile ? 'Đang lưu…' : 'Lưu Thay Đổi'}
+              {isSavingProfile ? 'Đang lưu…' : 'Lưu thay đổi'}
             </button>
           </div>
         </div>
@@ -425,7 +433,7 @@ export default function UserProfile({
           {addresses === null ? (
             <p className="text-sm text-gray-500">Đang tải sổ địa chỉ…</p>
           ) : addresses.length === 0 ? (
-            <p className="text-sm text-gray-500">Bạn chưa lưu địa chỉ nào.</p>
+            <p className="text-sm text-gray-500">Bạn chưa lưu địa chỉ nhận hàng nào.</p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {addresses.map((addr) => editingAddressId === addr.addressId ? (
@@ -505,21 +513,55 @@ export default function UserProfile({
       {/* Tab Content: STORE PROMOTIONS (Catalog.promotion — applied automatically at checkout) */}
       {activeProfileTab === 'promotions' && (
         <section className="mss-card mss-stack max-w-4xl">
-          <h2 className="mss-card-title">Khuyến mãi đang chạy</h2>
-          <p className="text-sm text-gray-500">Khuyến mãi được hệ thống tự áp dụng theo từng gian hàng khi bạn thanh toán, không cần nhập mã.</p>
-          {promotionLoading && <p role="status">Đang tải khuyến mãi…</p>}
-          {promotionError && <p role="alert">{promotionError} <button className="underline" onClick={() => setPromotionReload(k => k + 1)}>Thử lại</button></p>}
-          {!promotionLoading && !promotionError && activePromotions.length === 0 && <p>Chưa có khuyến mãi đang chạy.</p>}
+          <div>
+            <h2 className="mss-card-title flex items-center gap-2">
+              <Tag className="w-5 h-5 text-primary-700" />
+              <span>Ưu đãi đang áp dụng từ các gian hàng</span>
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              Ưu đãi của từng gian hàng được hệ thống tự động trừ trực tiếp vào đơn hàng khi bạn thanh toán, không cần nhập mã giảm giá.
+            </p>
+          </div>
+          {promotionLoading && <p role="status" className="text-sm text-gray-500">Đang tải danh sách ưu đãi…</p>}
+          {promotionError && <p role="alert" className="text-sm text-red-600">{promotionError} <button className="underline" onClick={() => setPromotionReload(k => k + 1)}>Thử lại</button></p>}
+          {!promotionLoading && !promotionError && activePromotions.length === 0 && (
+            <p className="text-sm text-gray-500">Hiện chưa có chương trình khuyến mãi nào đang diễn ra.</p>
+          )}
           <div className="mss-grid-3">
-            {activePromotions.map((promo) => (
-              <div key={promo.promotionId} className="rounded-xl border border-gray-200 p-4 flex flex-col gap-2">
-                <span className="text-sm font-semibold text-primary-700">{findStore(promo.storeId)?.name ?? `Gian hàng #${promo.storeId}`}</span>
-                <h3 className="font-semibold text-gray-900">{promo.name}</h3>
-                <p className="text-sm text-gray-500">
-                  {formatDate(promo.startAt)} – {formatDate(promo.endAt)}
-                </p>
-              </div>
-            ))}
+            {activePromotions.map((promo) => {
+              const store = findStore(promo.storeId);
+              return (
+                <div
+                  key={promo.promotionId}
+                  onClick={() => {
+                    if (store && setSelectedStore) {
+                      setSelectedStore(store);
+                      setActiveTab('store-detail');
+                    }
+                  }}
+                  className={`rounded-xl border border-accent-200/70 bg-accent-50/30 p-4 flex flex-col justify-between gap-3 ${store && setSelectedStore ? 'cursor-pointer hover:border-primary-700 hover:shadow-md transition' : ''}`}
+                >
+                  <div className="space-y-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wider text-primary-700">
+                      {store?.name ?? `Gian hàng #${promo.storeId}`}
+                    </span>
+                    <h3 className="font-bold text-gray-900 text-sm leading-snug">{promo.name}</h3>
+                    {promo.rules.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {promo.rules.map((rule) => (
+                          <span key={rule.promotionRuleId} className="bg-red-50 text-red-700 border border-red-200 text-xs font-bold px-2 py-0.5 rounded-md">
+                            {formatPromotionRule(rule)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 m-0 pt-2 border-t border-accent-200/50">
+                    Hiệu lực: {formatDate(promo.startAt)} – {formatDate(promo.endAt)}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
@@ -527,8 +569,10 @@ export default function UserProfile({
       {/* Tab Content: WISHLIST */}
       {activeProfileTab === 'wishlist' && (
         <div className="space-y-6 max-w-6xl mx-auto">
-          <h3 className="font-bold text-gray-900 text-lg border-b border-gray-200 pb-3">Sản Phẩm Yêu Thích ({wishlistProducts.length})</h3>
-          <p className="text-sm text-gray-500">Danh sách yêu thích lưu theo tài khoản trong trình duyệt này, chưa đồng bộ giữa các thiết bị. Sản phẩm không còn công khai sẽ không hiển thị.</p>
+          <div>
+            <h3 className="font-bold text-gray-900 text-lg border-b border-gray-200 pb-3">Sản Phẩm Yêu Thích ({wishlistProducts.length})</h3>
+            <p className="text-sm text-gray-500 mt-2">Lưu lại các sản phẩm bạn quan tâm để dễ dàng chọn mua hoặc đặt quà biếu.</p>
+          </div>
           {wishlistProducts.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
               <p className="text-gray-500 text-sm">Bạn chưa có sản phẩm yêu thích nào.</p>
@@ -564,15 +608,17 @@ export default function UserProfile({
 
       {/* Tab Content: RFQ */}
       {activeProfileTab === 'rfq' && (
-        <div className="bg-white p-6 md:p-8 rounded-2xl border border-accent-200/70 shadow-sm space-y-6 max-w-4xl">
-          <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-            <h3 className="font-bold text-gray-900 text-lg">Yêu Cầu Báo Giá (RFQ) Đã Gửi</h3>
+        <div className="bg-white p-6 md:p-8 rounded-2xl border border-accent-200/70 shadow-sm space-y-4 max-w-4xl">
+          <div className="flex flex-wrap justify-between items-center gap-3 border-b border-gray-100 pb-3">
+            <h3 className="font-bold text-gray-900 text-lg">Yêu Cầu Báo Giá Doanh Nghiệp (RFQ)</h3>
             <button onClick={() => setActiveTab('b2b')} className="px-4 py-2 bg-primary-700 text-white text-sm font-semibold rounded-xl shadow hover:bg-primary-800 transition">
-              + Tạo Yêu Cầu Báo Giá Mới
+              Mở cổng báo giá B2B
             </button>
           </div>
 
-          <p className="text-sm text-gray-600">Mở cổng doanh nghiệp để xem yêu cầu báo giá của tài khoản.</p>
+          <p className="text-sm text-gray-600">
+            Theo dõi các yêu cầu báo giá đã gửi, so sánh đề xuất từ các nhà cung cấp chính hãng và trao đổi trực tiếp tại cổng Doanh nghiệp &amp; B2B.
+          </p>
         </div>
       )}
     </div>

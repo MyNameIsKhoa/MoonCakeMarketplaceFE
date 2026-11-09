@@ -1,12 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Star, ShieldCheck, Truck, RefreshCw, Heart, ShoppingBag, Plus, Minus, MessageSquare, CheckCircle2, Sparkles, Building2 } from 'lucide-react';
-import { Product, Review } from '../types';
-import { REVIEWS } from '../data/mockData';
+import { Heart, ShoppingBag, Plus, Minus, Building2 } from 'lucide-react';
+import { Product } from '../types';
 import { catalogApi, isApiId, withProductDetail, type ProductResponse } from '../services/api';
-import { useCatalog } from '../context/CatalogContext';
 import { ReviewList } from '../features/fulfillment/components/ReviewList';
-
-const SUGAR_LEVELS = ['Ít ngọt (Giảm 30%)', 'Tiêu chuẩn', 'Không đường (Dành cho người ăn kiêng)'];
 
 interface ProductDetailProps {
   product: Product;
@@ -27,12 +23,8 @@ export default function ProductDetail({
 }: ProductDetailProps) {
   const [activeImage, setActiveImage] = useState(product.image);
   const [quantity, setQuantity] = useState(1);
-  const [sugarLevel, setSugarLevel] = useState<string>(product.sugarLevel);
-  const [selectedBoxOption, setSelectedBoxOption] = useState('Hộp quà tiêu chuẩn mạ vàng');
 
-  const { source } = useCatalog();
-  const isDemo = source === 'mock';
-  const isLive = !isDemo && isApiId(product.id);
+  const isLive = isApiId(product.id);
   const [detail, setDetail] = useState<ProductResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [variantId, setVariantId] = useState<number | null>(null);
@@ -67,9 +59,7 @@ export default function ProductDetail({
   const cartProduct: Product = selectedVariant
     ? { ...view, variantId: String(selectedVariant.variantId), price: selectedVariant.basePrice, image: selectedVariant.imageUrl || view.image, inStock: selectedVariant.stockQuantity > 0 }
     : view;
-  const cartOption = selectedVariant?.variantName ?? sugarLevel;
-
-  const productReviews = isDemo ? REVIEWS.filter(r => r.productId === product.id) : [];
+  const cartOption = selectedVariant?.variantName ?? product.sugarLevel;
 
   return (
     <div className="mss-container py-8 space-y-12">
@@ -99,7 +89,7 @@ export default function ProductDetail({
                   activeImage === img ? 'border-primary-700 shadow-md' : 'border-gray-200 opacity-70 hover:opacity-100'
                 }`}
               >
-                <img src={img} alt="Thumbnail" className="w-full h-full object-cover" />
+                <img src={img} alt="Ảnh sản phẩm" className="w-full h-full object-cover" />
               </div>
             ))}
           </div>
@@ -120,19 +110,6 @@ export default function ProductDetail({
               </button>
             </div>
             <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mt-3">{view.name}</h1>
-
-            {isDemo && product.reviewCount > 0 && (
-            <div className="flex items-center gap-3 mt-3">
-              <div className="flex items-center gap-1 text-accent-500">
-                <Star className="w-4 h-4 fill-current" />
-                <span className="font-bold text-gray-800 text-sm">{product.rating}</span>
-              </div>
-              <span className="text-gray-300">|</span>
-              <span className="text-sm text-gray-500">{product.reviewCount} Đánh giá</span>
-              <span className="text-gray-300">|</span>
-              <span className="text-sm text-green-700 font-semibold">Đã bán {product.salesCount}+</span>
-            </div>
-            )}
           </div>
 
           <div className="bg-accent-50/70 border border-accent-200 p-4 rounded-xl flex items-baseline gap-4">
@@ -140,7 +117,6 @@ export default function ProductDetail({
             {product.originalPrice && (
               <span className="text-gray-500 text-base line-through">{product.originalPrice.toLocaleString()}đ</span>
             )}
-            {isDemo && <span className="bg-primary-100 text-primary-700 text-sm font-bold px-3 py-1 rounded">Chính hãng 100%</span>}
           </div>
 
           <p className="text-sm md:text-sm text-gray-600 leading-relaxed">
@@ -149,66 +125,32 @@ export default function ProductDetail({
           {loadError && <p role="alert" className="text-sm text-red-600">{loadError} <button className="underline" onClick={() => setReloadKey(k => k + 1)}>Thử lại</button></p>}
 
           <div className="space-y-4 pt-2 border-t border-gray-200">
-            {variants.length > 0 ? (
-            /* Variant option (product_variant from Catalog) */
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2">Phân loại:</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {variants.map((variant) => (
-                  <button
-                    key={variant.variantId}
-                    onClick={() => {
-                      setVariantId(variant.variantId);
-                      if (variant.imageUrl) setActiveImage(variant.imageUrl);
-                    }}
-                    disabled={variant.stockQuantity <= 0}
-                    className={`p-3 text-sm font-semibold rounded-xl border text-center transition disabled:opacity-40 disabled:cursor-not-allowed ${
-                      variantId === variant.variantId ? 'bg-primary-50 border-primary-700 text-primary-700 shadow-sm' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    <span className="block">{variant.variantName}</span>
-                    <span className="block text-xs font-normal">
-                      {variant.stockQuantity > 0 ? `${variant.basePrice.toLocaleString()}đ` : 'Hết hàng'}
-                    </span>
-                  </button>
-                ))}
+            {variants.length > 0 && (
+              /* Variant option (product_variant from Catalog) */
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2">Phân loại:</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {variants.map((variant) => (
+                    <button
+                      key={variant.variantId}
+                      onClick={() => {
+                        setVariantId(variant.variantId);
+                        if (variant.imageUrl) setActiveImage(variant.imageUrl);
+                      }}
+                      disabled={variant.stockQuantity <= 0}
+                      className={`p-3 text-sm font-semibold rounded-xl border text-center transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                        variantId === variant.variantId ? 'bg-primary-50 border-primary-700 text-primary-700 shadow-sm' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span className="block">{variant.variantName}</span>
+                      <span className="block text-xs font-normal">
+                        {variant.stockQuantity > 0 ? `${variant.basePrice.toLocaleString()}đ` : 'Hết hàng'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            ) : isDemo ? (
-            /* Sugar level option */
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2">Lựa chọn độ ngọt:</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {SUGAR_LEVELS.map((level) => (
-                  <button
-                    key={level}
-                    onClick={() => setSugarLevel(level)}
-                    className={`p-3 text-sm font-semibold rounded-xl border text-center transition ${
-                      sugarLevel === level ? 'bg-primary-50 border-primary-700 text-primary-700 shadow-sm' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {level}
-                  </button>
-                ))}
-              </div>
-            </div>
-            ) : null}
-
-            {/* Mock-only box choices are not priced by Catalog. */}
-            {isDemo && <>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 uppercase tracking-wider mb-2">Quy cách hộp quà:</label>
-              <select
-                value={selectedBoxOption}
-                onChange={(e) => setSelectedBoxOption(e.target.value)}
-                className="w-full p-3 bg-white border border-gray-300 rounded-xl text-sm font-medium text-gray-800 focus:ring-2 focus:ring-primary-700 outline-none"
-              >
-                <option value="Hộp quà tiêu chuẩn mạ vàng">Hộp quà tiêu chuẩn mạ vàng (Tặng kèm túi xách)</option>
-                <option value="Hộp sơn mài cao cấp biếu sếp (+150K)">Hộp sơn mài cao cấp biếu sếp (+150.000đ)</option>
-                <option value="Hộp quà doanh nghiệp in logo (+50K/hộp)">Hộp quà doanh nghiệp in logo (Đơn từ 10 hộp)</option>
-              </select>
-            </div>
-            </>}
+            )}
 
             {/* Quantity */}
             <div className="flex items-center gap-4">
@@ -235,98 +177,38 @@ export default function ProductDetail({
           <div className="flex flex-col sm:flex-row gap-3 pt-4">
             <button
               onClick={() => onAddToCart(cartProduct, quantity, cartOption)}
-              disabled={!cartProduct.inStock || (!isDemo && (!isLive || !selectedVariant || !!loadError))}
+              disabled={!cartProduct.inStock || !isLive || !selectedVariant || !!loadError}
               className="flex-1 py-4 bg-accent-500 hover:bg-accent-600 text-primary-950 font-bold rounded-xl shadow-md flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ShoppingBag className="w-5 h-5" />
-              <span>{cartProduct.inStock ? 'Thêm Vào Giỏ Hàng' : 'Tạm Hết Hàng'}</span>
+              <span>{cartProduct.inStock ? 'Thêm vào giỏ hàng' : 'Tạm hết hàng'}</span>
             </button>
             <button
               onClick={() => onBuyNow(cartProduct, quantity, cartOption)}
-              disabled={!cartProduct.inStock || (!isDemo && (!isLive || !selectedVariant || !!loadError))}
+              disabled={!cartProduct.inStock || !isLive || !selectedVariant || !!loadError}
               className="flex-1 py-4 bg-gradient-to-r from-primary-700 to-accent-700 hover:from-primary-800 hover:to-accent-800 text-white font-bold rounded-xl shadow-lg flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <span>Mua Ngay (Thanh Toán Nhanh)</span>
+              <span>Mua ngay</span>
             </button>
           </div>
 
-          <div className="bg-accent-50 border border-accent-200 p-4 rounded-xl flex items-center justify-between">
+          <div className="bg-accent-50 border border-accent-200 p-4 rounded-xl flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm font-medium text-accent-900">
-              <Building2 className="w-4 h-4 text-primary-700" />
-              <span>Bạn cần mua số lượng lớn cho công ty hoặc chiết khấu doanh nghiệp?</span>
+              <Building2 className="w-4 h-4 text-primary-700 shrink-0" />
+              <span>Bạn cần đặt số lượng lớn cho doanh nghiệp với mức chiết khấu riêng?</span>
             </div>
             <button
               onClick={() => setActiveTab('b2b')}
               className="px-3 py-2 bg-primary-700 hover:bg-primary-800 text-white text-sm font-semibold rounded-lg shadow transition shrink-0"
             >
-              Yêu Cầu Báo Giá B2B
+              Yêu cầu báo giá B2B
             </button>
           </div>
         </div>
       </div>
 
-      {/* Specifications & Ingredients (mock-only fields; Catalog has no ingredients/weight yet) */}
-      {(product.ingredients.length > 0 || product.weight) && (
-      <div className="bg-white rounded-2xl border border-accent-200/70 p-6 md:p-8 shadow-sm space-y-6">
-        <h3 className="text-xl font-bold text-gray-900 border-b border-gray-200 pb-4">Thành Phần & Thông Tin Dinh Dưỡng</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-gray-700">
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-2">Thành phần nguyên liệu cao cấp:</h4>
-            <ul className="list-disc pl-5 space-y-1">
-              {product.ingredients.map((ing, idx) => (
-                <li key={idx}>{ing}</li>
-              ))}
-            </ul>
-          </div>
-          <div className="space-y-2">
-            <h4 className="font-semibold text-gray-900 mb-2">Quy cách & Bảo quản:</h4>
-            <p>• Trọng lượng: {product.weight}</p>
-            <p>• Hạn sử dụng: 75 ngày kể từ ngày sản xuất (In trên bao bì)</p>
-            <p>• Bảo quản nơi khô ráo, thoáng mát, tránh ánh nắng trực tiếp.</p>
-          </div>
-        </div>
-      </div>
-      )}
-
       {/* Customer Reviews */}
       {isLive && variantId !== null && <ReviewList key={variantId} variantId={variantId} />}
-      {isDemo && (
-      <div className="bg-white rounded-2xl border border-accent-200/70 p-6 md:p-8 shadow-sm space-y-6">
-        <h3 className="text-xl font-bold text-gray-900 border-b border-gray-200 pb-4">Đánh Giá Từ Khách Hàng ({product.reviewCount})</h3>
-
-        <div className="space-y-6">
-          {productReviews.length === 0 && (
-            <p className="text-sm text-gray-500">Sản phẩm chưa có đánh giá nào.</p>
-          )}
-          {productReviews.map((rev) => (
-            <div key={rev.id} className="border-b border-gray-100 pb-6 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <img src={rev.userAvatar} alt={rev.userName} className="w-10 h-10 rounded-full object-cover shadow" />
-                  <div>
-                    <h4 className="font-bold text-gray-900 text-sm">{rev.userName}</h4>
-                    <span className="text-sm text-gray-500">{rev.date} • Phân loại: {rev.sugarLevelOption}</span>
-                  </div>
-                </div>
-                <div className="flex items-center text-accent-500">
-                  {[...Array(rev.rating)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-current" />
-                  ))}
-                </div>
-              </div>
-              <p className="text-sm text-gray-700 pl-12">{rev.comment}</p>
-              {rev.photos && rev.photos.length > 0 && (
-                <div className="flex gap-2 pl-12 pt-1">
-                  {rev.photos.map((p, idx) => (
-                    <img key={idx} src={p} alt="Review photo" className="w-20 h-20 object-cover rounded-lg border border-gray-200 shadow-sm" />
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-      )}
     </div>
   );
 }

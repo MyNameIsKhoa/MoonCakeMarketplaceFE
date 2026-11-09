@@ -46,7 +46,7 @@ export default function AdminCenter({ onBackToShop }: { onBackToShop: () => void
       http.get<{ rfqs: number }>('/api/admin/rfq/metrics'),
     ]).then(([identity, commerce, rfq]) => {
       if (current) setMetrics({ ...identity.data, ...commerce.data, ...rfq.data });
-    }).catch(() => { if (current) { setMetrics(null); setMetricError('Không tải được số liệu. Kiểm tra Identity, Commerce, RFQ và Gateway.'); } });
+    }).catch(() => { if (current) { setMetrics(null); setMetricError('Không tải được số liệu thống kê. Vui lòng thử lại sau.'); } });
     return () => { current = false; };
   }, [tab, reload]);
 
@@ -77,7 +77,7 @@ export default function AdminCenter({ onBackToShop }: { onBackToShop: () => void
     </aside>
     <main className="min-w-0 flex-1 p-5 md:p-8">
       {tab === 'dashboard' && <div className="max-w-6xl mx-auto">
-        <div className="flex justify-between items-center mb-6"><div><h2 className="text-2xl font-bold text-blue-950">Tổng quan</h2><p className="text-slate-500">Số liệu trực tiếp từ các service</p></div><button type="button" onClick={() => setReload(n => n + 1)} aria-label="Tải lại" className="text-blue-700"><RefreshCw size={20}/></button></div>
+        <div className="flex justify-between items-center mb-6"><div><h2 className="text-2xl font-bold text-blue-950">Tổng quan</h2><p className="text-slate-500">Thống kê hoạt động toàn sàn</p></div><button type="button" onClick={() => setReload(n => n + 1)} aria-label="Tải lại" className="text-blue-700"><RefreshCw size={20}/></button></div>
         {metricError && <p role="alert" className="text-red-700">{metricError}</p>}
         {!metrics && !metricError && <p>Đang tải số liệu…</p>}
         {metrics && <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[

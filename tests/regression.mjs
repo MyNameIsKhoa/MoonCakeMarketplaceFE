@@ -97,16 +97,13 @@ test('catalog timeout exposes retry and no sample products or stores', async () 
   assert.equal(value.source, 'error');
 });
 
-test('empty API catalog stays empty; explicit demo still has samples', async () => {
+test('empty API catalog stays empty without sample fallback', async () => {
   const live = await load('src/context/CatalogContext.tsx', { api: { catalogApi: emptyApi } });
   live.render(live.exports.CatalogProvider, {}); await tick();
   const value = live.render(live.exports.CatalogProvider, {}).props.value;
   assert.equal(value.source, 'api'); assert.deepEqual(value.products, []);
+  assert.deepEqual(value.stores, []);
   assert.equal(value.findStore('kinh-do'), undefined);
-  const demo = await load('src/context/CatalogContext.tsx', { mock: true });
-  const sample = demo.render(demo.exports.CatalogProvider, {}).props.value;
-  assert.equal(sample.source, 'mock'); assert.ok(sample.products.length > 0);
-  assert.ok(sample.findStore(sample.stores[0].storeId));
 });
 
 test('empty Commerce reviews never become sample reviews', async () => {
@@ -201,7 +198,7 @@ test('profile promotions come from Catalog; wishlist never resolves sample IDs i
   nodes(tree).find(n => n.type === 'button' && /Sản phẩm yêu thích/.test(textOf(n))).props.onClick();
   tree = h.render(h.exports.default, props);
   assert.doesNotMatch(textOf(tree), /Trăng Vàng Hoàng Kim/);
-  assert.match(textOf(tree), /chưa đồng bộ/i);
+  assert.match(textOf(tree), /chưa có sản phẩm yêu thích/i);
 });
 
 function storage(initial = {}) {

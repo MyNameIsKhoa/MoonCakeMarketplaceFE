@@ -111,10 +111,17 @@ export const cartApi = {
 export const checkoutApi = {
   preview: async (): Promise<CheckoutPreview> => {
     const priced = await pricing();
+    if (priced.unavailableItems && priced.unavailableItems.length > 0) {
+      throw new Error('Giỏ hàng có sản phẩm đã ngừng bán. Vui lòng mở giỏ hàng và xóa sản phẩm đó trước khi thanh toán.');
+    }
     const groups = await Promise.all(priced.stores.map(async (store) => {
       const shop = await storeApi.get(store.storeId);
       if (shop.shippingFee === null || shop.shippingFee < 0)
         throw new Error(`Gian hàng ${shop.name} chưa cấu hình phí vận chuyển.`);
+      const promoNames = store.promotions ?? [];
+      const appliedPromotions = store.discountTotal > 0 && promoNames.length > 0
+        ? [{ promotionId: `${store.storeId}-promo`, name: promoNames.join(', '), discountAmount: store.discountTotal }]
+        : [];
       return {
         storeId: String(store.storeId), storeName: store.storeName, supplierName: '',
         lines: store.items.map((line) => ({
@@ -123,7 +130,7 @@ export const checkoutApi = {
           imageUrl: line.imageUrl || IMAGE_FALLBACK, quantity: line.quantity,
           unitPrice: line.unitPrice, subtotal: line.subtotal
         })),
-        appliedPromotions: [],
+        appliedPromotions,
         subtotal: store.subtotal, discountTotal: store.discountTotal,
         shippingFee: Math.ceil(shop.shippingFee), shippingMethod: 'Phí cố định của gian hàng',
         totalAmount: store.totalAmount + Math.ceil(shop.shippingFee)
