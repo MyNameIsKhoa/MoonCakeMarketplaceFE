@@ -1,0 +1,43 @@
+name: mooncake_marketplace_mobile
+description: "MooncakeHub — Sàn thương mại điện tử bánh Trung thu (Phân hệ Khách hàng B2C & B2B)"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.3 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+  flutter_riverpod: ^2.5.1
+  dio: ^5.4.3+1
+  shared_preferences: ^2.2.3
+  flutter_secure_storage: ^9.2.2
+  url_launcher: ^6.3.0
+  uuid: ^4.4.0
+  intl: ^0.19.0
+  qr_flutter: ^4.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/demo/
+    - assets/images/demo/brands/
+    - assets/images/demo/brands/products/
+    - assets/images/demo/brands/stores/
+    - assets/images/demo/products/
+    - assets/images/demo/stores/
+    - assets/images/demo/stores/abc/
+    - assets/images/demo/stores/dong-khanh/
+    - assets/images/demo/stores/duc-phat/
+    - assets/images/demo/stores/givral/
+    - assets/images/demo/stores/hy-lam-mon/
+    - assets/images/demo/stores/khiet-minh/
+    - assets/images/demo/stores/kinh-do/

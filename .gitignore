@@ -27,3 +27,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Flutter Mobile build & ephemeral files
+MoonCakeMarketplaceMobile/.dart_tool/
+MoonCakeMarketplaceMobile/.flutter-plugins
+MoonCakeMarketplaceMobile/.flutter-plugins-dependencies
+MoonCakeMarketplaceMobile/build/
+MoonCakeMarketplaceMobile/android/local.properties
+MoonCakeMarketplaceMobile/**/ephemeral/
