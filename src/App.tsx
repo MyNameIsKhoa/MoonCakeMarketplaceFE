@@ -18,7 +18,6 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import VerifyEmail from './pages/auth/VerifyEmail';
 import ForgotPassword from './pages/auth/ForgotPassword';
-import ResetPassword from './pages/auth/ResetPassword';
 import SupplierOnboarding from './pages/seller/SupplierOnboarding';
 import AdminCenter from './pages/admin/AdminCenter';
 import EmptyState from './components/ui/EmptyState';
@@ -57,9 +56,9 @@ export default function App() {
   });
   const [activeTab, setActiveTab] = useState<string>(() => {
     const params = new URLSearchParams(location.search);
-    // Identity email links: ${APP_FRONTEND_URL}/verify-email?token=… and /reset-password?token=…
+    // Identity email verification route; password reset now uses an in-app code form.
     return location.pathname === '/verify-email' ? 'verify-email'
-      : location.pathname === '/reset-password' ? 'reset-password'
+      : location.pathname === '/reset-password' ? 'forgot-password'
       : paymentReturnOrderId || paymentReturnSellerPaymentId ? 'orders' : params.has('finance') ? 'payment-settlement' : 'home';
   });
   /** Protected tab to return to after login/register. */
@@ -267,11 +266,6 @@ export default function App() {
         {activeTab === 'verify-email' && <VerifyEmail
           token={new URLSearchParams(location.search).get('token') ?? ''}
           onLogin={() => { window.history.replaceState({}, '', '/'); setActiveTab('login'); }}
-        />}
-        {activeTab === 'reset-password' && <ResetPassword
-          token={new URLSearchParams(location.search).get('token') ?? ''}
-          onLogin={() => { window.history.replaceState({}, '', '/'); setActiveTab('login'); }}
-          onRequestNewLink={() => { window.history.replaceState({}, '', '/'); setActiveTab('forgot-password'); }}
         />}
         {['home', 'products', 'stores', 'detail', 'store-detail', 'profile', 'wishlist'].includes(activeTab) && <div className="mss-container pt-4"><CatalogNotice /></div>}
         {((activeTab === 'detail' && !selectedProduct) || (activeTab === 'store-detail' && !selectedStore)) && <EmptyState title="Chưa chọn sản phẩm hoặc gian hàng" />}

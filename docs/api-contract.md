@@ -41,7 +41,7 @@ Tài liệu đặc tả toàn bộ API từ `API-Gateway` (`http://localhost:808
 | `POST` | `/api/auth/email/verification-requests` | `{ email }` | `{ message }` | `VALIDATION_ERROR` |
 | `POST` | `/api/auth/email/verify` | `{ token }` | `{ message }` | `INVALID_VERIFICATION_TOKEN`, `VERIFICATION_TOKEN_EXPIRED`, `VERIFICATION_TOKEN_USED` |
 | `POST` | `/api/auth/password-reset-requests` | `{ email }` | `{ message }` | `VALIDATION_ERROR` |
-| `POST` | `/api/auth/password-resets` | `{ token, newPassword }` | `{ message }` | `INVALID_PASSWORD_RESET_TOKEN`, `PASSWORD_RESET_TOKEN_EXPIRED`, `PASSWORD_RESET_TOKEN_USED` |
+| `POST` | `/api/auth/password-resets` | `{ code, newPassword }` | `{ message }` | `INVALID_PASSWORD_RESET_CODE`, `PASSWORD_RESET_CODE_EXPIRED`, `PASSWORD_RESET_CODE_USED` |
 
 ### 2.2. Hồ sơ Cá nhân & Sổ Địa chỉ (`ROLE_CUSTOMER`)
 
