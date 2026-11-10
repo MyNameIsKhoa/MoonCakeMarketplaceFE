@@ -5,7 +5,7 @@
 import type { Product, Promotion, Store, StoreBranch } from '../../types';
 import type {
   CategoryResponse, ProductResponse, ProductSummaryResponse, PromotionResponse,
-  StoreBranchResponse, StoreResponse
+  StoreBranchResponse, StoreResponse, VariantResponse
 } from './catalogTypes';
 import { IMAGE_FALLBACK } from '../../utils/imageFallback';
 
@@ -72,8 +72,13 @@ export function toProduct(
     sugarLevel: 'Tiêu chuẩn',
     description: '',
     salesCount: 0,
-    inStock: product.status === 'ACTIVE'
+    inStock: product.status === 'OUT_OF_STOCK' ? false : product.purchasable
   };
+}
+
+/** Older Catalog responses only provide on-hand stock. Commerce still validates against live stock. */
+export function variantAvailableQuantity(variant: VariantResponse): number {
+  return variant.status === 'ACTIVE' ? Math.max(0, variant.availableQuantity ?? variant.stockQuantity) : 0;
 }
 
 /** Fills a list item with GET /api/products/{id} (description, variant images, stock). */
@@ -84,7 +89,7 @@ export function withProductDetail(product: Product, detail: ProductResponse): Pr
     name: detail.name,
     description: detail.description ?? '',
     gallery: images.filter((url) => url !== product.image),
-    inStock: detail.status === 'ACTIVE' && detail.variants.some((v) => v.status === 'ACTIVE' && v.stockQuantity > 0)
+    inStock: detail.status === 'ACTIVE' && detail.variants.some(v => variantAvailableQuantity(v) > 0)
   };
 }
 

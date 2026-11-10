@@ -79,7 +79,7 @@ export const OrderAcceptanceCard = ({ sellerOrder, onAccepted }) => {
           <div style={styles.modalContent}>
             <h3 style={styles.modalTitle}>Xác nhận Nghiệm thu bánh trung thu</h3>
             <p style={styles.modalText}>
-              Khi bạn bấm xác nhận, hệ thống sẽ ghi nhận đơn hàng hoàn tất hợp lệ và tiến hành thủ tục giải ngân tiền cho Nhà cung cấp.
+              Hệ thống sẽ ghi nhận bạn đã nhận và kiểm tra hàng. Sàn xử lý chi trả cho nhà bán khi hết hạn khiếu nại và đơn đủ điều kiện.
             </p>
             <ul style={styles.checklist}>
               <li>✓ Đã kiểm tra đúng loại bánh và biến thể</li>

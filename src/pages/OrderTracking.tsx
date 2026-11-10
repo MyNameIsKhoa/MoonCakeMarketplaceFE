@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, ChevronDown, ChevronUp, MapPin, Star, Store, Truck, Wallet } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate, useNavigationType } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, CheckCircle2, MapPin, Star, Store, Truck, Wallet } from 'lucide-react';
+import { useStorefrontScroll } from '../utils/storefrontRoutes';
+import type { CustomerOrderSummary } from '../services/api/commerceApi';
 import { CustomerOrder, OrderItem, SellerOrder } from '../types';
 import { orderApi } from '../services/api';
 import { paymentApi } from '../features/payment-settlement/paymentApi';
@@ -26,6 +29,7 @@ import { ApiError } from '../services/api/http';
 import DisputePanel from '../features/payment-settlement/DisputePanel';
 
 interface OrderTrackingProps {
+  orderId?: string;
   setActiveTab: (tab: string) => void;
   paymentReturnOrderId: string | null;
   paymentReturnSellerPaymentId: string | null;
@@ -54,36 +58,48 @@ function isRemainingOverdue(so: SellerOrder) {
   return !!due && due.getTime() < Date.now() && !remainingPaid;
 }
 
-function isUnpaidCancelled(order: CustomerOrder) {
-  return order.status === 'CANCELLED' && order.sourceType === 'RETAIL' &&
-    order.sellerOrders.every(so => so.payments.every(p => !['SUCCESS', 'PAID'].includes(p.status)));
-}
-
-export default function OrderTracking({ setActiveTab, paymentReturnOrderId, paymentReturnSellerPaymentId, onPaymentReturnHandled }: OrderTrackingProps) {
-  const [orders, setOrders] = useState<CustomerOrder[] | null>(null);
+export default function OrderTracking({ orderId, setActiveTab, paymentReturnOrderId, paymentReturnSellerPaymentId, onPaymentReturnHandled }: OrderTrackingProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const navigationType = useNavigationType();
+  const [orders, setOrders] = useState<CustomerOrderSummary[] | null>(null);
+  const [detail, setDetail] = useState<CustomerOrder | null>(null);
+  const [loadedRoute, setLoadedRoute] = useState<string | null>(null);
+  const requestSequence = useRef(0);
+  const currentOrderId = useRef(orderId);
+  currentOrderId.current = orderId;
   const [loadError, setLoadError] = useState('');
   const [paymentNotice, setPaymentNotice] = useState<{ message: string; success: boolean; title?: string } | null>(null);
-  const [filter, setFilter] = useState<FilterId>('all');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const filterValue = new URLSearchParams(location.search).get('filter');
+  const filter: FilterId = FILTERS.some(f => f.id === filterValue) ? filterValue as FilterId : 'all';
   const [reviewedItemMap, setReviewedItemMap] = useState<Record<string, { rating: number; comment?: string }>>({});
   const [reviewingItem, setReviewingItem] = useState<OrderItem | null>(null);
 
-  const load = useCallback(() => {
+  useStorefrontScroll(location, navigationType, loadedRoute === (orderId ?? 'list'));
+  const load = useCallback(async () => {
+    const sequence = ++requestSequence.current;
     setLoadError('');
-    setOrders(null);
-    orderApi
-      .list()
-      .then((list) => {
-        const visible = list.filter(order => !isUnpaidCancelled(order));
-        setOrders(visible);
-        setExpandedId((current) => current ?? visible[0]?.orderId ?? null);
-      })
-      .catch(() => setLoadError('Không tải được danh sách đơn hàng.'));
-
+    setLoadedRoute(null);
+    try {
+      if (orderId) {
+        const order = await orderApi.get(orderId);
+        if (sequence === requestSequence.current) setDetail(order);
+      } else {
+        const list = await orderApi.summaries();
+        if (sequence === requestSequence.current) setOrders(list);
+      }
+    } catch (error) {
+      if (sequence === requestSequence.current) setLoadError(error instanceof ApiError && error.status === 404
+        ? 'Không tìm thấy đơn hàng hoặc bạn không có quyền xem đơn này.'
+        : 'Không tải được đơn hàng. Vui lòng thử lại.');
+    } finally {
+      if (sequence === requestSequence.current) setLoadedRoute(orderId ?? 'list');
+    }
+    if (!orderId || sequence !== requestSequence.current) return;
     fulfillmentApi
       .getMyReviews()
       .then((reviews: Array<{ orderItemId?: number | string; rating?: number; comment?: string }>) => {
-        if (Array.isArray(reviews)) {
+        if (sequence === requestSequence.current && Array.isArray(reviews)) {
           const map: Record<string, { rating: number; comment?: string }> = {};
           reviews.forEach((r) => {
             if (r.orderItemId) {
@@ -96,9 +112,9 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, paym
       .catch(() => {
         // Ignored if user has no reviews or not authenticated
       });
-  }, []);
+  }, [orderId]);
 
-  useEffect(load, [load]);
+  useEffect(() => { void load(); return () => { requestSequence.current++; }; }, [load]);
 
   useEffect(() => {
     if (!paymentReturnOrderId) return;
@@ -158,24 +174,26 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, paym
     return () => { active = false; };
   }, [paymentReturnSellerPaymentId, load, onPaymentReturnHandled]);
 
-  const replaceOrder = (updated: CustomerOrder) =>
-    setOrders((prev) => isUnpaidCancelled(updated)
-      ? prev?.filter(o => o.orderId !== updated.orderId) ?? prev
-      : prev?.map((o) => (o.orderId === updated.orderId ? updated : o)) ?? prev);
+  const replaceOrder = (updated: CustomerOrder) => {
+    if (updated.orderId === currentOrderId.current) setDetail(updated);
+  };
 
   const activeFilter = FILTERS.find((f) => f.id === filter)!;
   const visibleOrders =
     orders?.filter(
-      (o) => !activeFilter.statuses || o.sellerOrders.some((so) =>
-        activeFilter.statuses!.includes(so.status) ||
-        (filter === 'cancelled' && !!so.cancellation))
+      (o) => !activeFilter.statuses || (o.sellerOrderStatuses ?? [o.status]).some(status =>
+        activeFilter.statuses!.includes(status)) || (filter === 'cancelled' && o.hasCancellation)
     ) ?? [];
 
   return (
     <div className="mss-container mss-page">
       <header className="mss-page-header">
         <div>
-          <h1 className="mss-page-title">Đơn hàng của tôi</h1>
+          {orderId && <button type="button" className="mss-button mss-button--secondary mss-button--sm mb-4"
+            onClick={() => location.state?.ordersFrom ? navigate(-1) : navigate('/orders')}>
+            <ArrowLeft className="h-4 w-4" /> Quay lại danh sách đơn hàng
+          </button>}
+          <h1 className="mss-page-title">{orderId ? 'Chi tiết đơn hàng' : 'Đơn hàng của tôi'}</h1>
           <p className="mss-page-description">
             Mỗi đơn hàng gồm một hoặc nhiều đơn nhà bán; thanh toán, vận chuyển và hủy được xử lý theo từng đơn nhà bán.
           </p>
@@ -222,19 +240,19 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, paym
         </div>
       )}
 
-      <div className="flex gap-2 overflow-x-auto pb-1" role="tablist">
+      {!orderId && <div className="flex gap-2 overflow-x-auto pb-1" role="tablist">
         {FILTERS.map((f) => (
           <button
             key={f.id}
             role="tab"
             aria-selected={filter === f.id}
-            onClick={() => setFilter(f.id)}
+            onClick={() => navigate(f.id === 'all' ? '/orders' : '/orders?filter=' + f.id, { replace: true })}
             className={`mss-button mss-button--sm whitespace-nowrap ${filter === f.id ? 'mss-button--primary' : 'mss-button--secondary'}`}
           >
             {f.label}
           </button>
         ))}
-      </div>
+      </div>}
 
       {loadError ? (
         <div className="mss-alert mss-alert--danger flex flex-wrap items-center justify-between gap-3">
@@ -243,8 +261,11 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, paym
             Thử lại
           </button>
         </div>
-      ) : orders === null ? (
+      ) : loadedRoute !== (orderId ?? 'list') ? (
         <p className="text-sm text-gray-500">Đang tải đơn hàng…</p>
+      ) : orderId && detail ? (
+        <OrderCard order={detail} onUpdated={replaceOrder} reviewedItemMap={reviewedItemMap}
+          onOpenReview={setReviewingItem} />
       ) : visibleOrders.length === 0 ? (
         <EmptyState
           title="Không có đơn hàng nào"
@@ -258,15 +279,26 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, paym
       ) : (
         <div className="mss-stack">
           {visibleOrders.map((order) => (
-            <OrderCard
-              key={order.orderId}
-              order={order}
-              expanded={expandedId === order.orderId}
-              onToggle={() => setExpandedId(expandedId === order.orderId ? null : order.orderId)}
-              onUpdated={replaceOrder}
-              reviewedItemMap={reviewedItemMap}
-              onOpenReview={(item) => setReviewingItem(item)}
-            />
+            <article key={order.orderId} className="mss-card flex flex-wrap items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h2 className="mss-card-title break-words">Đơn {order.orderNo}</h2>
+                <p className="mss-card-meta">{formatDateTime(order.placedAt)}
+                  {order.sellerOrderCount != null && <> · {order.sellerOrderCount} nhà bán · {order.itemCount} sản phẩm</>}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <StatusBadge map={ORDER_STATUS} status={order.status} />
+                  <StatusBadge map={ORDER_SOURCE} status={order.sourceType} />
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="text-right"><p className="text-sm text-gray-500">Tổng thanh toán</p>
+                  <p className="mss-price text-lg">{formatVnd(order.grandTotal)}</p></div>
+                <button type="button" className="mss-button mss-button--secondary" onClick={() =>
+                  navigate('/orders/' + order.orderId, { state: { ordersFrom: location.pathname + location.search } })}>
+                  Xem chi tiết <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            </article>
           ))}
         </div>
       )}
@@ -300,14 +332,12 @@ export default function OrderTracking({ setActiveTab, paymentReturnOrderId, paym
 
 interface OrderCardProps {
   order: CustomerOrder;
-  expanded: boolean;
-  onToggle: () => void;
   onUpdated: (order: CustomerOrder) => void;
   reviewedItemMap: Record<string, { rating: number; comment?: string }>;
   onOpenReview: (item: OrderItem) => void;
 }
 
-function OrderCard({ order, expanded, onToggle, onUpdated, reviewedItemMap, onOpenReview }: OrderCardProps) {
+function OrderCard({ order, onUpdated, reviewedItemMap, onOpenReview }: OrderCardProps) {
   const itemCount = order.sellerOrders.reduce((sum, so) => sum + so.items.length, 0);
   const canPayTogether = order.sourceType === 'RETAIL' &&
     !['CANCEL_REQUESTED', 'CANCELLED'].includes(order.status) &&
@@ -389,16 +419,7 @@ function OrderCard({ order, expanded, onToggle, onUpdated, reviewedItemMap, onOp
       {cancelError && <div role="alert" className="mss-alert mss-alert--danger">{cancelError}</div>}
       {paymentError && <div role="alert" className="mss-alert mss-alert--danger">{paymentError}</div>}
 
-      <button
-        onClick={onToggle}
-        aria-expanded={expanded}
-        className="mss-button mss-button--secondary mss-button--sm self-start"
-      >
-        {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        {expanded ? 'Thu gọn' : 'Xem thông tin đơn hàng'}
-      </button>
-
-      {expanded && (
+      {(
         <div className="mss-stack animate-fadeIn">
           <section className="rounded-xl bg-gray-50 p-4 flex gap-3">
             <MapPin className="w-5 h-5 text-primary-700 shrink-0 mt-1" />
@@ -483,7 +504,7 @@ function SellerOrderSection({
 
   const paySeller = async () => {
     setPaymentBusy(true); setActionError(''); setPaymentMessage('');
-    try { await openSellerCheckout(Number(so.sellerOrderId)); }
+    try { await openSellerCheckout(Number(so.sellerOrderId), orderId); }
     catch (error) {
       setActionError(error instanceof Error ? error.message : 'Không mở được PayOS.');
       try { onUpdated(await orderApi.get(orderId)); } catch { /* Keep the payment error visible. */ }
@@ -491,19 +512,20 @@ function SellerOrderSection({
     finally { setPaymentBusy(false); }
   };
 
-  const reconcileSeller = async () => {
+  const reconcileSeller = async (paymentId?: number, cancel = false) => {
     setPaymentBusy(true); setActionError(''); setPaymentMessage('');
     try {
       const summary = await paymentApi.summary(Number(so.sellerOrderId));
       const payment = summary.payments.find(p => p.status !== 'SUCCESS' && !endedPayment(p.status) &&
-        (p.checkoutUrl || p.expiresAt));
+        (paymentId == null ? p.checkoutUrl || p.expiresAt : p.paymentId === paymentId));
       if (!payment) {
         setPaymentMessage('Không còn link PayOS cần đối soát.');
       } else {
-        const result = await paymentApi.reconcile(payment.paymentId);
+        const result = cancel ? await paymentApi.cancelLink(payment.paymentId) : await paymentApi.reconcile(payment.paymentId);
         setPaymentMessage(result.status === 'SUCCESS'
           ? `${result.paymentType === 'DEPOSIT' ? 'Đã ghi nhận tiền cọc' : 'Đã ghi nhận thanh toán'} ${formatVnd(result.amount)}.`
-          : 'PayOS chưa xác nhận thanh toán. Nếu đã chuyển tiền, vui lòng đợi và đối soát lại; không thanh toán thêm.');
+          : result.status === 'CANCELLED' ? 'Đã hủy liên kết thanh toán.'
+            : 'PayOS chưa xác nhận thanh toán. Nếu đã chuyển tiền, vui lòng kiểm tra lại trạng thái trước khi thanh toán tiếp.');
       }
       onUpdated(await orderApi.get(orderId));
     } catch (error) {
@@ -511,6 +533,9 @@ function SellerOrderSection({
     } finally { setPaymentBusy(false); }
   };
 
+  const canPayRfq = !retail && ['AWAITING_PAYMENT', 'AWAITING_DEPOSIT', 'PREPARING', 'READY_FOR_FULFILLMENT', 'CONFIRMED'].includes(so.status)
+    && (!so.cancellation || so.cancellation.status === 'REJECTED') && !isRemainingOverdue(so)
+    && !isFullyPaid(so) && so.payments.some(p => !['SUCCESS', 'PAID', 'REFUNDED'].includes(p.status));
   const canCancel = so.allowedActions.includes('CANCEL');
   const displayStatus = so.status === 'AWAITING_PAYMENT' && isFullyPaid(so) ? 'PAYMENT_COMPLETED' : so.status;
 
@@ -541,10 +566,8 @@ function SellerOrderSection({
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <StatusBadge map={ORDER_STATUS} status={displayStatus} />
-          {!retail && !so.cancellation && so.payments.some((p) => p.status !== 'SUCCESS') &&
-            <button disabled={paymentBusy} className="text-sm text-primary-700 underline" onClick={() => void paySeller()}>{paymentBusy ? 'Đang mở PayOS…' : 'Thanh toán PayOS'}</button>}
-          {!retail && !so.cancellation && so.payments.some((p) => p.status !== 'SUCCESS') &&
-            <button disabled={paymentBusy} className="text-sm text-primary-700 underline" onClick={() => void reconcileSeller()}>Đối soát PayOS</button>}
+          {canPayRfq &&
+            <button type="button" disabled={paymentBusy} className="mss-button mss-button--primary mss-button--sm" onClick={() => void paySeller()}>{paymentBusy ? 'Đang mở PayOS…' : 'Thanh toán PayOS'}</button>}
           {canCancel && !immediateCancellationAvailable && !showCancel &&
             <button type="button" className="mss-button mss-button--danger mss-button--sm"
               onClick={() => { setActionError(''); setCancelReason('Tôi thay đổi ý định mua hàng.'); setShowCancel(true); }}>
@@ -621,7 +644,11 @@ function SellerOrderSection({
                   <td>
                     <div className="flex items-center gap-3 min-w-[220px]">
                       <img
-                        src={item.imageUrlSnapshot}
+                        src={item.imageUrlSnapshot || item.imageUrl || '/images/placeholders/custom-order.svg'}
+                        onError={event => {
+                          const fallback = '/images/placeholders/custom-order.svg';
+                          if (!event.currentTarget.src.endsWith(fallback)) event.currentTarget.src = fallback;
+                        }}
                         alt={item.productNameSnapshot}
                         className="w-12 h-12 aspect-square object-cover rounded-lg border border-gray-200"
                       />
@@ -629,7 +656,7 @@ function SellerOrderSection({
                         <p className="font-medium text-gray-900">{item.productNameSnapshot}</p>
                         <p className="text-xs text-gray-500">
                           {item.variantNameSnapshot}
-                          {item.skuSnapshot && <> · SKU {item.skuSnapshot}</>}
+                          {item.skuSnapshot && !/^DEMO-/i.test(item.skuSnapshot) && <> · SKU {item.skuSnapshot}</>}
                         </p>
                       </div>
                     </div>
@@ -735,6 +762,16 @@ function SellerOrderSection({
                   </td>
                   <td className="text-gray-600">
                     {p.transactionRef ?? '—'}
+                    {!retail && p.hasPayosLink && !['SUCCESS', 'PAID', 'REFUNDED'].includes(p.status) && !endedPayment(p.status) && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button type="button" className="text-primary-700 underline" disabled={paymentBusy}
+                          onClick={() => void reconcileSeller(Number(p.paymentId))}>Kiểm tra trạng thái</button>
+                        <button type="button" className="text-primary-700 underline" disabled={paymentBusy}
+                          onClick={() => {
+                            if (window.confirm('Hủy liên kết PayOS của giao dịch này?')) void reconcileSeller(Number(p.paymentId), true);
+                          }}>Hủy liên kết</button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -780,21 +817,21 @@ function SellerOrderSection({
               className="mss-button mss-button--primary whitespace-nowrap shrink-0"
               disabled={busy}
               onClick={() => {
-                if (!window.confirm('Xác nhận bạn đã nhận và kiểm tra hàng? Khoản giải ngân chỉ được xử lý sau thời hạn khiếu nại.')) return;
+                if (!window.confirm('Xác nhận bạn đã nhận và kiểm tra hàng? Sàn chi trả cho nhà bán khi hết hạn khiếu nại và đơn đủ điều kiện.')) return;
                 void run(async () => {
                   await fulfillmentApi.acceptSellerOrder(so.sellerOrderId);
                   return orderApi.get(orderId);
                 });
               }}
             >
-              ✓ Xác nhận nghiệm thu
+              Xác nhận đã nhận hàng
             </button>
           </div>
         )}
         {(so.status === 'ACCEPTED' || so.status === 'SETTLED') && (
           <div className="flex items-center gap-2 text-sm text-green-800 bg-green-50 px-3 py-2 rounded-lg border border-green-200">
             <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
-            <span>Đơn hàng đã được nghiệm thu hoàn tất. Bạn có thể đánh giá từng món bánh ở bảng bên trên.</span>
+            <span>Bạn đã xác nhận nhận hàng. Bạn có thể đánh giá từng món bánh ở bảng bên trên.</span>
           </div>
         )}
       </div>

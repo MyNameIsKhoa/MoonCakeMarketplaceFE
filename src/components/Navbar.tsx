@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Search, ShoppingBag, Heart, Sparkles, Package, Building2, Menu, X,
-  PhoneCall, ChevronDown, Store as StoreIcon, ArrowRight, ShieldCheck, Star, MessageSquare
+  Search, ShoppingBag, Sparkles, Package, Building2, Menu, X,
+  ChevronDown, Store as StoreIcon, ArrowRight, MessageSquare
 } from 'lucide-react';
 import { Store, Product } from '../types';
 import { useCatalog } from '../context/CatalogContext';
@@ -15,14 +15,13 @@ interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
   cartItemsCount: number;
-  wishlistCount: number;
   onOpenCart: () => void;
   onOpenMessages: () => void;
-  onOpenAI: () => void;
+  onOpenAI?: () => void;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
-  setSelectedStore?: (store: Store) => void;
-  setSelectedProduct?: (product: Product) => void;
+  onOpenStore?: (store: Store) => void;
+  onOpenProduct?: (product: Product) => void;
   onLogin: () => void;
   onRegister: () => void;
   onLogout: () => void;
@@ -32,14 +31,13 @@ export default function Navbar({
   activeTab,
   setActiveTab,
   cartItemsCount,
-  wishlistCount,
   onOpenCart,
   onOpenMessages,
   onOpenAI,
   searchQuery,
   setSearchQuery,
-  setSelectedStore,
-  setSelectedProduct,
+  onOpenStore,
+  onOpenProduct,
   onLogin,
   onRegister,
   onLogout
@@ -50,6 +48,25 @@ export default function Navbar({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [storeDropdownOpen, setStoreDropdownOpen] = useState(false);
+  const [hidden, setHidden] = useState(false);
+  const keepVisible = mobileMenuOpen || isSearchFocused || storeDropdownOpen;
+
+  useEffect(() => {
+    let previous = Math.max(0, window.scrollY);
+    if (keepVisible) { setHidden(false); return; }
+    const update = () => {
+      const current = Math.max(0, window.scrollY);
+      const delta = current - previous;
+      if (current <= 72) setHidden(false);
+      else if (Math.abs(delta) < 8) return;
+      else setHidden(delta > 0);
+      previous = current;
+    };
+    window.addEventListener("scroll", update, { passive: true });
+    return () => window.removeEventListener("scroll", update);
+  }, [keepVisible]);
+
+  useEffect(() => { setHidden(false); }, [activeTab]);
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const storeDropdownRef = useRef<HTMLDivElement>(null);
@@ -88,16 +105,14 @@ export default function Navbar({
     : [];
 
   const handleSelectStore = (store: Store) => {
-    if (setSelectedStore) setSelectedStore(store);
-    setActiveTab('store-detail');
+    if (onOpenStore) onOpenStore(store);
     setIsSearchFocused(false);
     setStoreDropdownOpen(false);
     setMobileMenuOpen(false);
   };
 
   const handleSelectProduct = (product: Product) => {
-    if (setSelectedProduct) setSelectedProduct(product);
-    setActiveTab('detail');
+    if (onOpenProduct) onOpenProduct(product);
     setIsSearchFocused(false);
     setMobileMenuOpen(false);
   };
@@ -116,35 +131,16 @@ export default function Navbar({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-white shadow-md">
-      {/* Top Announcement Bar */}
-      <div className="bg-gradient-to-r from-primary-950 via-primary-900 to-accent-950 text-accent-100 text-xs sm:text-sm py-2">
-        <div className="mss-container flex flex-col sm:flex-row justify-between items-center gap-2">
-          <div className="flex items-center gap-2">
-            <span className="bg-accent-400 text-primary-950 font-black px-2 py-0.5 rounded text-[11px] uppercase tracking-wider">
-              Mùa Trăng 2026
-            </span>
-            <span className="truncate max-w-[280px] sm:max-w-none text-gray-200">
-              Sàn quy tụ các thương hiệu chính hãng • Chiết khấu B2B đến 30% • Giao hỏa tốc 2H
-            </span>
-          </div>
-
-          <div className="flex items-center gap-4 text-accent-200 text-xs">
-            <a href="tel:19001509" className="flex items-center gap-1 hover:text-white transition">
-              <PhoneCall className="w-3.5 h-3.5 text-accent-400" />
-              <span>Hotline Tư Vấn: 1900 1509</span>
-            </a>
-            <button
-              onClick={onOpenAI}
-              className="flex items-center gap-1 bg-accent-400 text-primary-950 font-bold px-2.5 py-1 rounded-full hover:bg-accent-300 transition shadow-sm"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>AI Tư Vấn Bánh & Trà</span>
-            </button>
-          </div>
+    <header className={`sticky top-0 z-40 bg-white shadow-md transition-transform duration-200 motion-reduce:transition-none focus-within:translate-y-0 ${
+      hidden ? "-translate-y-full pointer-events-none focus-within:pointer-events-auto" : "translate-y-0"
+    }`}>
+      {onOpenAI && <div className="bg-primary-950 text-accent-100">
+        <div className="mss-container flex justify-end py-1">
+          <button type="button" onClick={onOpenAI} className="flex items-center gap-2 px-2 py-1 text-sm">
+              <Sparkles className="h-4 w-4" /> Trợ lý mua sắm
+          </button>
         </div>
-      </div>
-
+      </div>}
       {/* Main Header */}
       <div className="mss-container py-3 flex items-center justify-between gap-4">
         {/* Brand Logo */}
@@ -155,12 +151,12 @@ export default function Navbar({
           <div className="w-11 h-11 bg-gradient-to-br from-primary-700 to-accent-600 text-white rounded-2xl flex items-center justify-center shadow-md group-hover:scale-105 transition">
             <span className="text-2xl">🥮</span>
           </div>
-          <div>
+          <div className="hidden sm:block">
             <h1 className="text-lg sm:text-xl font-black text-primary-900 tracking-tight leading-none">
               Mooncake<span className="text-accent-700">Hub</span>
             </h1>
             <p className="text-[10px] sm:text-xs text-accent-800 font-bold tracking-widest mt-0.5 uppercase">
-              SÀN ĐA GIAN HÀNG CHÍNH HÃNG
+              SÀN BÁNH TRUNG THU
             </p>
           </div>
         </div>
@@ -225,10 +221,9 @@ export default function Navbar({
                           <div>
                             <p className="text-xs font-bold text-gray-900 group-hover:text-primary-700 flex items-center gap-1">
                               <span>{store.name}</span>
-                              <ShieldCheck className="w-3 h-3 text-accent-600" />
                             </p>
                             <p className="text-[11px] text-gray-500">
-                              {store.categoryLabel || 'Chính hãng'}
+                              {store.categoryLabel || 'Gian hàng'}
                             </p>
                           </div>
                         </div>
@@ -271,7 +266,7 @@ export default function Navbar({
                           </div>
                         </div>
                         <span className="text-xs font-bold text-primary-700 shrink-0">
-                          {p.price.toLocaleString()}đ
+                          {p.inStock === false ? "Hết hàng" : "Từ " + p.price.toLocaleString("vi-VN") + " đ"}
                         </span>
                       </div>
                     ))}
@@ -321,19 +316,6 @@ export default function Navbar({
             <span>Đơn Hàng</span>
           </button>
 
-          {/* Wishlist */}
-          <button
-            onClick={() => setActiveTab('wishlist')}
-            className="p-2.5 text-gray-700 hover:bg-gray-100 rounded-full relative transition"
-            title="Danh sách yêu thích"
-          >
-            <Heart className="w-5 h-5" />
-            {wishlistCount > 0 && (
-              <span className="absolute top-1 right-1 bg-red-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
-                {wishlistCount}
-              </span>
-            )}
-          </button>
 
           {/* RFQ chat messages (TV4): unread count from the RFQ service */}
           {isAuthenticated && (
@@ -443,7 +425,7 @@ export default function Navbar({
                             {store.name}
                           </p>
                           <p className="text-[11px] text-gray-500 truncate">
-                            {store.categoryLabel || 'Thương hiệu chính hãng'}
+                            {store.categoryLabel || 'Gian hàng'}
                           </p>
                         </div>
                         <span className="text-xs text-primary-700 font-bold group-hover:translate-x-1 transition-transform">
@@ -502,23 +484,8 @@ export default function Navbar({
               Vận Chuyển
             </button>
 
-            {/* Checkout */}
-            <button
-              onClick={() => setActiveTab('checkout')}
-              className={`px-4 py-3 border-b-2 transition ${activeTab === 'checkout'
-                ? 'border-primary-700 text-primary-700 font-bold'
-                : 'border-transparent text-gray-700 hover:text-primary-700'
-                }`}
-            >
-              Thanh Toán
-            </button>
           </div>
 
-          {/* Right Highlight Badge */}
-          <div className="flex items-center gap-2 text-xs text-primary-900 font-bold bg-accent-100/70 border border-accent-300/60 px-3 py-1.5 rounded-full">
-            <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
-            <span>Chiết khấu doanh nghiệp B2B lên đến 30%</span>
-          </div>
         </div>
       </nav>
 

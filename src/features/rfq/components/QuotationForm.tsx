@@ -1,5 +1,7 @@
-import { FormEvent, useRef, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Loader2, Plus, Trash2 } from 'lucide-react';
+import QuotationCatalogPicker from './QuotationCatalogPicker';
+import { productApi, variantApi } from '../../../services/api';
 import { errorMessage } from '../../../services/api/http';
 import { idempotencyKeyFor, quotationApi } from '../api';
 import {
@@ -20,6 +22,9 @@ interface QuotationFormProps {
 interface ItemRow {
   key: string;
   catalog: boolean;
+  catalogLabel?: string;
+  catalogIssue?: string;
+  referencePrice?: string;
   productId: string;
   variantId: string;
   itemNameSnapshot: string;
@@ -51,7 +56,7 @@ function blankRow(quantity = ''): ItemRow {
 
 function rowError(row: ItemRow): string | null {
   if (row.catalog) {
-    if (!ID.test(row.productId) || !ID.test(row.variantId)) return 'Nhập mã sản phẩm và mã biến thể (số) của catalog.';
+    if (!ID.test(row.productId) || !ID.test(row.variantId)) return 'Chọn sản phẩm và biến thể trong gian hàng.';
   } else if (!row.itemNameSnapshot.trim()) {
     return 'Nhập tên mục hàng.';
   }
@@ -65,7 +70,7 @@ function rowError(row: ItemRow): string | null {
 export default function QuotationForm({ rfq, mode, onSaved, onCancel }: QuotationFormProps) {
   const base = mode.kind === 'revise' ? mode.quotation : null;
   const activeStores = mode.kind === 'create' ? mode.stores.filter((s) => s.status === 'ACTIVE') : [];
-  const [storeId, setStoreId] = useState(activeStores.length === 1 ? String(activeStores[0].storeId) : '');
+  const [storeId, setStoreId] = useState(base?.storeId ?? (activeStores.length === 1 ? String(activeStores[0].storeId) : ''));
   const [depositPercent, setDepositPercent] = useState(base ? String(Number(base.depositPercent)) : '30');
   const [validUntil, setValidUntil] = useState(isoToLocalDateTime(base?.validUntil) || isoToLocalDateTime(new Date(Date.now() + 7 * 86400000).toISOString()));
   const [deliveryDate, setDeliveryDate] = useState(base?.proposedDeliveryDate ?? rfq.requestedDeliveryDate ?? todayIsoDate(14));
@@ -77,11 +82,11 @@ export default function QuotationForm({ rfq, mode, onSaved, onCancel }: Quotatio
     base
       ? base.items.map((item) => ({
           ...blankRow(String(item.quantity)),
-          // The response carries variantId only: the supplier re-enters productId for catalog lines.
+          catalogLabel: item.variantId ? item.itemNameSnapshot : undefined,
           catalog: !!item.variantId,
           variantId: item.variantId ?? '',
-          itemNameSnapshot: item.variantId ? '' : item.itemNameSnapshot,
-          skuSnapshot: item.variantId ? '' : item.skuSnapshot ?? '',
+          itemNameSnapshot: item.itemNameSnapshot,
+          skuSnapshot: item.skuSnapshot ?? '',
           unitPrice: String(Number(item.unitPrice)),
           discountAmount: Number(item.discountAmount) ? String(Number(item.discountAmount)) : '',
           customizationNote: item.customizationNote ?? ''
@@ -94,6 +99,37 @@ export default function QuotationForm({ rfq, mode, onSaved, onCancel }: Quotatio
   const keySlot = useRef<{ payload?: string; key?: string }>({});
 
   const updateRow = (key: string, patch: Partial<ItemRow>) => setRows((list) => list.map((r) => (r.key === key ? { ...r, ...patch } : r)));
+
+  useEffect(() => {
+    if (!base) return;
+    const controller = new AbortController();
+    for (const item of base.items) {
+      if (!item.variantId) continue;
+      const variantId = item.variantId;
+      variantApi.getOwned(base.storeId, variantId, controller.signal).then(async variant => {
+        const product = await productApi.get(variant.productId);
+        if (controller.signal.aborted) return;
+        const active = variant.status === "ACTIVE" && product.status === "ACTIVE";
+        setRows(list => list.map(row => row.variantId === variantId && !row.productId
+          ? { ...row, productId: active ? String(variant.productId) : "",
+              catalogLabel: product.name + " · " + variant.variantName + " · " + variant.sku,
+              referencePrice: String(Number(variant.basePrice)),
+              catalogIssue: active ? undefined : "Sản phẩm đã ngừng bán. Hãy chọn biến thể khác." } : row));
+      }).catch(() => {
+        if (controller.signal.aborted) return;
+        setRows(list => list.map(row => row.variantId === variantId && !row.productId
+          ? { ...row, catalogIssue: "Không tải được biến thể cũ. Hãy chọn lại sản phẩm." } : row));
+      });
+    }
+    return () => controller.abort();
+  }, [base]);
+
+  const changeStore = (id: string) => {
+    setStoreId(id);
+    setRows(list => list.map(row => row.catalog
+      ? { ...row, productId: "", variantId: "", catalogLabel: undefined, catalogIssue: undefined,
+          referencePrice: undefined, itemNameSnapshot: '', skuSnapshot: '', unitPrice: '' } : row));
+  };
 
   const termErrors: string[] = [];
   if (mode.kind === 'create' && !storeId) termErrors.push('Chọn cửa hàng gửi báo giá.');
@@ -186,7 +222,7 @@ export default function QuotationForm({ rfq, mode, onSaved, onCancel }: Quotatio
             <label className="mss-label" htmlFor="q-store">
               Cửa hàng *
             </label>
-            <select id="q-store" className="mss-select" value={storeId} onChange={(e) => setStoreId(e.target.value)}>
+            <select id="q-store" className="mss-select" value={storeId} onChange={(e) => changeStore(e.target.value)}>
               <option value="">— Chọn cửa hàng đang hoạt động —</option>
               {activeStores.map((s) => (
                 <option key={s.storeId} value={s.storeId}>
@@ -244,7 +280,7 @@ export default function QuotationForm({ rfq, mode, onSaved, onCancel }: Quotatio
       </fieldset>
 
       <fieldset className="m-0 mss-stack border-0 p-0">
-        <legend className="mss-label mb-2">Mục hàng ({rows.length}/{MAX_ITEMS})</legend>
+        <legend className="mss-label mb-2">Sản phẩm báo giá ({rows.length}/{MAX_ITEMS})</legend>
         {rows.map((row, index) => {
           const error = showErrors ? itemErrors[index] : null;
           return (
@@ -253,8 +289,10 @@ export default function QuotationForm({ rfq, mode, onSaved, onCancel }: Quotatio
                 <span className="text-sm font-semibold">Mục {index + 1}</span>
                 <div className="flex items-center gap-3">
                   <label className="flex cursor-pointer items-center gap-2 text-sm">
-                    <input type="checkbox" checked={row.catalog} onChange={(e) => updateRow(row.key, { catalog: e.target.checked })} />
-                    Sản phẩm trong catalog
+                    <input type="checkbox" checked={row.catalog} onChange={(e) => updateRow(row.key, { catalog: e.target.checked,
+                      productId: "", variantId: "", catalogLabel: undefined, catalogIssue: undefined,
+                      referencePrice: undefined })} />
+                    Sản phẩm có sẵn trong gian hàng
                   </label>
                   <button
                     type="button"
@@ -267,22 +305,37 @@ export default function QuotationForm({ rfq, mode, onSaved, onCancel }: Quotatio
                   </button>
                 </div>
               </div>
+              {row.catalog && <>
+                {row.catalogLabel && <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <strong>{row.catalogLabel}</strong>
+                  {!row.productId && !row.catalogIssue && <span role="status">Đang kiểm tra biến thể…</span>}
+                  <button type="button" className="mss-button mss-button--secondary mss-button--sm"
+                    onClick={() => updateRow(row.key, { productId: "", variantId: "", catalogLabel: undefined, catalogIssue: undefined,
+                      referencePrice: undefined, itemNameSnapshot: '', skuSnapshot: '', unitPrice: '' })}>Chọn lại</button>
+                </div>}
+                {row.catalogIssue && <p role="alert" className="mss-field-error">{row.catalogIssue}</p>}
+                {(!row.catalogLabel || row.catalogIssue) && <QuotationCatalogPicker key={storeId} storeId={storeId}
+                  onSelect={(product, variant) => updateRow(row.key, {
+                    productId: String(product.productId), variantId: String(variant.variantId),
+                    catalogLabel: product.name + " · " + variant.variantName + " · " + variant.sku,
+                    itemNameSnapshot: product.name + " · " + variant.variantName,
+                    skuSnapshot: variant.sku,
+                    referencePrice: String(Number(variant.basePrice)),
+                    unitPrice: String(Number(variant.basePrice)),
+                    catalogIssue: undefined
+                  })} />}
+              </>}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {row.catalog ? (
-                  <>
-                    <div className="mss-field">
-                      <label className="mss-label" htmlFor={`${row.key}-product`}>Mã sản phẩm *</label>
-                      <input id={`${row.key}-product`} className="mss-input" inputMode="numeric" value={row.productId} onChange={(e) => updateRow(row.key, { productId: e.target.value.trim() })} />
-                    </div>
-                    <div className="mss-field">
-                      <label className="mss-label" htmlFor={`${row.key}-variant`}>Mã biến thể *</label>
-                      <input id={`${row.key}-variant`} className="mss-input" inputMode="numeric" value={row.variantId} onChange={(e) => updateRow(row.key, { variantId: e.target.value.trim() })} />
-                    </div>
-                  </>
-                ) : (
+                {row.catalog && (
+                  <div className="mss-field">
+                    <label className="mss-label" htmlFor={`${row.key}-reference-price`}>Giá niêm yết (₫)</label>
+                    <input id={`${row.key}-reference-price`} className="mss-input" readOnly value={row.referencePrice ?? ''} placeholder="Chọn biến thể sản phẩm" />
+                  </div>
+                )}
+                {!row.catalog && (
                   <>
                     <div className="mss-field sm:col-span-2 lg:col-span-1">
-                      <label className="mss-label" htmlFor={`${row.key}-name`}>Tên mục hàng *</label>
+                      <label className="mss-label" htmlFor={`${row.key}-name`}>Tên hàng đặt làm *</label>
                       <input id={`${row.key}-name`} className="mss-input" maxLength={255} value={row.itemNameSnapshot} onChange={(e) => updateRow(row.key, { itemNameSnapshot: e.target.value })} />
                     </div>
                     <div className="mss-field">
@@ -296,7 +349,7 @@ export default function QuotationForm({ rfq, mode, onSaved, onCancel }: Quotatio
                   <input id={`${row.key}-qty`} className="mss-input" inputMode="numeric" value={row.quantity} onChange={(e) => updateRow(row.key, { quantity: e.target.value.trim() })} />
                 </div>
                 <div className="mss-field">
-                  <label className="mss-label" htmlFor={`${row.key}-price`}>Đơn giá (₫) *</label>
+                  <label className="mss-label" htmlFor={`${row.key}-price`}>Đơn giá báo giá (₫) *</label>
                   <input id={`${row.key}-price`} className="mss-input" inputMode="decimal" value={row.unitPrice} onChange={(e) => updateRow(row.key, { unitPrice: e.target.value.trim() })} />
                 </div>
                 <div className="mss-field">
@@ -308,7 +361,7 @@ export default function QuotationForm({ rfq, mode, onSaved, onCancel }: Quotatio
                   <input id={`${row.key}-note`} className="mss-input" maxLength={10000} value={row.customizationNote} onChange={(e) => updateRow(row.key, { customizationNote: e.target.value })} />
                 </div>
               </div>
-              {row.catalog && <p className="m-0 mt-2 text-sm text-gray-500">Tên và SKU lấy từ catalog; giá là giá thương lượng bạn nhập.</p>}
+              {row.catalog && <p className="m-0 mt-2 text-sm text-gray-500">Giá niêm yết hiện tại chỉ để tham khảo. Bạn có thể sửa đơn giá báo giá theo thỏa thuận với khách.</p>}
               {error && <p className="mss-field-error m-0 mt-2" role="alert">{error}</p>}
             </div>
           );

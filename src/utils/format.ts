@@ -46,13 +46,13 @@ export function toLocalDateTimeInput(value?: string | null): string {
 
 export function formatDate(value?: string): string {
   const date = parse(value);
-  return date ? date.toLocaleDateString('vi-VN') : '—';
+  return date ? date.toLocaleDateString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' }) : '—';
 }
 
 export function formatDateTime(value?: string): string {
   const date = parse(value);
   return date
-    ? date.toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })
+    ? date.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' })
     : '—';
 }
 

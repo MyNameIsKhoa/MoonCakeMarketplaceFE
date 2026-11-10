@@ -38,6 +38,7 @@ export function useChatThread(conversationId: string) {
   const socketRef = useRef<StompConnection | null>(null);
   const messagesRef = useRef<ChatMessage[]>([]);
   const timersRef = useRef(new Map<string, number>());
+  const generationRef = useRef(0);
   messagesRef.current = messages;
 
   const destination = `/app/conversations/${conversationId}/messages`;
@@ -49,15 +50,21 @@ export function useChatThread(conversationId: string) {
     setPending((list) => list.filter((p) => p.clientMessageId !== clientMessageId));
   }, []);
 
-  /** Pulls every message newer than what is on screen (used after (re)connecting). */
-  const catchUp = useCallback(async () => {
-    let after = messagesRef.current.at(-1)?.messageId;
-    for (let guard = 0; guard < 20; guard++) {
-      const page = await conversationApi.history(conversationId, after ? { afterMessageId: after } : {});
+  const reload = useCallback(async () => {
+    const generation = generationRef.current;
+    setLoading(true);
+    setLoadError('');
+    try {
+      const page = await conversationApi.history(conversationId);
+      if (generation !== generationRef.current) return;
+      // A live message may arrive before the initial history request completes.
       setMessages((current) => merge(current, page.items));
+      setHasOlder(page.hasMore);
       page.items.forEach((m) => settle(m.clientMessageId));
-      if (!page.hasMore || page.items.length === 0 || !after) return;
-      after = page.items.at(-1)!.messageId;
+    } catch (error) {
+      if (generation === generationRef.current) setLoadError(errorMessage(error));
+    } finally {
+      if (generation === generationRef.current) setLoading(false);
     }
   }, [conversationId, settle]);
 
@@ -65,20 +72,29 @@ export function useChatThread(conversationId: string) {
     let disposed = false;
     let attempt = 0;
     let retryTimer = 0;
+    generationRef.current += 1;
+    messagesRef.current = [];
     setMessages([]);
     setPending([]);
     setLoading(true);
     setLoadError('');
+    setHasOlder(false);
+    setLoadingOlder(false);
 
-    conversationApi
-      .history(conversationId)
-      .then((page) => {
+    void reload();
+
+    /** Pull every newer page after reconnecting; stop immediately on account/thread changes. */
+    const catchUp = async () => {
+      let after = messagesRef.current.at(-1)?.messageId;
+      for (let guard = 0; guard < 20 && !disposed; guard++) {
+        const page = await conversationApi.history(conversationId, after ? { afterMessageId: after } : {});
         if (disposed) return;
-        setMessages(page.items);
-        setHasOlder(page.hasMore);
-      })
-      .catch((error) => !disposed && setLoadError(errorMessage(error)))
-      .finally(() => !disposed && setLoading(false));
+        setMessages((current) => merge(current, page.items));
+        page.items.forEach((m) => settle(m.clientMessageId));
+        if (!page.hasMore || page.items.length === 0 || !after) return;
+        after = page.items.at(-1)!.messageId;
+      }
+    };
 
     const connect = () => {
       const token = getAccessToken();
@@ -89,14 +105,17 @@ export function useChatThread(conversationId: string) {
       setConnection(attempt === 0 ? 'connecting' : 'reconnecting');
       const socket = new StompConnection(CHAT_SOCKET_URL, token, {
         onConnected: () => {
+          if (disposed) return;
           attempt = 0;
           socket.subscribe(`/topic/conversations/${conversationId}`);
           setConnection('online');
           catchUp().catch(() => undefined);
         },
         onMessage: (frame) => {
+          if (disposed) return;
           try {
             const message = JSON.parse(frame.body) as ChatMessage;
+            if (message.conversationId !== conversationId) return;
             setMessages((current) => merge(current, [message]));
             settle(message.clientMessageId);
           } catch {
@@ -104,8 +123,8 @@ export function useChatThread(conversationId: string) {
           }
         },
         onDisconnected: () => {
-          socketRef.current = null;
           if (disposed) return;
+          socketRef.current = null;
           if (!getAccessToken()) {
             setConnection('expired');
             return;
@@ -122,13 +141,14 @@ export function useChatThread(conversationId: string) {
     const timers = timersRef.current;
     return () => {
       disposed = true;
+      generationRef.current += 1;
       window.clearTimeout(retryTimer);
       timers.forEach((timer) => window.clearTimeout(timer));
       timers.clear();
       socketRef.current?.dispose();
       socketRef.current = null;
     };
-  }, [conversationId, catchUp, settle]);
+  }, [conversationId, reload, settle]);
 
   const transmit = useCallback(
     (clientMessageId: string, content: string) => {
@@ -172,19 +192,22 @@ export function useChatThread(conversationId: string) {
   const discard = useCallback((clientMessageId: string) => settle(clientMessageId), [settle]);
 
   const loadOlder = useCallback(async () => {
+    const generation = generationRef.current;
     const first = messagesRef.current[0]?.messageId;
     if (!first) return;
     setLoadingOlder(true);
+    setLoadError('');
     try {
       const page = await conversationApi.history(conversationId, { beforeMessageId: first });
+      if (generation !== generationRef.current) return;
       setMessages((current) => merge(current, page.items));
       setHasOlder(page.hasMore);
     } catch (error) {
-      setLoadError(errorMessage(error));
+      if (generation === generationRef.current) setLoadError(errorMessage(error));
     } finally {
-      setLoadingOlder(false);
+      if (generation === generationRef.current) setLoadingOlder(false);
     }
   }, [conversationId]);
 
-  return { messages, pending, connection, loading, loadError, hasOlder, loadingOlder, send, retry, discard, loadOlder };
+  return { messages, pending, connection, loading, loadError, hasOlder, loadingOlder, send, retry, discard, loadOlder, reload };
 }

@@ -88,7 +88,7 @@ export const StoreSection: React.FC<StoreSectionProps> = ({
             Khám Phá Gian Hàng & Thương Hiệu Đối Tác
           </h2>
           <p className="text-gray-600 text-sm mt-1 max-w-2xl">
-            Chọn gian hàng bạn yêu thích để xem đầy đủ menu bánh Trung Thu, chính sách khuyến mãi riêng và đặt mua trực tiếp từ nhà sản xuất.
+            Xem sản phẩm và ưu đãi của từng gian hàng.
           </p>
         </div>
 

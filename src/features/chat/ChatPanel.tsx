@@ -15,6 +15,8 @@ interface ChatPanelProps {
   subtitle?: string;
   myUserId: string;
   onBack?: () => void;
+  compact?: boolean;
+  active?: boolean;
 }
 
 const CONNECTION_LABEL: Record<ConnectionState, string> = {
@@ -24,7 +26,7 @@ const CONNECTION_LABEL: Record<ConnectionState, string> = {
   expired: 'Phiên đăng nhập hết hạn — hãy đăng nhập lại'
 };
 
-export default function ChatPanel({ conversationId, conversationStatus, title, subtitle, myUserId, onBack }: ChatPanelProps) {
+export default function ChatPanel({ conversationId, conversationStatus, title, subtitle, myUserId, onBack, compact = false, active = true }: ChatPanelProps) {
   const thread = useChatThread(conversationId);
   const [draft, setDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -36,15 +38,25 @@ export default function ChatPanel({ conversationId, conversationStatus, title, s
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [lastId, thread.pending.length]);
+  }, [lastId, thread.pending.length, active]);
 
   // What is on screen counts as read; the navbar badge refreshes right after.
   useEffect(() => {
-    if (!lastId) return;
-    conversationApi.markRead(conversationId)
-      .then(() => window.dispatchEvent(new Event(CHAT_READ_EVENT)))
-      .catch(() => { /* only the badge lags; the chat keeps working */ });
-  }, [conversationId, lastId]);
+    if (!lastId || thread.loading || !active) return;
+    let mounted = true;
+    const markRead = () => {
+      if (document.visibilityState === 'hidden') return;
+      conversationApi.markRead(conversationId)
+        .then(() => { if (mounted) window.dispatchEvent(new Event(CHAT_READ_EVENT)); })
+        .catch(() => { /* only the badge lags; the chat keeps working */ });
+    };
+    markRead();
+    document.addEventListener('visibilitychange', markRead);
+    return () => {
+      mounted = false;
+      document.removeEventListener('visibilitychange', markRead);
+    };
+  }, [conversationId, lastId, thread.loading, active]);
 
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
@@ -64,10 +76,10 @@ export default function ChatPanel({ conversationId, conversationStatus, title, s
   const online = thread.connection === 'online';
 
   return (
-    <section className="mss-card flex min-w-0 flex-col gap-0 p-0" aria-label={`Hội thoại: ${title}`}>
-      <header className="flex items-center gap-3 border-b border-[var(--mss-border)] p-4">
+    <section className={`mss-card flex min-w-0 flex-col gap-0 p-0 ${compact ? 'min-h-0 flex-1 overflow-y-auto' : ''}`} aria-label={`Hội thoại: ${title}`}>
+      <header className="flex shrink-0 items-center gap-3 border-b border-[var(--mss-border)] p-4">
         {onBack && (
-          <button type="button" className="mss-button mss-button--secondary mss-button--sm" onClick={onBack} aria-label="Quay lại danh sách hội thoại">
+          <button type="button" className="mss-button mss-button--secondary mss-button--sm min-h-11 min-w-11" onClick={onBack} aria-label="Quay lại danh sách hội thoại">
             <ArrowLeft className="h-4 w-4" aria-hidden />
           </button>
         )}
@@ -79,7 +91,7 @@ export default function ChatPanel({ conversationId, conversationStatus, title, s
       </header>
 
       <p
-        className={`flex items-center gap-2 px-4 py-2 text-sm ${online ? 'text-[var(--mss-success)]' : 'text-[var(--mss-warning)]'}`}
+        className={`flex shrink-0 items-center gap-2 px-4 py-2 text-sm ${online ? 'text-[var(--mss-success)]' : 'text-[var(--mss-warning)]'}`}
         role="status"
         aria-live="polite"
       >
@@ -87,7 +99,7 @@ export default function ChatPanel({ conversationId, conversationStatus, title, s
         {CONNECTION_LABEL[thread.connection]}
       </p>
 
-      <div ref={scrollRef} className="flex h-[min(60dvh,560px)] flex-col gap-3 overflow-y-auto bg-[var(--mss-bg)] px-4 py-4">
+      <div ref={scrollRef} className={`flex flex-col gap-3 overflow-y-auto bg-[var(--mss-bg)] px-4 py-4 ${compact ? 'min-h-0 flex-1' : 'h-[min(60dvh,560px)]'}`}>
         {thread.hasOlder && (
           <button
             type="button"
@@ -99,13 +111,13 @@ export default function ChatPanel({ conversationId, conversationStatus, title, s
             Tải tin nhắn cũ hơn
           </button>
         )}
-        {thread.loadError && <ErrorBlock message={thread.loadError} />}
+        {thread.loadError && <ErrorBlock message={thread.loadError} onRetry={thread.reload} />}
         {thread.loading && <p className="text-center text-sm text-gray-500">Đang tải lịch sử…</p>}
-        {!thread.loading && thread.messages.length === 0 && thread.pending.length === 0 && (
+        {!thread.loading && !thread.loadError && thread.messages.length === 0 && thread.pending.length === 0 && (
           <p className="my-auto text-center text-sm text-gray-500">Chưa có tin nhắn. Hãy bắt đầu trao đổi về yêu cầu này.</p>
         )}
 
-        <ol className="m-0 flex list-none flex-col gap-3 p-0" aria-label="Tin nhắn">
+        <ol className="m-0 flex list-none flex-col gap-3 p-0" aria-label="Tin nhắn" aria-live="polite" aria-relevant="additions">
           {thread.messages.map((m) => {
             const mine = m.senderUserId === myUserId;
             return (
@@ -150,7 +162,7 @@ export default function ChatPanel({ conversationId, conversationStatus, title, s
         </ol>
       </div>
 
-      <form onSubmit={submit} className="flex flex-col gap-2 border-t border-[var(--mss-border)] p-4">
+      <form onSubmit={submit} className="flex shrink-0 flex-col gap-2 border-t border-[var(--mss-border)] p-4">
         {conversationStatus !== 'OPEN' ? (
           <p className="mss-alert m-0">Hội thoại này đã đóng, không thể gửi tin nhắn mới.</p>
         ) : (
@@ -161,7 +173,7 @@ export default function ChatPanel({ conversationId, conversationStatus, title, s
             <div className="flex items-end gap-2">
               <textarea
                 id={inputId}
-                className="mss-textarea min-h-[44px] flex-1"
+                className="mss-textarea min-h-[44px] min-w-0 flex-1"
                 rows={2}
                 value={draft}
                 maxLength={MAX_MESSAGE_LENGTH}

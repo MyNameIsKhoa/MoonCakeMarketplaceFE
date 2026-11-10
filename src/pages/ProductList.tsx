@@ -1,32 +1,27 @@
-import React, { useState, useMemo } from 'react';
-import { Star, Heart, ChevronRight, SlidersHorizontal } from 'lucide-react';
+import { useMemo } from 'react';
+import { Star, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { Product } from '../types';
 import { useCatalog } from '../context/CatalogContext';
 
 interface ProductListProps {
-  searchQuery: string;
-  setSearchQuery: (q: string) => void;
-  setSelectedProduct: (p: Product) => void;
-  setActiveTab: (tab: string) => void;
+  filters: URLSearchParams;
+  onFiltersChange: (patch: Record<string, string>) => void;
+  onOpenProduct: (product: Product) => void;
   onAddToCart: (p: Product) => void;
-  wishlistIds: string[];
-  onToggleWishlist: (productId: string) => void;
 }
 
 export default function ProductList({
-  searchQuery,
-  setSearchQuery,
-  setSelectedProduct,
-  setActiveTab,
+  filters,
+  onFiltersChange,
+  onOpenProduct,
   onAddToCart,
-  wishlistIds,
-  onToggleWishlist
 }: ProductListProps) {
   const { stores, products, categories } = useCatalog();
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedStoreId, setSelectedStoreId] = useState('all');
-  const [priceRange, setPriceRange] = useState('all');
-  const [sortBy, setSortBy] = useState('default');
+  const searchQuery = filters.get('q') ?? '';
+  const selectedCategory = filters.get('category') ?? 'all';
+  const selectedStoreId = filters.get('store') ?? 'all';
+  const priceRange = filters.get('price') ?? 'all';
+  const sortBy = filters.get('sort') ?? 'default';
 
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
@@ -50,6 +45,7 @@ export default function ProductList({
       }
 
       // Price range
+      if (priceRange !== 'all' && product.inStock === false) return false;
       if (priceRange === 'under-200' && product.price >= 200000) return false;
       if (priceRange === '200-500' && (product.price < 200000 || product.price > 500000)) return false;
       if (priceRange === '500-1000' && (product.price < 500000 || product.price > 1000000)) return false;
@@ -76,7 +72,7 @@ export default function ProductList({
           <span className="text-sm font-semibold text-gray-500">Sắp xếp theo:</span>
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
+            onChange={(e) => onFiltersChange({ sort: e.target.value })}
             className="p-3 bg-white border border-gray-300 rounded-xl text-sm font-semibold text-gray-800 focus:ring-2 focus:ring-primary-700 outline-none shadow-sm"
           >
             <option value="default">Mặc định</option>
@@ -95,12 +91,7 @@ export default function ProductList({
               <span>Bộ Lọc Tìm Kiếm</span>
             </h3>
             <button
-              onClick={() => {
-                setSelectedCategory('all');
-                setSelectedStoreId('all');
-                setPriceRange('all');
-                setSearchQuery('');
-              }}
+              onClick={() => onFiltersChange({ category: "", store: "", price: "", q: "" })}
               className="text-sm text-primary-700 font-semibold hover:underline"
             >
               Đặt lại
@@ -114,7 +105,7 @@ export default function ProductList({
               {categories.map((cat) => (
                 <button
                   key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
+                  onClick={() => onFiltersChange({ category: cat.id })}
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition flex items-center justify-between ${
                     selectedCategory === cat.id ? 'bg-primary-50 text-primary-700 font-semibold border border-primary-200' : 'text-gray-600 hover:bg-gray-50'
                   }`}
@@ -131,7 +122,7 @@ export default function ProductList({
             <h4 className="font-semibold text-sm text-gray-700 uppercase tracking-wider">Gian Hàng</h4>
             <div className="space-y-1 max-h-48 overflow-y-auto">
               <button
-                onClick={() => setSelectedStoreId('all')}
+                onClick={() => onFiltersChange({ store: 'all' })}
                 className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition ${
                   selectedStoreId === 'all' ? 'bg-primary-50 text-primary-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'
                 }`}
@@ -141,7 +132,7 @@ export default function ProductList({
               {stores.map((store) => (
                 <button
                   key={store.storeId}
-                  onClick={() => setSelectedStoreId(store.storeId)}
+                  onClick={() => onFiltersChange({ store: store.storeId })}
                   className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition ${
                     selectedStoreId === store.storeId ? 'bg-primary-50 text-primary-700 font-semibold' : 'text-gray-600 hover:bg-gray-50'
                   }`}
@@ -168,7 +159,7 @@ export default function ProductList({
                     type="radio"
                     name="price"
                     checked={priceRange === item.id}
-                    onChange={() => setPriceRange(item.id)}
+                    onChange={() => onFiltersChange({ price: item.id })}
                     className="text-primary-700 focus:ring-primary-600"
                   />
                   <span>{item.label}</span>
@@ -183,7 +174,7 @@ export default function ProductList({
           {searchQuery && (
             <div className="bg-accent-50 border border-accent-200 p-4 rounded-xl flex items-center justify-between text-sm text-accent-900">
               <span>Kết quả tìm kiếm cho từ khóa: <strong>"{searchQuery}"</strong> ({filteredProducts.length} sản phẩm)</span>
-              <button onClick={() => setSearchQuery('')} className="font-bold text-primary-700 hover:underline">Xóa tìm kiếm</button>
+              <button onClick={() => onFiltersChange({ q: '' })} className="font-bold text-primary-700 hover:underline">Xóa tìm kiếm</button>
             </div>
           )}
 
@@ -200,23 +191,15 @@ export default function ProductList({
                   key={product.id}
                   className="bg-white rounded-2xl overflow-hidden shadow-md border border-accent-200/60 flex flex-col group hover:shadow-xl hover:border-primary-700 transition"
                 >
-                  <div className="relative overflow-hidden cursor-pointer" onClick={() => { setSelectedProduct(product); setActiveTab('detail'); }}>
+                  <div className="relative overflow-hidden cursor-pointer" onClick={() => onOpenProduct(product)}>
                     <img src={product.image} alt={product.name} className="w-full aspect-square object-cover group-hover:scale-105 transition duration-500" />
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onToggleWishlist(product.id); }}
-                      className={`absolute top-2 right-2 p-2 rounded-full backdrop-blur-sm transition ${
-                        wishlistIds.includes(product.id) ? 'bg-red-600 text-white' : 'bg-white/80 text-gray-700 hover:bg-white'
-                      }`}
-                    >
-                      <Heart className="w-4 h-4" />
-                    </button>
                   </div>
 
                   <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                     <div>
                       <span className="text-sm text-accent-700 font-semibold">{product.storeName}</span>
                       <h3
-                        onClick={() => { setSelectedProduct(product); setActiveTab('detail'); }}
+                        onClick={() => onOpenProduct(product)}
                         className="font-bold text-gray-900 text-sm line-clamp-2 hover:text-primary-700 cursor-pointer transition mt-1"
                       >
                         {product.name}
@@ -235,7 +218,7 @@ export default function ProductList({
 
                       <div className="flex items-baseline justify-between">
                         <div>
-                          <span className="text-primary-700 font-bold text-base">{product.price.toLocaleString()}đ</span>
+                          <span className="text-primary-700 font-bold text-base">{product.inStock === false ? "Hết hàng" : "Từ " + product.price.toLocaleString("vi-VN") + " đ"}</span>
                           {product.originalPrice && (
                             <span className="text-gray-500 text-sm line-through ml-2">{product.originalPrice.toLocaleString()}đ</span>
                           )}
@@ -243,11 +226,14 @@ export default function ProductList({
                       </div>
 
                       <button
-                        onClick={() => onAddToCart(product)}
+                        onClick={() => {
+                          if (product.inStock === undefined) onOpenProduct(product);
+                          else onAddToCart(product);
+                        }}
                         disabled={product.inStock === false}
                         className="w-full mt-3 py-3 bg-primary-700 hover:bg-primary-800 disabled:bg-gray-300 disabled:text-gray-600 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl shadow transition flex items-center justify-center gap-2"
                       >
-                        <span>{product.inStock === false ? 'Hết hàng' : 'Thêm vào giỏ'}</span>
+                        <span>{product.inStock === false ? 'Hết hàng' : product.inStock ? 'Thêm vào giỏ' : 'Xem sản phẩm'}</span>
                       </button>
                     </div>
                   </div>

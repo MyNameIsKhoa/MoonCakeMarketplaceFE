@@ -25,7 +25,7 @@ class B2BPortalScreen extends ConsumerStatefulWidget {
 }
 
 class _B2BPortalScreenState extends ConsumerState<B2BPortalScreen> {
-  late int _subTab; // 0: My RFQs, 1: Public RFQs, 2: Conversations
+  late int _subTab; // Customer app: 0 = own RFQs, 2 = conversations.
   List<RfqSummaryModel> _rfqs = const [];
   List<ConversationSummaryModel> _conversations = const [];
   int _unreadChatCount = 0;
@@ -36,7 +36,7 @@ class _B2BPortalScreenState extends ConsumerState<B2BPortalScreen> {
   @override
   void initState() {
     super.initState();
-    _subTab = widget.initialSubTab;
+    _subTab = widget.initialSubTab == 2 ? 2 : 0;
     _loadData();
   }
 
@@ -59,7 +59,7 @@ class _B2BPortalScreenState extends ConsumerState<B2BPortalScreen> {
         });
       } else {
         final rfqs = await api.listRfqs(
-          mine: _subTab == 0,
+          mine: true,
           status: _statusFilter.isEmpty ? null : _statusFilter,
         );
         final unread = await unreadFuture;
@@ -114,12 +114,7 @@ class _B2BPortalScreenState extends ConsumerState<B2BPortalScreen> {
                         segments: [
                           const ButtonSegment(
                             value: 0,
-                            label: Text('RFQ của tôi',
-                                style: TextStyle(fontSize: 12)),
-                          ),
-                          const ButtonSegment(
-                            value: 1,
-                            label: Text('Sàn B2B',
+                            label: Text('Yêu cầu báo giá của tôi',
                                 style: TextStyle(fontSize: 12)),
                           ),
                           ButtonSegment(

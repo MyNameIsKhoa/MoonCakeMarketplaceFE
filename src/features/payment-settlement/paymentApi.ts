@@ -3,7 +3,7 @@ import { request } from '../../services/api/http';
 export interface Payment {
   paymentId: number; sellerOrderId: number; paymentType: string; amount: number;
   status: string; holdStatus: string | null; dueAt: string | null; expiresAt: string | null;
-  checkoutUrl: string | null; qrCode: string | null;
+  checkoutUrl: string | null; qrCode: string | null; refundableAmount?: number | null;
 }
 export interface FinanceCase {
   id: number; status: string; reason: string; amount: number | null;
@@ -24,6 +24,11 @@ export interface FinanceSummary {
   eligibility: { eligible: boolean; blockingReasons: string[] };
   history: { auditId: number; eventType: string; resourceId: number; actor: string; detail: string; createdAt: string }[];
 }
+export interface TransferInstruction {
+  kind: 'REFUND' | 'PAYOUT'; id: number; amount: number; status: string; memo: string;
+  bankBin: string | null; bankName: string | null; accountNumber: string | null;
+  accountHolder: string | null; qrImageUrl: string | null;
+}
 export interface CustomerPaymentSummary {
   customerOrderId: number;
   totalAmount: number;
@@ -39,7 +44,12 @@ export interface CustomerPaymentSummary {
 const PAYOS_CALL = { timeoutMs: 100000 };
 
 export const paymentApi = {
+  summaryByNumber: (sellerOrderNo: string) => request<FinanceSummary>(`/api/payments/orders/by-number?sellerOrderNo=${encodeURIComponent(sellerOrderNo)}`),
   summary: (orderId: number) => request<FinanceSummary>(`/api/payments/orders/${orderId}`),
+  transfers: (orderId: number) => request<{ transfers: TransferInstruction[] }>(`/api/payments/orders/${orderId}/transfer-instructions`),
+  prepareTransfer: (orderId: number, kind: TransferInstruction['kind'], id: number, key: string) =>
+    request<{ transfers: TransferInstruction[] }>(`/api/payments/orders/${orderId}/${kind === 'REFUND' ? 'refunds' : 'settlements'}/${id}/prepare-transfer`,
+      { method: 'POST', key }),
   initiate: (id: number, key: string) => request<Payment>(`/api/payments/${id}/initiate`, { method: 'POST', key, ...PAYOS_CALL }),
   reconcile: (id: number) => request<Payment>(`/api/payments/${id}/reconcile`, { method: 'POST', ...PAYOS_CALL }),
   cancelLink: (id: number) => request<Payment>(`/api/payments/${id}/cancel-link`, { method: 'POST', ...PAYOS_CALL }),

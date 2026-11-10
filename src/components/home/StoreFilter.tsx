@@ -74,7 +74,7 @@ export const StoreFilter: React.FC<StoreFilterProps> = ({
       <div className="flex items-center justify-between text-xs text-gray-500 pt-1 border-t border-gray-100">
         <span className="flex items-center gap-1 text-primary-800 font-semibold">
           <Sparkles className="w-3.5 h-3.5 text-accent-500" />
-          <span>Quy tụ các xưởng bánh và nghệ nhân chính hãng danh tiếng</span>
+          <span>Tìm gian hàng theo danh mục sản phẩm</span>
         </span>
         <span>
           Đang hiển thị <strong>{totalStores}</strong> gian hàng đối tác

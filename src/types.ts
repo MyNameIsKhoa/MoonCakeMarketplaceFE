@@ -22,7 +22,8 @@ export interface Product {
   sugarLevel: 'Ít ngọt (Giảm 30%)' | 'Tiêu chuẩn' | 'Không đường (Dành cho người ăn kiêng)';
   description: string;
   salesCount: number;
-  inStock: boolean;
+  /** Undefined when the product listing does not report availability. */
+  inStock?: boolean;
   isFlashSale?: boolean;
   flashSaleEnds?: string;
   isBestSeller?: boolean;
@@ -89,6 +90,9 @@ export interface StoreBranch {
 }
 
 export interface CartItem {
+  selected: boolean;
+  availableQuantity?: number | null;
+  unavailableReason?: string;
   id: string;
   variantId?: string;
   productId: string;
@@ -134,6 +138,8 @@ export interface OrderItem {
   skuSnapshot?: string;
   variantNameSnapshot?: string;
   imageUrlSnapshot?: string;
+  /** Display fallback for older orders; does not overwrite the stored snapshot. */
+  imageUrl?: string;
   quantity: number;
   unitPrice: Money;
   discountAmount: Money;
@@ -143,6 +149,7 @@ export interface OrderItem {
 /** payment — a payment obligation/instalment of a seller order. */
 export interface Payment {
   paymentId: string;
+  hasPayosLink?: boolean;
   paymentType: string;
   amount: Money;
   dueAt?: string;
@@ -258,6 +265,7 @@ export interface CheckoutPreviewGroup {
 }
 
 export interface CheckoutPreview {
+  quote: string;
   groups: CheckoutPreviewGroup[];
   subtotal: Money;
   discountTotal: Money;

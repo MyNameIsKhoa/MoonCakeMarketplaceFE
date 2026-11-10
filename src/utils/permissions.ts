@@ -12,7 +12,6 @@ export const TAB_ACCESS: Record<string, AccessLevel> = {
   checkout: 'customer',
   orders: 'customer',
   profile: 'customer',
-  wishlist: 'customer',
   b2b: 'customer',
   'payment-settlement': 'customer',
   'seller-center': 'supplier',

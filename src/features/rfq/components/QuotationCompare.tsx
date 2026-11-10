@@ -19,6 +19,7 @@ interface QuotationCompareProps {
 export default function QuotationCompare({ quotations, storeNames, selectedId, showHistory, onToggleHistory, onSelect }: QuotationCompareProps) {
   const visible = showHistory ? quotations : quotations.filter((q) => q.status !== 'REVISED');
   const acceptable = visible.filter((q) => q.status === 'SUBMITTED');
+  const onlySelected = visible.length === 1 && visible[0].quotationId === selectedId;
   // Comparing backend totals only to label the cheapest offer; the value itself is never recomputed.
   const bestId = acceptable.length > 1 ? acceptable.reduce((a, b) => (Number(b.totalAmount) < Number(a.totalAmount) ? b : a)).quotationId : null;
 
@@ -34,7 +35,7 @@ export default function QuotationCompare({ quotations, storeNames, selectedId, s
       </label>
 
       {/* Desktop: side-by-side comparison table */}
-      <div className="mss-table-scroll hidden rounded-[var(--mss-radius-lg)] border border-[var(--mss-border)] bg-[var(--mss-surface)] md:block">
+      {!onlySelected && <div className="mss-table-scroll hidden rounded-[var(--mss-radius-lg)] border border-[var(--mss-border)] bg-[var(--mss-surface)] md:block">
         <table className="mss-table">
           <caption className="sr-only">So sánh báo giá</caption>
           <thead>
@@ -85,38 +86,34 @@ export default function QuotationCompare({ quotations, storeNames, selectedId, s
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {/* Mobile: one card per quotation */}
-      <ul className="m-0 flex list-none flex-col gap-3 p-0 md:hidden">
+      {!onlySelected && <ul className="m-0 flex list-none flex-col gap-2 p-0 md:hidden">
         {visible.map((q) => (
           <li key={q.quotationId}>
             <button
               type="button"
               onClick={() => onSelect(q.quotationId)}
               aria-pressed={q.quotationId === selectedId}
-              className={`mss-card w-full cursor-pointer text-left ${q.quotationId === selectedId ? 'border-[var(--mss-primary)]' : ''}`}
+              className={`w-full cursor-pointer rounded-lg border border-[var(--mss-border)] px-3 py-2 text-left text-sm ${q.quotationId === selectedId ? 'border-[var(--mss-primary)] bg-[var(--mss-primary-soft)]' : ''}`}
             >
               <span className="flex flex-wrap items-start justify-between gap-2">
                 <span className="min-w-0">
-                  <span className="block font-semibold">{storeLabel(storeNames, q.storeId)}</span>
-                  <span className="block text-sm text-gray-500">Phiên bản {q.version}</span>
+                  <span className="font-medium">{storeLabel(storeNames, q.storeId)} · v{q.version}</span>
                 </span>
                 <StatusBadge map={QUOTATION_STATUS} status={q.status} />
               </span>
-              <span className="mt-2 block mss-price text-lg">{formatMoney(q.totalAmount)}</span>
+              <span className="mt-1 block tabular-nums">{formatMoney(q.totalAmount)}</span>
               {q.quotationId === bestId && (
                 <span className="mss-badge mss-badge--success mt-1">
                   <Award className="h-3 w-3" aria-hidden /> Giá tốt nhất
                 </span>
               )}
-              <span className="mt-2 block text-sm text-gray-600">
-                Cọc {formatPercent(q.depositPercent)} · Giao {formatDate(q.proposedDeliveryDate)} · Hiệu lực đến {formatDateTime(q.validUntil)}
-              </span>
             </button>
           </li>
         ))}
-      </ul>
+      </ul>}
     </div>
   );
 }

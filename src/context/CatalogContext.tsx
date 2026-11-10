@@ -37,8 +37,7 @@ async function loadFromApi() {
   const storesById = new Map(mappedStores.map((s) => [s.storeId, s]));
   const categorySlugById = new Map(categoryItems.map((c) => [c.categoryId, c.slug]));
   const products = productItems
-      // No ACTIVE variant → no price, nothing to buy.
-      .filter((p) => p.minPrice !== null && ['ACTIVE', 'OUT_OF_STOCK'].includes(p.status) && storesById.has(String(p.storeId)))
+      .filter((p) => (p.minPrice !== null || p.purchasable === false) && ['ACTIVE', 'OUT_OF_STOCK'].includes(p.status) && storesById.has(String(p.storeId)))
       .map((p) => toProduct(p, storesById, categorySlugById));
 
   return {

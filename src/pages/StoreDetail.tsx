@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Star, ShieldCheck, Tag, ShoppingBag, Heart,
+  Star, Tag, ShoppingBag,
   ArrowLeft, Search, Phone, MapPin, Store as StoreIcon, Clock
 } from 'lucide-react';
 import { Store, Product, Promotion, StoreBranch } from '../types';
@@ -20,20 +20,16 @@ interface LiveStoreData {
 
 interface StoreDetailProps {
   store: Store;
-  setSelectedProduct: (p: Product) => void;
-  setActiveTab: (tab: string) => void;
+  onOpenProduct: (p: Product) => void;
+  setActiveTab: (page: string) => void;
   onAddToCart: (p: Product) => void;
-  wishlistIds: string[];
-  onToggleWishlist: (productId: string) => void;
 }
 
 export default function StoreDetail({
   store,
-  setSelectedProduct,
+  onOpenProduct,
   setActiveTab,
   onAddToCart,
-  wishlistIds,
-  onToggleWishlist
 }: StoreDetailProps) {
   const [internalSearch, setInternalSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -69,7 +65,7 @@ export default function StoreDetail({
       );
       setLive({
         products: productsResult.value
-          .filter((p) => p.minPrice !== null)
+          .filter(p => p.minPrice !== null || p.purchasable === false)
           .map((p) => toProduct(p, storesById, categorySlugById)),
         promotions: promotionsResult.status === 'fulfilled' ? promotionsResult.value.items.map(toPromotion) : [],
         branches: branchesResult.status === 'fulfilled' ? branchesResult.value.map(toStoreBranch) : []
@@ -164,16 +160,11 @@ export default function StoreDetail({
                 alt={store.name}
                 className="w-28 h-28 md:w-32 md:h-32 rounded-2xl object-contain p-1.5 border-4 border-white shadow-2xl bg-white"
               />
-              <span className="absolute bottom-2 right-2 w-4 h-4 rounded-full bg-green-500 border-2 border-white" title="Gian hàng chính hãng hoạt động"></span>
             </div>
 
             <div className="flex-1 text-center md:text-left space-y-2">
               <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
                 <h1 className="text-2xl md:text-3xl font-black">{store.name}</h1>
-                <span className="bg-accent-400 text-primary-950 text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow">
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Gian Hàng Chính Hãng</span>
-                </span>
               </div>
 
               {store.description && (
@@ -198,24 +189,6 @@ export default function StoreDetail({
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row items-center gap-2">
-              <a
-                href="tel:19001509"
-                className="w-full sm:w-auto px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold border border-white/20 transition flex items-center justify-center gap-1.5"
-              >
-                <Phone className="w-3.5 h-3.5 text-accent-300" />
-                <span>Liên hệ gian hàng</span>
-              </a>
-              <button
-                onClick={() => {
-                  const el = document.getElementById('store-products-section');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }}
-                className="w-full sm:w-auto px-5 py-2.5 bg-accent-400 hover:bg-accent-500 text-primary-950 rounded-xl text-xs font-black shadow-lg transition flex items-center justify-center gap-1.5"
-              >
-                <span>Xem sản phẩm ({filteredProducts.length})</span>
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -395,7 +368,7 @@ export default function StoreDetail({
               >
                 <div
                   className="relative overflow-hidden cursor-pointer"
-                  onClick={() => { setSelectedProduct(product); setActiveTab('detail'); }}
+                  onClick={() => onOpenProduct(product)}
                 >
                   <img
                     src={product.image}
@@ -407,20 +380,12 @@ export default function StoreDetail({
                       GIẢM {Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)}%
                     </span>
                   )}
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onToggleWishlist(product.id); }}
-                    className={`absolute top-2 right-2 p-2 rounded-full backdrop-blur-sm transition ${
-                      wishlistIds.includes(product.id) ? 'bg-red-600 text-white' : 'bg-white/80 text-gray-700 hover:bg-white'
-                    }`}
-                  >
-                    <Heart className="w-4 h-4" />
-                  </button>
                 </div>
 
                 <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
                   <div>
                     <h3
-                      onClick={() => { setSelectedProduct(product); setActiveTab('detail'); }}
+                      onClick={() => onOpenProduct(product)}
                       className="font-bold text-gray-900 text-sm line-clamp-2 hover:text-primary-700 cursor-pointer transition"
                     >
                       {product.name}
@@ -438,18 +403,23 @@ export default function StoreDetail({
                     )}
 
                     <div className="flex items-baseline justify-between">
-                      <span className="text-primary-700 font-bold text-base">{product.price.toLocaleString()}đ</span>
+                      <span className="text-primary-700 font-bold text-base">{product.inStock === false ? "Hết hàng" : "Từ " + product.price.toLocaleString("vi-VN") + " đ"}</span>
                       {product.originalPrice && (
                         <span className="text-gray-400 text-xs line-through">{product.originalPrice.toLocaleString()}đ</span>
                       )}
                     </div>
 
                     <button
-                      onClick={() => onAddToCart(product)}
-                      className="w-full mt-3 py-2.5 bg-primary-700 hover:bg-primary-800 text-white text-xs font-bold rounded-xl shadow transition flex items-center justify-center gap-1.5 active:scale-95"
+                      onClick={() => {
+                          if (product.inStock === undefined) {
+                            onOpenProduct(product);
+                          } else onAddToCart(product);
+                        }}
+                      disabled={product.inStock === false}
+                      className="w-full mt-3 py-2.5 bg-primary-700 hover:bg-primary-800 text-white text-xs font-bold rounded-xl shadow transition flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <ShoppingBag className="w-3.5 h-3.5" />
-                      <span>Thêm vào giỏ</span>
+                      <span>{product.inStock === false ? "Hết hàng" : product.inStock ? "Thêm vào giỏ" : "Xem sản phẩm"}</span>
                     </button>
                   </div>
                 </div>

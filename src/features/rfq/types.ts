@@ -76,6 +76,7 @@ export interface QuotationItem {
   variantId: string | null;
   itemNameSnapshot: string;
   skuSnapshot: string | null;
+  imageUrlSnapshot?: string | null;
   quantity: number;
   unitPrice: string;
   discountAmount: string;

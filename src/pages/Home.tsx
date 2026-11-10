@@ -11,18 +11,16 @@ const CATEGORY_ICONS: Record<string, string> = {
 
 interface HomeProps {
   setActiveTab: (tab: string) => void;
-  setSelectedProduct: (p: Product) => void;
-  setSelectedStore: (b: Store) => void;
+  onOpenProduct: (p: Product) => void;
+  onOpenStore: (b: Store) => void;
   onAddToCart: (p: Product) => void;
-  wishlistIds: string[];
-  onToggleWishlist: (productId: string) => void;
-  onOpenAI: () => void;
+  onOpenAI?: () => void;
 }
 
 export default function Home({
   setActiveTab,
-  setSelectedProduct,
-  setSelectedStore,
+  onOpenProduct,
+  onOpenStore,
   onOpenAI
 }: HomeProps) {
   const { stores, products, categories, source } = useCatalog();
@@ -36,13 +34,11 @@ export default function Home({
   };
 
   const handleSelectStore = (store: Store) => {
-    setSelectedStore(store);
-    setActiveTab('store-detail');
+    onOpenStore(store);
   };
 
   const handleSelectProduct = (product: Product) => {
-    setSelectedProduct(product);
-    setActiveTab('detail');
+    onOpenProduct(product);
   };
 
   return (

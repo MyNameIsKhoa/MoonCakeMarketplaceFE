@@ -8,6 +8,7 @@ import {
 import { errorMessage } from '../../services/api/http';
 import { formatVnd } from '../../utils/format';
 import StatusBadge from '../../components/ui/StatusBadge';
+import VariantImageField from '../catalog/VariantImageField';
 import { formatUtcDateTime } from './displayFormat';
 import {
   PRODUCT_STATUS, productFormErrors, statusChoices, variantFormErrors,
@@ -359,13 +360,14 @@ function VariantEditor({ product, variant, onCancel, onSaved }: VariantEditorPro
   const [errors, setErrors] = useState<FieldErrors>({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const changed = (field: keyof VariantForm) => !original || form[field].trim() !== original[field];
   const set = (field: keyof VariantForm) => (e: { target: { value: string } }) => setForm({ ...form, [field]: e.target.value });
   const priceText = form.basePrice.trim();
-  const imagePreview = form.imageUrl.trim();
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (uploading || saving) return;
     const found = variantFormErrors(form, original ? changed : undefined);
     const lastActiveOfActiveProduct = variant?.status === 'ACTIVE' && product.status === 'ACTIVE'
       && !product.variants.some((v) => v.variantId !== variant.variantId && v.status === 'ACTIVE');
@@ -450,23 +452,14 @@ function VariantEditor({ product, variant, onCancel, onSaved }: VariantEditorPro
             ? <p className="mss-field-error m-0">{errors.stockQuantity}</p>
             : variant && <p className="text-xs text-gray-500 m-0">Không thể đặt thấp hơn số lượng khách đang giữ khi thanh toán.</p>}
         </div>
-        <div className="mss-field md:col-span-2">
-          <label className="mss-label" htmlFor={`${id}-image`}>Đường dẫn ảnh</label>
-          <div className="flex items-center gap-3">
-            {imagePreview && /^(https?:\/\/|\/)\S+$/i.test(imagePreview) && (
-              <img src={imagePreview} alt="Xem trước ảnh biến thể" className="w-12 h-12 rounded-lg object-cover shrink-0" />
-            )}
-            <input
-              id={`${id}-image`}
-              className="mss-input"
-              maxLength={500}
-              placeholder="https://… hoặc /images/…"
-              value={form.imageUrl}
-              onChange={set('imageUrl')}
-            />
-          </div>
-          {errors.imageUrl && <p className="mss-field-error m-0">{errors.imageUrl}</p>}
-        </div>
+        <VariantImageField
+          productId={product.productId}
+          value={form.imageUrl}
+          onChange={(imageUrl) => setForm((current) => ({ ...current, imageUrl }))}
+          onUploadingChange={setUploading}
+          error={errors.imageUrl}
+          disabled={saving}
+        />
         {variant && status && (
           <div className="mss-field">
             <label className="mss-label" htmlFor={`${id}-status`}>Trạng thái</label>
@@ -486,8 +479,8 @@ function VariantEditor({ product, variant, onCancel, onSaved }: VariantEditorPro
       </div>
       {error && <p role="alert" className="mss-alert mss-alert--danger m-0">{error}</p>}
       <div className="flex justify-end gap-2">
-        <button type="button" className="mss-button mss-button--secondary" onClick={onCancel} disabled={saving}>Hủy</button>
-        <button type="submit" className="mss-button mss-button--primary" disabled={saving}>
+        <button type="button" className="mss-button mss-button--secondary" onClick={onCancel} disabled={saving || uploading}>Hủy</button>
+        <button type="submit" className="mss-button mss-button--primary" disabled={saving || uploading}>
           {saving && <Loader2 className="w-4 h-4 animate-spin" />} {variant ? 'Lưu biến thể' : 'Thêm biến thể'}
         </button>
       </div>

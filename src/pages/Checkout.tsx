@@ -1,22 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CheckCircle2, CreditCard, MapPin, Store, Truck } from 'lucide-react';
-import { Address, CartItem, CheckoutPreview } from '../types';
+import { Address, CheckoutPreview } from '../types';
 import { addressApi, checkoutApi, type CheckoutPlaced } from '../services/api';
+import type { CheckoutSelection } from '../services/api/commerceApi';
+import { ApiError } from '../services/api/http';
+import { checkoutAttemptExpired, loadCheckoutAttempt, saveCheckoutAttempt, type CheckoutAttempt } from '../services/api/checkoutAttempt';
 import { openCustomerCheckout } from '../features/payment-settlement/openCheckout';
 import { formatAddress, formatVnd } from '../utils/format';
 import EmptyState from '../components/ui/EmptyState';
 
 interface CheckoutProps {
-  items: CartItem[];
+  userId: string;
+  selection: CheckoutSelection | null;
   onOrderPlaced: () => void;
   setActiveTab: (tab: string) => void;
 }
 
-export default function Checkout({ items, onOrderPlaced, setActiveTab }: CheckoutProps) {
+export default function Checkout({ userId, selection, onOrderPlaced, setActiveTab }: CheckoutProps) {
   const [addresses, setAddresses] = useState<Address[] | null>(null);
   const [addressId, setAddressId] = useState('');
-  const checkoutKey = useRef<string | null>(null);
-  const cartContents = items.map((item) => `${item.variantId}:${item.quantity}`).join(',');
+  const [recovery, setRecovery] = useState(() => loadCheckoutAttempt(userId));
+  const submitting = useRef(false);
   const [addressError, setAddressError] = useState('');
 
   const [preview, setPreview] = useState<CheckoutPreview | null>(null);
@@ -44,39 +48,77 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
     }).catch((error: unknown) => setAddressError(error instanceof Error ? error.message : 'Không tải được địa chỉ.'));
   }, []);
 
-  useEffect(() => { checkoutKey.current = null; }, [cartContents]);
-
-  const loadPreview = useCallback(() => {
-    if (items.length === 0) return;
+  const loadPreview = useCallback((signal?: AbortSignal) => {
+    if (!selection) return;
     setIsPreviewLoading(true);
-    setPreviewError('');
+    setPreviewError("");
     setPreview(null);
-    checkoutApi
-      .preview()
-      .then(setPreview)
-      .catch((err: unknown) => setPreviewError(err instanceof Error ? err.message : 'Không thể tính giá đơn hàng.'))
-      .finally(() => setIsPreviewLoading(false));
-  }, [items]);
+    checkoutApi.preview(selection, signal)
+      .then(result => { if (!signal?.aborted) setPreview(result); })
+      .catch((err: unknown) => {
+        if (!signal?.aborted) setPreviewError(err instanceof Error ? err.message : "Không thể tính giá đơn hàng.");
+      })
+      .finally(() => { if (!signal?.aborted) setIsPreviewLoading(false); });
+  }, [selection]);
 
-  useEffect(loadPreview, [loadPreview]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!addressId) return;
+  useEffect(() => {
+    const controller = new AbortController();
+    if (!recovery && !placedOrder) loadPreview(controller.signal);
+    return () => controller.abort();
+  }, [loadPreview, recovery, placedOrder]);
+  const place = async (attempt: CheckoutAttempt) => {
+    if (submitting.current || checkoutAttemptExpired(attempt)) return;
+    submitting.current = true;
     setIsSubmitting(true);
-    setSubmitError('');
+    setSubmitError("");
+    saveCheckoutAttempt(userId, attempt);
     try {
-      checkoutKey.current ??= crypto.randomUUID();
-      const order = await checkoutApi.placeOrder(addressId, checkoutKey.current);
+      const order = await checkoutApi.placeOrder(attempt.addressId, attempt.key, attempt.selection, attempt.quote);
+      saveCheckoutAttempt(userId, null);
+      setRecovery(null);
       setPlacedOrder(order);
       onOrderPlaced();
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : 'Đặt hàng thất bại. Vui lòng thử lại.');
+      const uncertain = !(err instanceof ApiError) || err.status === 0 || err.status === 401 || err.status >= 500;
+      setSubmitError(err instanceof Error ? err.message : "Chưa nhận được kết quả đặt hàng.");
+      if (uncertain) {
+        setRecovery(attempt);
+      } else {
+        saveCheckoutAttempt(userId, null);
+        setRecovery(null);
+        if (["CHECKOUT_QUOTE_CHANGED", "CHECKOUT_CART_CHANGED", "INSUFFICIENT_STOCK", "UNAVAILABLE"].includes(err.code)) loadPreview();
+      }
     } finally {
+      submitting.current = false;
       setIsSubmitting(false);
     }
   };
 
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!addressId || !selection || !preview) return;
+    void place({ addressId, selection, quote: preview.quote, key: crypto.randomUUID(), startedAt: Date.now() });
+  };
+
+  if (recovery) {
+    const expired = checkoutAttemptExpired(recovery);
+    return <div className="mss-container mss-page max-w-3xl">
+      <section className="mss-card mss-stack">
+        <h1 className="mss-page-title">Kiểm tra đơn vừa đặt</h1>
+        <p>{expired ? "Đã hết thời gian gửi lại yêu cầu. Kiểm tra Đơn hàng để xem đơn đã được tạo chưa."
+          : "Chưa xác nhận được kết quả đặt hàng. Bạn có thể gửi lại yêu cầu cũ để lấy kết quả."}</p>
+        {submitError && <p role="alert" className="mss-alert mss-alert--warning">{submitError}</p>}
+        <div className="flex flex-wrap gap-2">
+          {!expired && <button type="button" disabled={isSubmitting} className="mss-button mss-button--primary"
+            onClick={() => void place(recovery)}>{isSubmitting ? "Đang kiểm tra…" : "Kiểm tra lại đơn vừa đặt"}</button>}
+          <button type="button" className="mss-button mss-button--secondary" onClick={() => {
+            if (expired) saveCheckoutAttempt(userId, null);
+            setActiveTab("orders");
+          }}>Xem đơn hàng</button>
+        </div>
+      </section>
+    </div>;
+  }
   if (placedOrder) {
     return (
       <div className="mss-container mss-page max-w-3xl">
@@ -112,12 +154,12 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
     );
   }
 
-  if (items.length === 0) {
+  if (!selection) {
     return (
       <div className="mss-container mss-page">
         <EmptyState
-          title="Giỏ hàng đang trống"
-          description="Hãy thêm sản phẩm vào giỏ trước khi thanh toán."
+          title="Chưa chọn sản phẩm để đặt hàng"
+          description="Mở giỏ hàng và chọn những sản phẩm bạn muốn mua."
           action={
             <button onClick={() => setActiveTab('products')} className="mss-button mss-button--primary">
               Khám phá sản phẩm
@@ -166,7 +208,8 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
                       type="radio"
                       name="address"
                       checked={addressId === addr.addressId}
-                      onChange={() => { setAddressId(addr.addressId); checkoutKey.current = null; }}
+                      disabled={isSubmitting}
+                      onChange={() => setAddressId(addr.addressId)}
                       className="mt-1"
                     />
                     <div className="min-w-0">
@@ -200,7 +243,7 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
             {previewError && (
               <div className="mss-alert mss-alert--danger flex flex-wrap items-center justify-between gap-3">
                 <span>{previewError}</span>
-                <button type="button" className="mss-button mss-button--secondary mss-button--sm" onClick={loadPreview}>
+                <button type="button" className="mss-button mss-button--secondary mss-button--sm" onClick={() => loadPreview()}>
                   Thử lại
                 </button>
               </div>
@@ -226,7 +269,7 @@ export default function Checkout({ items, onOrderPlaced, setActiveTab }: Checkou
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-gray-900 truncate">{line.productName}</p>
                         <p className="text-sm text-gray-500">
-                          {line.variantName} · SKU {line.sku} · {formatVnd(line.unitPrice)} × {line.quantity}
+                          {line.variantName} · {formatVnd(line.unitPrice)} × {line.quantity}
                         </p>
                       </div>
                       <span className="font-semibold text-gray-900 whitespace-nowrap">{formatVnd(line.subtotal)}</span>

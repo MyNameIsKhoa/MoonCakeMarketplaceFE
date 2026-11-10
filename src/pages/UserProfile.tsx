@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Heart, Pencil, Plus, Tag, Trash2 } from 'lucide-react';
-import { Address, Product, Promotion, Store } from '../types';
+import { Pencil, Plus, Tag, Trash2 } from 'lucide-react';
+import { Address, Promotion, Store } from '../types';
 import { addressApi, ApiError, userApi, catalogApi, toPromotion } from '../services/api';
 import { errorMessage } from '../services/api/http';
 import { useAuth } from '../context/AuthContext';
 import { useCatalog } from '../context/CatalogContext';
 import { formatAddress, formatDate, formatPromotionRule, parseApiDate } from '../utils/format';
+import PayoutAccountForm from '../components/PayoutAccountForm';
 
 const EMPTY_ADDRESS = {
   recipientName: '',
@@ -156,26 +157,19 @@ function AddressForm({ idPrefix, initial, isCurrentDefault = false, submitLabel,
   );
 }
 
-type ProfileTab = 'info' | 'addresses' | 'promotions' | 'wishlist' | 'rfq';
+type ProfileTab = 'info' | 'addresses' | 'promotions' | 'rfq';
 
 interface UserProfileProps {
   initialTab?: ProfileTab;
-  wishlistIds: string[];
-  onToggleWishlist: (productId: string) => void;
-  setSelectedProduct: (p: Product) => void;
-  setSelectedStore?: (s: Store) => void;
+  onOpenStore?: (s: Store) => void;
   setActiveTab: (tab: string) => void;
 }
 
 export default function UserProfile({
-  initialTab = 'info',
-  wishlistIds,
-  onToggleWishlist,
-  setSelectedProduct,
-  setSelectedStore,
+  onOpenStore,
   setActiveTab
 }: UserProfileProps) {
-  const [activeProfileTab, setActiveProfileTab] = useState<ProfileTab>(initialTab);
+  const [activeProfileTab, setActiveProfileTab] = useState<ProfileTab>('info');
 
   // Account info: GET/PATCH /api/users/me (the page is only reachable when logged in).
   const { user, setUser, isAdmin, isSupplier, supplierProfile } = useAuth();
@@ -223,10 +217,7 @@ export default function UserProfile({
     return () => { cancelled = true; };
   }, []);
 
-  const { products, findStore } = useCatalog();
-  const wishlistProducts = wishlistIds
-    .map(id => products.find(p => p.id === id))
-    .filter((p): p is Product => p !== undefined);
+  const { findStore } = useCatalog();
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [promotionError, setPromotionError] = useState('');
   const [promotionLoading, setPromotionLoading] = useState(true);
@@ -363,7 +354,6 @@ export default function UserProfile({
           { id: 'info', label: 'Thông tin tài khoản' },
           { id: 'addresses', label: 'Sổ địa chỉ nhận hàng' },
           { id: 'promotions', label: `Ưu đãi gian hàng${!promotionLoading && activePromotions.length > 0 ? ` (${activePromotions.length})` : ''}` },
-          { id: 'wishlist', label: `Sản phẩm yêu thích (${wishlistIds.length})` },
           { id: 'rfq', label: 'Yêu cầu báo giá (RFQ)' },
         ].map((tab) => (
           <button
@@ -405,6 +395,7 @@ export default function UserProfile({
               {isSavingProfile ? 'Đang lưu…' : 'Lưu thay đổi'}
             </button>
           </div>
+          <PayoutAccountForm kind="CUSTOMER" />
         </div>
       )}
 
@@ -534,12 +525,11 @@ export default function UserProfile({
                 <div
                   key={promo.promotionId}
                   onClick={() => {
-                    if (store && setSelectedStore) {
-                      setSelectedStore(store);
-                      setActiveTab('store-detail');
+                    if (store && onOpenStore) {
+                      onOpenStore(store);
                     }
                   }}
-                  className={`rounded-xl border border-accent-200/70 bg-accent-50/30 p-4 flex flex-col justify-between gap-3 ${store && setSelectedStore ? 'cursor-pointer hover:border-primary-700 hover:shadow-md transition' : ''}`}
+                  className={`rounded-xl border border-accent-200/70 bg-accent-50/30 p-4 flex flex-col justify-between gap-3 ${store && onOpenStore ? 'cursor-pointer hover:border-primary-700 hover:shadow-md transition' : ''}`}
                 >
                   <div className="space-y-1.5">
                     <span className="text-xs font-bold uppercase tracking-wider text-primary-700">
@@ -566,46 +556,6 @@ export default function UserProfile({
         </section>
       )}
 
-      {/* Tab Content: WISHLIST */}
-      {activeProfileTab === 'wishlist' && (
-        <div className="space-y-6 max-w-6xl mx-auto">
-          <div>
-            <h3 className="font-bold text-gray-900 text-lg border-b border-gray-200 pb-3">Sản Phẩm Yêu Thích ({wishlistProducts.length})</h3>
-            <p className="text-sm text-gray-500 mt-2">Lưu lại các sản phẩm bạn quan tâm để dễ dàng chọn mua hoặc đặt quà biếu.</p>
-          </div>
-          {wishlistProducts.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
-              <p className="text-gray-500 text-sm">Bạn chưa có sản phẩm yêu thích nào.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {wishlistProducts.map((product) => (
-                <div key={product.id} className="bg-white rounded-2xl overflow-hidden shadow-md border border-accent-200/60 flex flex-col group">
-                  <div className="relative overflow-hidden cursor-pointer" onClick={() => { setSelectedProduct(product); setActiveTab('detail'); }}>
-                    <img src={product.image} alt={product.name} className="w-full aspect-square object-cover group-hover:scale-105 transition" />
-                    <button
-                      onClick={(e) => { e.stopPropagation(); onToggleWishlist(product.id); }}
-                      className="absolute top-2 right-2 p-2 bg-red-600 text-white rounded-full shadow"
-                    >
-                      <Heart className="w-4 h-4 fill-current" />
-                    </button>
-                  </div>
-                  <div className="p-4 space-y-2 flex-1 flex flex-col justify-between">
-                    <h4
-                      onClick={() => { setSelectedProduct(product); setActiveTab('detail'); }}
-                      className="font-bold text-gray-900 text-sm line-clamp-2 hover:text-primary-700 cursor-pointer"
-                    >
-                      {product.name}
-                    </h4>
-                    <span className="text-primary-700 font-bold text-base">{product.price.toLocaleString()}đ</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Tab Content: RFQ */}
       {activeProfileTab === 'rfq' && (
         <div className="bg-white p-6 md:p-8 rounded-2xl border border-accent-200/70 shadow-sm space-y-4 max-w-4xl">
@@ -617,7 +567,7 @@ export default function UserProfile({
           </div>
 
           <p className="text-sm text-gray-600">
-            Theo dõi các yêu cầu báo giá đã gửi, so sánh đề xuất từ các nhà cung cấp chính hãng và trao đổi trực tiếp tại cổng Doanh nghiệp &amp; B2B.
+            Theo dõi các yêu cầu báo giá đã gửi, so sánh đề xuất từ các nhà cung cấp và trao đổi trực tiếp tại cổng Doanh nghiệp &amp; B2B.
           </p>
         </div>
       )}

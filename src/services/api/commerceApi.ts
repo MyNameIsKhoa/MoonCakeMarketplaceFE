@@ -1,17 +1,16 @@
 import type { Address, CartItem, CheckoutPreview, CustomerOrder, Product } from '../../types';
 import { IMAGE_FALLBACK } from '../../utils/imageFallback';
 import { ApiError, http } from './http';
-import { storeApi } from './catalogApi';
 
 type AddressWire = Omit<Address, 'addressId'> & { addressId: number };
 type CartLine = { cartItemId: number; variantId: number; productName: string; variantName: string;
   sku: string; imageUrl: string | null; quantity: number; unitPrice: number; subtotal: number;
-  discountAmount: number };
+  discountAmount: number; selected: boolean; availableQuantity: number | null };
 type StorePrice = { storeId: number; supplierId: number; storeName: string; subtotal: number;
   discountTotal: number; totalAmount: number; promotions: string[]; items: CartLine[] };
 /** A line Catalog no longer sells: not priced, shown so the buyer can remove it before checkout. */
 type UnavailableLine = { cartItemId: number; variantId: number; productName: string; variantName: string;
-  sku: string; imageUrl: string | null; quantity: number; reason: string };
+  sku: string; imageUrl: string | null; quantity: number; reason: string; availableQuantity: number | null };
 type CartPricing = { subtotal: number; discountTotal: number; totalAmount: number; stores: StorePrice[];
   unavailableItems?: UnavailableLine[] };
 type OrderWire = Omit<CustomerOrder, 'orderId' | 'sellerOrders' | 'deliveryAddress'> & {
@@ -25,7 +24,7 @@ type OrderWire = Omit<CustomerOrder, 'orderId' | 'sellerOrders' | 'deliveryAddre
 };
 type FinanceWire = {
   payments: Array<{ paymentId: number; paymentType: string; amount: number;
-    status: string; dueAt: string | null }>;
+    status: string; dueAt: string | null; expiresAt?: string | null; checkoutUrl?: string | null }>;
   cancellations: Array<{ id: number; status: string; reason: string }>;
 };
 type ShipmentWire = {
@@ -72,7 +71,10 @@ async function pricing(): Promise<CartPricing> {
   return (await http.post<CartPricing>('/api/cart/pricing')).data;
 }
 
+export type CheckoutSelection = { cartItemIds: number[]; quantity?: number };
+
 export const cartApi = {
+  get: async () => (await http.get<{ items: Array<{ cartItemId: number; variantId: number; quantity: number }> }>("/api/cart")).data,
   list: async (): Promise<CartItem[]> => {
     const data = await pricing();
     return data.stores.flatMap((store) => store.items.map((line): CartItem => {
@@ -84,21 +86,26 @@ export const cartApi = {
         variantId: String(line.variantId)
       };
       return { id: String(line.cartItemId), productId: product.id, product,
-        quantity: line.quantity, sugarLevel: line.variantName, variantId: String(line.variantId) };
+        quantity: line.quantity, sugarLevel: line.variantName, variantId: String(line.variantId),
+        selected: line.selected, availableQuantity: line.availableQuantity };
     })).concat((data.unavailableItems ?? []).map((line): CartItem => {
       const product: Product = {
-        id: `variant-${line.variantId}`, name: `${line.productName} (ngừng bán — hãy xóa khỏi giỏ)`, storeId: '',
+        id: `variant-${line.variantId}`, name: line.productName, storeId: '',
         storeName: '', price: 0, rating: 0, reviewCount: 0,
         image: line.imageUrl || IMAGE_FALLBACK, gallery: [], category: '', flavor: '', weight: '',
         ingredients: [], sugarLevel: 'Tiêu chuẩn', description: '', salesCount: 0, inStock: false,
         variantId: String(line.variantId)
       };
       return { id: String(line.cartItemId), productId: product.id, product,
-        quantity: line.quantity, sugarLevel: line.variantName, variantId: String(line.variantId) };
+        quantity: line.quantity, sugarLevel: line.variantName, variantId: String(line.variantId),
+        selected: false, availableQuantity: line.availableQuantity, unavailableReason: line.reason };
     }));
   },
+  select: async (cartItemIds: number[]) => {
+    await http.patch("/api/cart/selection", { cartItemIds });
+  },
   add: async (variantId: string, quantity: number) => {
-    await http.post('/api/cart/items', { variantId: Number(variantId), quantity });
+    return (await http.post<{ cartItemId: number }>('/api/cart/items', { variantId: Number(variantId), quantity })).data;
   },
   update: async (itemId: string, quantity: number) => {
     await http.patch(`/api/cart/items/${orderId(itemId)}`, { quantity });
@@ -109,44 +116,50 @@ export const cartApi = {
 };
 
 export const checkoutApi = {
-  preview: async (): Promise<CheckoutPreview> => {
-    const priced = await pricing();
-    if (priced.unavailableItems && priced.unavailableItems.length > 0) {
-      throw new Error('Giỏ hàng có sản phẩm đã ngừng bán. Vui lòng mở giỏ hàng và xóa sản phẩm đó trước khi thanh toán.');
-    }
-    const groups = await Promise.all(priced.stores.map(async (store) => {
-      const shop = await storeApi.get(store.storeId);
-      if (shop.shippingFee === null || shop.shippingFee < 0)
-        throw new Error(`Gian hàng ${shop.name} chưa cấu hình phí vận chuyển.`);
-      const promoNames = store.promotions ?? [];
-      const appliedPromotions = store.discountTotal > 0 && promoNames.length > 0
-        ? [{ promotionId: `${store.storeId}-promo`, name: promoNames.join(', '), discountAmount: store.discountTotal }]
-        : [];
-      return {
-        storeId: String(store.storeId), storeName: store.storeName, supplierName: '',
-        lines: store.items.map((line) => ({
-          cartItemId: String(line.cartItemId), variantIdRef: String(line.variantId), sku: line.sku,
-          productName: line.productName, variantName: line.variantName,
-          imageUrl: line.imageUrl || IMAGE_FALLBACK, quantity: line.quantity,
-          unitPrice: line.unitPrice, subtotal: line.subtotal
-        })),
-        appliedPromotions,
-        subtotal: store.subtotal, discountTotal: store.discountTotal,
-        shippingFee: Math.ceil(shop.shippingFee), shippingMethod: 'Phí cố định của gian hàng',
-        totalAmount: store.totalAmount + Math.ceil(shop.shippingFee)
-      };
+  preview: async (selection: CheckoutSelection, signal?: AbortSignal): Promise<CheckoutPreview> => {
+    type Wire = Omit<CheckoutPreview, "groups"> & { groups: Array<{ price: StorePrice; shippingFee: number }> };
+    const { data } = await http.post<Wire>("/api/checkout/preview", selection, { signal });
+    const groups = data.groups.map(({ price: store, shippingFee }) => ({
+      storeId: String(store.storeId), storeName: store.storeName, supplierName: "",
+      lines: store.items.map(line => ({
+        cartItemId: String(line.cartItemId), variantIdRef: String(line.variantId), sku: line.sku,
+        productName: line.productName, variantName: line.variantName, imageUrl: line.imageUrl || IMAGE_FALLBACK,
+        quantity: line.quantity, unitPrice: line.unitPrice, subtotal: line.subtotal
+      })),
+      appliedPromotions: store.discountTotal > 0 && store.promotions.length > 0
+        ? [{ promotionId: String(store.storeId), name: store.promotions.join(", "), discountAmount: store.discountTotal }] : [],
+      subtotal: store.subtotal, discountTotal: store.discountTotal, shippingFee,
+      shippingMethod: "Phí cố định của gian hàng", totalAmount: store.totalAmount + shippingFee
     }));
-    const shippingTotal = groups.reduce((sum, group) => sum + group.shippingFee, 0);
-    return { groups, subtotal: priced.subtotal, discountTotal: priced.discountTotal,
-      shippingTotal, grandTotal: priced.totalAmount + shippingTotal };
+    return { ...data, groups };
   },
-  placeOrder: async (addressId: string, key: string): Promise<CheckoutPlaced> => {
-    return (await http.post<CheckoutPlaced>('/api/checkout',
-      { addressId: Number(orderId(addressId)) }, { headers: { 'Idempotency-Key': key }, timeout: 30000 })).data;
+  placeOrder: async (addressId: string, key: string, selection: CheckoutSelection, quote: string): Promise<CheckoutPlaced> => {
+    return (await http.post<CheckoutPlaced>("/api/checkout",
+      { addressId: Number(orderId(addressId)), selection, quote }, { headers: { "Idempotency-Key": key }, timeout: 30000 })).data;
   }
 };
 
+export interface CustomerOrderSummary {
+  orderId: number; orderNo: string; sourceType: 'RETAIL' | 'RFQ'; rfqIdRef: number | null;
+  status: string; placedAt: string; subtotal: number; discountTotal: number;
+  shippingTotal: number; grandTotal: number; sellerOrderCount: number; itemCount: number;
+  sellerOrderStatuses: string[]; hasCancellation: boolean;
+}
+
 export const orderApi = {
+  summaries: async (): Promise<CustomerOrderSummary[]> => {
+    const result: CustomerOrderSummary[] = [];
+    let page = 0;
+    let totalPages = 1;
+    do {
+      const response = (await http.get<{ content: CustomerOrderSummary[]; totalPages: number }>(
+        '/api/orders', { params: { page, size: 100 } })).data;
+      result.push(...response.content);
+      totalPages = response.totalPages;
+      page++;
+    } while (page < totalPages);
+    return result;
+  },
   get: async (id: string): Promise<CustomerOrder> => {
     const raw = (await http.get<OrderWire>(`/api/orders/${orderId(id)}`)).data;
     const sellerOrders = await Promise.all(raw.sellerOrders.map(async (seller) => {
@@ -173,7 +186,7 @@ export const orderApi = {
         items: seller.items.map((item) => ({ ...item, orderItemId: String(item.orderItemId),
           variantIdRef: item.variantIdRef === null ? undefined : String(item.variantIdRef) })),
         payments: finance.payments.map((p) => ({ paymentId: String(p.paymentId), paymentType: p.paymentType,
-          amount: p.amount, status: p.status, dueAt: p.dueAt ?? undefined, provider: 'PAYOS' })),
+          amount: p.amount, status: p.status, dueAt: p.dueAt ?? undefined, provider: 'PAYOS', hasPayosLink: !!(p.checkoutUrl || p.expiresAt) })),
         shipments: rawShipments.map((s) => ({
           shipmentId: String(s.shipmentId),
           shippingMethod: s.shippingMethod,

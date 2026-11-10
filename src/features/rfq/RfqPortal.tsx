@@ -1,36 +1,45 @@
 import { useEffect, useState } from 'react';
-import { Building2, FileText, Inbox, MessageSquare, Store, UserRound } from 'lucide-react';
+import { Building2, FileText, Inbox, Store, UserRound } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { SUPPLIER_VERIFICATION } from '../../utils/status';
-import ConversationsView from '../chat/ConversationsView';
+import { openConversationChat } from '../chat/chatWidgetEvents';
 import MyQuotations from './components/MyQuotations';
 import RfqCreateForm from './components/RfqCreateForm';
 import RfqDetail from './components/RfqDetail';
 import RfqList from './components/RfqList';
 
-type Tab = 'feed' | 'mine' | 'quotations' | 'messages';
+type Tab = 'feed' | 'mine' | 'quotations';
+type InitialTab = Tab | 'messages';
 
 type View =
   | { kind: 'list' }
   | { kind: 'create' }
   | { kind: 'detail'; rfqId: string; quotationId?: string | null };
 
-const TABS: { id: Tab; label: string; icon: typeof FileText; needs?: 'supplier' }[] = [
-  { id: 'feed', label: 'Sàn yêu cầu báo giá', icon: Inbox },
-  { id: 'mine', label: 'RFQ của tôi', icon: FileText },
-  { id: 'quotations', label: 'Báo giá của tôi', icon: Store, needs: 'supplier' },
-  { id: 'messages', label: 'Tin nhắn', icon: MessageSquare }
+const TABS: { id: Tab; label: string; icon: typeof FileText; supplier: boolean }[] = [
+  { id: 'feed', label: 'Sàn yêu cầu báo giá', icon: Inbox, supplier: true },
+  { id: 'mine', label: 'Yêu cầu báo giá của tôi', icon: FileText, supplier: false },
+  { id: 'quotations', label: 'Báo giá của tôi', icon: Store, supplier: true }
 ];
 
-/**
- * TV4 — RFQ feed, buyer RFQs + quotation comparison, supplier quotations and negotiation chat.
- * The b2b tab is 'customer' in utils/permissions, so App only renders this for a logged-in user (TV1 AuthContext).
- */
-export default function RfqPortal({ initialTab = 'feed' }: { initialTab?: Tab }) {
+export default function RfqPortal({ initialTab = 'feed', initialRfqId }: { initialTab?: InitialTab; initialRfqId?: string }) {
+  const auth = useAuth();
+  if (!auth.user) return null;
+  // Clear open RFQs and drafts before rendering a different account or B2B mode.
+  return <RfqPortalContent key={`${auth.user.userId}:${auth.user.customerId}:${auth.supplierProfile?.supplierId}:${auth.supplierProfile?.verificationStatus}:${initialTab}:${initialRfqId}`} initialTab={initialTab} initialRfqId={initialRfqId} />;
+}
+
+function RfqPortalContent({ initialTab, initialRfqId }: { initialTab: InitialTab; initialRfqId?: string }) {
   const { user, supplierProfile: supplier } = useAuth();
-  const [tab, setTab] = useState<Tab>(initialTab);
-  const [view, setView] = useState<View>({ kind: 'list' });
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  const visibleTabs = TABS.filter((t) => t.supplier === !!supplier);
+  const [tab, setTab] = useState<Tab>(initialTab !== 'messages' && visibleTabs.some((t) => t.id === initialTab) ? initialTab : visibleTabs[0].id);
+  const [view, setView] = useState<View>(() => initialRfqId && /^\d+$/.test(initialRfqId)
+    ? { kind: 'detail', rfqId: initialRfqId }
+    : { kind: 'list' });
+
+  useEffect(() => {
+    if (initialTab === 'messages') openConversationChat();
+  }, [initialTab]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -40,7 +49,6 @@ export default function RfqPortal({ initialTab = 'feed' }: { initialTab?: Tab })
 
   // Only a VERIFIED supplier may quote; PENDING/REJECTED/SUSPENDED profiles get 403 from the API.
   const verifiedSupplier = supplier?.verificationStatus === 'VERIFIED';
-  const visibleTabs = TABS.filter((t) => !t.needs || verifiedSupplier);
 
   const goTab = (next: Tab) => {
     setTab(next);
@@ -48,20 +56,17 @@ export default function RfqPortal({ initialTab = 'feed' }: { initialTab?: Tab })
   };
 
   const openRfq = (rfqId: string, quotationId?: string | null) => {
-    if (tab === 'messages') setTab(supplier ? 'quotations' : 'mine');
     setView({ kind: 'detail', rfqId, quotationId });
   };
 
   const openConversation = (id: string) => {
-    setConversationId(id);
-    setTab('messages');
-    setView({ kind: 'list' });
+    openConversationChat(id);
   };
 
   const create = () => setView({ kind: 'create' });
 
   const content = () => {
-    if (view.kind === 'create') {
+    if (view.kind === 'create' && !supplier) {
       return <RfqCreateForm onCancel={() => setView({ kind: 'list' })} onCreated={(rfq) => openRfq(rfq.rfqId)} />;
     }
     if (view.kind === 'detail') {
@@ -81,19 +86,8 @@ export default function RfqPortal({ initialTab = 'feed' }: { initialTab?: Tab })
         return <RfqList key="mine" mine onOpen={(id) => openRfq(id)} onCreate={create} />;
       case 'quotations':
         return <MyQuotations onOpen={(rfqId, quotationId) => openRfq(rfqId, quotationId)} />;
-      case 'messages':
-        // RFQ/chat DTOs carry IDs as strings; Identity's profile uses numbers.
-        return (
-          <ConversationsView
-            myUserId={String(user.userId)}
-            myCustomerId={user.customerId == null ? null : String(user.customerId)}
-            selectedId={conversationId}
-            onSelect={setConversationId}
-            onOpenRfq={(rfqId) => openRfq(rfqId)}
-          />
-        );
       default:
-        return <RfqList key="feed" mine={false} onOpen={(id) => openRfq(id)} onCreate={create} />;
+        return <RfqList key="feed" mine={false} onOpen={(id) => openRfq(id)} />;
     }
   };
 
@@ -123,6 +117,12 @@ export default function RfqPortal({ initialTab = 'feed' }: { initialTab?: Tab })
           </span>
         </div>
       </header>
+
+      {supplier && !verifiedSupplier && (
+        <p className="mss-alert mss-alert--warning m-0" role="status">
+          Hồ sơ nhà cung cấp chưa được xác minh. Bạn có thể xem yêu cầu và báo giá của mình; cần được xác minh để gửi báo giá hoặc tạo phiên bản mới.
+        </p>
+      )}
 
       <nav className="flex gap-2 overflow-x-auto pb-1" aria-label="Khu vực RFQ">
         {visibleTabs.map(({ id, label, icon: Icon }) => (

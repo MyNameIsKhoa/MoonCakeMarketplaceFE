@@ -37,6 +37,19 @@ export const userApi = {
     (await http.patch<UserProfileResponse>('/api/users/me', body)).data
 };
 
+export interface PayoutAccount {
+  ownerKind: 'CUSTOMER' | 'SUPPLIER'; bankBin: string; bankName: string;
+  accountNumber: string; accountHolder: string; updatedAt: string;
+}
+
+export const payoutAccountApi = {
+  banks: async () => (await http.get<{ bin: string; name: string }[]>('/api/users/me/payout-accounts/banks')).data,
+  mine: async (kind: PayoutAccount['ownerKind']) =>
+    (await http.get<PayoutAccount>(`/api/users/me/payout-accounts/${kind}`)).data,
+  save: async (kind: PayoutAccount['ownerKind'], body: Pick<PayoutAccount, 'bankBin' | 'accountNumber' | 'accountHolder'>) =>
+    (await http.put<PayoutAccount>(`/api/users/me/payout-accounts/${kind}`, body)).data,
+};
+
 export const supplierProfileApi = {
   /** 404 when the user has not applied as a supplier. */
   get: async () => (await http.get<SupplierProfileResponse>('/api/supplier-profile')).data,

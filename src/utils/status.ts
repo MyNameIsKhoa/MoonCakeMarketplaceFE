@@ -24,13 +24,13 @@ export const FINANCE_STATUS: StatusMap = {
   MANUAL_REVIEW: { label: 'Chờ xử lý thủ công', variant: 'warning' },
   APPROVED: { label: 'Đã phê duyệt', variant: 'success' },
   REJECTED: { label: 'Đã từ chối', variant: 'neutral' },
-  OPEN: { label: 'Đang tranh chấp', variant: 'danger' },
+  OPEN: { label: 'Đang khiếu nại', variant: 'danger' },
   ADMIN_REVIEW: { label: 'Chờ admin phân xử', variant: 'warning' },
   REFUND_PENDING: { label: 'Chờ hoàn tiền', variant: 'warning' },
   ON_HOLD: { label: 'Tạm giữ giải ngân', variant: 'warning' },
   RESOLVED: { label: 'Đã phân xử', variant: 'success' },
-  READY: { label: 'Sẵn sàng giải ngân', variant: 'info' },
-  PROCESSING: { label: 'Đang xử lý', variant: 'warning' },
+  READY: { label: 'Đủ điều kiện giải ngân', variant: 'info' },
+  PROCESSING: { label: 'Đang chuyển khoản', variant: 'warning' },
   BLOCKED: { label: 'Chưa đủ điều kiện giải ngân', variant: 'neutral' },
   PAID: { label: 'Đã giải ngân', variant: 'success' },
 };
@@ -153,3 +153,17 @@ export function getStatusMeta(map: StatusMap, code: string | undefined): StatusM
   if (!code) return { label: '—', variant: 'neutral' };
   return map[code] ?? { label: code, variant: 'neutral' };
 }
+
+export const ACCOUNT_STATUS: StatusMap = {
+  PENDING: { label: 'Chờ kích hoạt', variant: 'warning' },
+  ACTIVE: { label: 'Đang hoạt động', variant: 'success' },
+  INACTIVE: { label: 'Ngừng hoạt động', variant: 'neutral' },
+  SUSPENDED: { label: 'Tạm khóa', variant: 'danger' },
+};
+
+export const STORE_STATUS: StatusMap = {
+  DRAFT: { label: 'Nháp', variant: 'neutral' },
+  ACTIVE: { label: 'Đang công bố', variant: 'success' },
+  INACTIVE: { label: 'Đã ẩn', variant: 'neutral' },
+  SUSPENDED: { label: 'Tạm đình chỉ', variant: 'danger' },
+};

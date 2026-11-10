@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Ban, Lock, MessageSquare, Send } from 'lucide-react';
 import StatusBadge from '../../../components/ui/StatusBadge';
+import { useAuth } from '../../../context/AuthContext';
 import { errorMessage } from '../../../services/api/http';
 import { formatDate, formatDateTime } from '../../../utils/format';
 import { QUOTATION_STATUS, RFQ_STATUS } from '../../../utils/status';
@@ -37,6 +38,7 @@ function latestByStore(quotations: QuotationSummary[]): Map<string, QuotationSum
 }
 
 export default function RfqDetail({ rfqId, supplier, initialQuotationId, onBack, onOpenConversation }: RfqDetailProps) {
+  const { user } = useAuth();
   const [rfq, setRfq] = useState<Rfq | null>(null);
   const [error, setError] = useState('');
   const [quotations, setQuotations] = useState<QuotationSummary[] | null>(null);
@@ -49,8 +51,8 @@ export default function RfqDetail({ rfqId, supplier, initialQuotationId, onBack,
   const [chatError, setChatError] = useState('');
   const detailRef = useRef<HTMLDivElement>(null);
 
-  const owner = !!rfq?.customerId;
-  const isSupplier = !!supplier && !owner;
+  const owner = !supplier && user?.customerId != null && rfq?.customerId === String(user.customerId);
+  const isSupplier = !!supplier;
   const verified = supplier?.verificationStatus === 'VERIFIED';
 
   const loadRfq = useCallback(() => {
@@ -69,7 +71,6 @@ export default function RfqDetail({ rfqId, supplier, initialQuotationId, onBack,
       .catch((e) => setQuotationsError(errorMessage(e)));
   }, [rfqId]);
 
-  // A different viewer means logout/login, which unmounts the portal, so no per-user reset is needed here.
   useEffect(loadRfq, [loadRfq]);
   useEffect(() => {
     if (rfq && (owner || isSupplier)) loadQuotations();
@@ -95,6 +96,7 @@ export default function RfqDetail({ rfqId, supplier, initialQuotationId, onBack,
   };
 
   const startCreate = async () => {
+    if (!isSupplier || !verified) return;
     setComposerError('');
     try {
       const busyStores = new Set(
@@ -231,6 +233,7 @@ export default function RfqDetail({ rfqId, supplier, initialQuotationId, onBack,
               <button
                 type="button"
                 className="mss-button mss-button--secondary"
+                disabled={!verified}
                 onClick={() => openChat().catch((e) => setChatError(errorMessage(e)))}
               >
                 <MessageSquare className="h-4 w-4" aria-hidden />
@@ -260,7 +263,7 @@ export default function RfqDetail({ rfqId, supplier, initialQuotationId, onBack,
           {quotations && quotations.length === 0 && !composer && (
             <p className="m-0 text-gray-600">Bạn chưa gửi báo giá cho yêu cầu này.</p>
           )}
-          {quotations && quotations.length > 0 && (
+          {quotations && quotations.length > 0 && !(quotations.length === 1 && selected) && (
             <ul className="m-0 flex list-none flex-col gap-2 p-0">
               {quotations.map((q) => (
                 <li key={q.quotationId}>
@@ -268,18 +271,17 @@ export default function RfqDetail({ rfqId, supplier, initialQuotationId, onBack,
                     type="button"
                     onClick={() => select(q.quotationId)}
                     aria-pressed={q.quotationId === selectedId}
-                    className={`mss-card flex w-full cursor-pointer flex-wrap items-center justify-between gap-3 p-4 text-left ${
+                    className={`flex w-full cursor-pointer flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--mss-border)] px-3 py-2 text-left text-sm ${
                       q.quotationId === selectedId ? 'border-[var(--mss-primary)] bg-[var(--mss-primary-soft)]' : ''
                     }`}
                   >
                     <span className="min-w-0">
-                      <span className="block font-semibold">
-                        {storeLabel(storeNames, q.storeId)} · Phiên bản {q.version}
+                      <span className="font-medium">
+                        {storeLabel(storeNames, q.storeId)} · v{q.version}
                       </span>
-                      <span className="block text-sm text-gray-500">Gửi {formatDateTime(q.submittedAt)}</span>
                     </span>
                     <span className="flex items-center gap-3">
-                      <span className="mss-price">{formatMoney(q.totalAmount)}</span>
+                      <span className="tabular-nums">{formatMoney(q.totalAmount)}</span>
                       <StatusBadge map={QUOTATION_STATUS} status={q.status} />
                     </span>
                   </button>
@@ -295,7 +297,7 @@ export default function RfqDetail({ rfqId, supplier, initialQuotationId, onBack,
       )}
 
       <div ref={detailRef} className="scroll-mt-4">
-        {composer && (
+        {composer && isSupplier && verified && (
           <QuotationForm
             key={composer.kind === 'revise' ? composer.quotation.quotationId : 'create'}
             rfq={rfq}
@@ -316,7 +318,7 @@ export default function RfqDetail({ rfqId, supplier, initialQuotationId, onBack,
             storeName={storeLabel(storeNames, selected.storeId)}
             isLatest={latest.get(selected.storeId)?.quotationId === selected.quotationId}
             onChanged={refresh}
-            onRevise={(quotation) => setComposer({ kind: 'revise', quotation })}
+            onRevise={verified ? (quotation) => setComposer({ kind: 'revise', quotation }) : undefined}
             onOpenChat={() => openChat(owner ? selected.supplierId : undefined)}
           />
         )}

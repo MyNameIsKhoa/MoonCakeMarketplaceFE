@@ -60,6 +60,7 @@ export class StompConnection {
   constructor(url: string, token: string, private readonly handlers: StompHandlers) {
     this.socket = new WebSocket(url);
     this.socket.onopen = () => {
+      if (this.closed) return;
       this.socket.send(
         encode('CONNECT', {
           'accept-version': '1.2',
@@ -70,6 +71,7 @@ export class StompConnection {
       );
     };
     this.socket.onmessage = (event) => {
+      if (this.closed) return;
       if (typeof event.data !== 'string') return;
       decode(event.data).forEach((frame) => {
         if (frame.command === 'CONNECTED') this.handlers.onConnected();

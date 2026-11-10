@@ -63,8 +63,8 @@ export default function AIAssistantModal({ isOpen, onClose }: AIAssistantModalPr
               <Sparkles className="w-6 h-6 animate-pulse" />
             </div>
             <div>
-              <h2 className="text-xl font-bold">Trợ Lý AI Tư Vấn Bánh & Trà Trung Thu</h2>
-              <p className="text-accent-100 text-sm">Gợi ý quà biếu tinh tế, chuẩn vị và ý nghĩa nhất cùng chuyên gia AI</p>
+              <h2 className="text-xl font-bold">Gợi ý bánh và trà</h2>
+              <p className="text-accent-100 text-sm">Gợi ý do AI tạo dựa trên lựa chọn của bạn.</p>
             </div>
           </div>
         </div>
@@ -151,7 +151,7 @@ export default function AIAssistantModal({ isOpen, onClose }: AIAssistantModalPr
               <div className="bg-accent-100/70 border border-accent-300 p-4 rounded-xl">
                 <div className="flex items-center gap-2 text-primary-800 font-bold mb-2">
                   <Gift className="w-5 h-5" />
-                  <h3>Gợi Ý Lựa Chọn Từ Chuyên Gia AI:</h3>
+                  <h3>Gợi ý dành cho bạn</h3>
                 </div>
                 <p className="text-gray-800 text-sm leading-relaxed whitespace-pre-line">{result.recommendation}</p>
               </div>

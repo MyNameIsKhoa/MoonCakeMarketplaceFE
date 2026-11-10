@@ -30,10 +30,11 @@ export interface SellerPayoutRow {
   paidAt: string | null;
 }
 
-/** Over every seller order of the supplier: pending = BLOCKED + ON_HOLD, ready = READY + PROCESSING, paid = PAID. */
+/** Over every seller order of the supplier: pending = BLOCKED + ON_HOLD, ready = READY, processing = PROCESSING, paid = PAID. */
 export interface SellerPayoutTotals {
   pendingAmount: number;
   readyAmount: number;
+  processingAmount: number;
   paidAmount: number;
 }
 

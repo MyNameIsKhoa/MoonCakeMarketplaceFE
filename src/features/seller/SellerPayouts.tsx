@@ -98,11 +98,13 @@ export default function SellerPayouts() {
 
       {data && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <TotalCard icon={<Clock className="w-4 h-4" aria-hidden />} label="Đang chờ đủ điều kiện"
               amount={data.totals.pendingAmount} hint="Chưa giao/nghiệm thu, còn trong hạn khiếu nại hoặc tạm giữ" />
-            <TotalCard icon={<Wallet className="w-4 h-4" aria-hidden />} label="Sẵn sàng giải ngân"
-              amount={data.totals.readyAmount} hint="Đủ điều kiện hoặc sàn đang chuyển khoản" />
+            <TotalCard icon={<Wallet className="w-4 h-4" aria-hidden />} label="Đủ điều kiện giải ngân"
+              amount={data.totals.readyAmount} hint="Chờ sàn thực hiện chuyển khoản" />
+            <TotalCard icon={<Wallet className="w-4 h-4" aria-hidden />} label="Đang chuyển khoản"
+              amount={data.totals.processingAmount} hint="Sàn đang xử lý chi trả" />
             <TotalCard icon={<Banknote className="w-4 h-4" aria-hidden />} label="Đã giải ngân"
               amount={data.totals.paidAmount} hint="Đã chuyển khoản thành công" />
           </div>
@@ -175,7 +177,7 @@ export default function SellerPayouts() {
           )}
 
           <p className="m-0 text-xs text-gray-500">
-            Phí sàn 5% tính trên số tiền đã thu sau hoàn tiền. “Tạm tính” là ước tính theo quy tắc hiện hành cho tới khi sàn
+            “Tạm tính” là ước tính theo quy tắc tính phí hiện hành cho tới khi sàn
             chốt quyết toán; số tiền giải ngân chính thức là số trong quyết toán.
           </p>
         </>

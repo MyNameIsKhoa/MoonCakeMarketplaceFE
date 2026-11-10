@@ -203,7 +203,7 @@ function CreateProductForm({ stores, categories, onCancel, onCreated }: CreatePr
       <div>
         <h3 className="font-bold text-gray-900 text-base m-0">Thêm sản phẩm mới</h3>
         <p className="text-sm text-gray-500 mt-1 mb-0">
-          Sản phẩm mới ở trạng thái Nháp, chưa hiển thị với khách. Giá và tồn kho nằm ở biến thể, thêm sau khi tạo.
+          Sản phẩm mới ở trạng thái Nháp, chưa hiển thị với khách. Sau khi tạo, thêm biến thể để nhập giá, tồn kho và tải ảnh hoặc nhập đường dẫn ảnh.
         </p>
       </div>
       {usableStores.length === 0 && (

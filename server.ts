@@ -3,6 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { GoogleGenAI } from '@google/genai';
+import { assistantHandler } from './server/marketplaceAssistant.ts';
 
 dotenv.config();
 
@@ -10,54 +11,28 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '20kb' }));
 
 const PORT = process.env.PORT || 3000;
 
 // Initialize Gemini API client if key is available
 const apiKey = process.env.GEMINI_API_KEY;
-const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
+const ai = process.env.GEMINI_ENABLED === 'true' && apiKey && apiKey !== 'MY_GEMINI_API_KEY'
+  ? new GoogleGenAI({ apiKey }) : null;
 
-// API endpoint for AI Mooncake Pairing & Recommendations
-app.post('/api/gemini/recommend', async (req, res) => {
-  try {
-    const { recipient, taste, budget, dietary } = req.body;
+app.get('/api/gemini/status', (_req, res) => res.json({ enabled: ai !== null }));
 
-    if (!ai) {
-      return res.status(503).json({ error: 'Trợ lý AI chưa được cấu hình. Vui lòng thử lại sau.' });
-    }
-
-    const prompt = `Bạn là chuyên gia ẩm thực truyền thống và quà tặng Tết Trung Thu tại Việt Nam.
-Hãy tư vấn chọn bánh trung thu và trà phù hợp nhất dựa trên các tiêu chí sau của khách hàng:
-- Người nhận quà/thưởng thức: ${recipient || 'Cả gia đình'}
-- Sở thích hương vị: ${taste || 'Truyền thống / Ít ngọt'}
-- Khoảng ngân sách: ${budget || 'Linh hoạt'}
-- Chế độ ăn uống / sức khỏe: ${dietary || 'Bình thường'}
-
-Hãy trả về kết quả định dạng JSON thuần (không có markdown code block) với các trường sau:
-{
-  "recommendation": "Đoạn văn tư vấn chi tiết, ấm áp và chuyên nghiệp bằng tiếng Việt",
-  "teaPairing": "Gợi ý loại trà đi kèm phù hợp nhất",
-  "greetingMessage": "Gợi ý lời chúc ý nghĩa in trên thiệp tặng quà"
-}`;
-
-    const response = await ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
-      contents: prompt,
-      config: { responseMimeType: 'application/json' },
-    });
-
-    const text = response.text || '';
-    // Clean up markdown code blocks if present
-    const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const result = JSON.parse(cleanJson);
-
-    res.json(result);
-  } catch (error: any) {
-    console.error('Gemini API Error:', error);
-    res.status(500).json({ error: 'Không thể kết nối với trợ lý AI'
-    });
-  }
+const chat = assistantHandler(ai, process.env.API_GATEWAY_URL || process.env.VITE_API_BASE_URL || 'http://localhost:8080',
+  process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite');
+app.post('/api/gemini/chat', chat);
+// Keep the older suggestion form on the same grounded answer path.
+app.post('/api/gemini/recommend', (req, res) => {
+  const fields = ['recipient', 'taste', 'budget', 'dietary'].map(key =>
+    typeof req.body?.[key] === 'string' ? req.body[key].slice(0, 150) : '').filter(Boolean);
+  req.body = { message: 'Tư vấn sản phẩm bánh trung thu: ' + fields.join(', ') };
+  const send = res.json.bind(res);
+  res.json = ((body: any) => send(body.answer ? { ...body, recommendation: body.answer } : body)) as typeof res.json;
+  return chat(req, res);
 });
 
 // Vite middleware in development

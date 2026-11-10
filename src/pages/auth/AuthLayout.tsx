@@ -20,7 +20,7 @@ export default function AuthLayout({ title, subtitle, notice, children }: AuthLa
             <span className="inline-block bg-accent-400 text-primary-950 font-black px-2.5 py-1 rounded text-xs uppercase tracking-wider">
               Mùa Trăng 2026
             </span>
-            <h2 className="text-3xl font-black mt-4 leading-tight">Sàn bánh trung thu chính hãng</h2>
+            <h2 className="text-3xl font-black mt-4 leading-tight">Sàn mua sắm bánh trung thu</h2>
             <p className="text-accent-100/80 text-sm mt-3 leading-relaxed">
               Một tài khoản để mua bánh từ nhiều thương hiệu, theo dõi đơn hàng và gửi yêu cầu báo giá doanh nghiệp.
             </p>

@@ -7,6 +7,7 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 import ConversationsView from '../../features/chat/ConversationsView';
 import { paymentApi, type FinanceSummary } from '../../features/payment-settlement/paymentApi';
+import PayoutAccountForm from '../../components/PayoutAccountForm';
 import { rfqApi } from '../../features/rfq/api';
 import MyQuotations from '../../features/rfq/components/MyQuotations';
 import RfqDetail from '../../features/rfq/components/RfqDetail';
@@ -117,8 +118,8 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
   return (
     <div className="min-h-screen bg-[var(--mss-bg)] flex text-[var(--mss-text)] font-sans">
       {/* Sidebar */}
-      <aside className="hidden lg:flex fixed left-0 top-0 h-screen w-64 bg-white z-50 flex-col shadow-md">
-        <div className="h-16 px-6 flex items-center justify-between border-b border-gray-100">
+      <aside className="hidden lg:flex fixed left-0 top-0 h-dvh w-64 bg-white z-50 flex-col shadow-md">
+        <div className="h-16 shrink-0 px-6 flex items-center justify-between border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-primary-900 text-white flex items-center justify-center font-bold">
               🥮
@@ -130,7 +131,7 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+        <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentSubTab === item.id;
@@ -158,17 +159,13 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
           })}
         </div>
 
-        <div className="p-4 bg-gray-50 border-t border-gray-100 space-y-3">
+        <div className="shrink-0 p-4 bg-gray-50 border-t border-gray-100">
           <button
             onClick={onBackToShop}
             className="w-full py-3 bg-accent-500 hover:bg-accent-600 text-primary-950 font-bold rounded-xl text-sm shadow transition flex items-center justify-center gap-2"
           >
-            <span>Quay Lại Sàn Mua Sắm</span>
+            <span>Quay lại gian hàng</span>
           </button>
-          <div className="flex items-center justify-between text-sm text-gray-500">
-            <span>Hotline: 1900 6868</span>
-            <button onClick={onBackToShop} className="text-red-600 hover:underline">Thoát</button>
-          </div>
         </div>
       </aside>
 
@@ -211,7 +208,7 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
                 <option key={item.id} value={item.id}>{item.label}</option>
               ))}
             </select>
-            <button onClick={onBackToShop} className="mss-button mss-button--secondary mss-button--sm self-start">Quay lại sàn mua sắm</button>
+            <button onClick={onBackToShop} className="mss-button mss-button--secondary mss-button--sm self-start">Quay lại gian hàng</button>
           </div>
           {/* TAB 1: TỔNG QUAN (DASHBOARD) */}
           {currentSubTab === 'tong-quan' && (
@@ -448,6 +445,7 @@ export default function SellerCenter({ onBackToShop }: SellerCenterProps) {
           {/* TAB 7: DOANH THU & GIẢI NGÂN — tiền từng đơn: đã thu, hoàn, phí sàn, thực nhận, trạng thái giải ngân */}
           {currentSubTab === 'doanh-thu' && (
             <div className="space-y-6 animate-fadeIn min-w-0">
+              <PayoutAccountForm kind="SUPPLIER" />
               <SellerPayouts />
             </div>
           )}

@@ -136,7 +136,6 @@ export default function SupplierOnboarding({ onBackToShop, onRelogin }: Supplier
               <span>
                 Tài khoản nhà cung cấp đang bị tạm khóa.
                 {decisionReason && <> Lý do: <strong>{decisionReason}</strong>.</>}
-                {' '}Vui lòng liên hệ sàn qua hotline 1900 1509.
               </span>
             </div>
           )}

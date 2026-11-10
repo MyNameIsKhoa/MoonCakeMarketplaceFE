@@ -23,12 +23,20 @@ function dueObligation(payments: Payment[]): Payment | undefined {
 
 function redirectCustomer(orderId: number, url: string) {
   sessionStorage.removeItem('financeSellerPaymentId');
+  sessionStorage.removeItem('financeOrderDetailId');
+  sessionStorage.removeItem('financeDetailPaymentId');
   sessionStorage.setItem('financeCustomerOrderId', String(orderId));
   window.location.assign(url);
 }
 
-function redirectSeller(payment: Payment, url: string) {
+function redirectSeller(payment: Payment, url: string, returnOrderId?: string) {
   sessionStorage.removeItem('financeCustomerOrderId');
+  sessionStorage.removeItem('financeOrderDetailId');
+  sessionStorage.removeItem('financeDetailPaymentId');
+  if (returnOrderId && /^[1-9]\d*$/.test(returnOrderId)) {
+    sessionStorage.setItem('financeOrderDetailId', returnOrderId);
+    sessionStorage.setItem('financeDetailPaymentId', String(payment.paymentId));
+  }
   sessionStorage.setItem('financeSellerPaymentId', String(payment.paymentId));
   window.location.assign(url);
 }
@@ -54,12 +62,12 @@ export async function openCustomerCheckout(orderId: number) {
   redirectCustomer(orderId, url);
 }
 
-export async function openSellerCheckout(sellerOrderId: number) {
+export async function openSellerCheckout(sellerOrderId: number, returnOrderId?: string) {
   let summary = await paymentApi.summary(sellerOrderId);
   let obligation = dueObligation(summary.payments);
   if (!obligation) throw new Error('Đơn này đã được thanh toán đủ.');
   let url = usableCheckout(obligation);
-  if (url) { redirectSeller(obligation, url); return; }
+  if (url) { redirectSeller(obligation, url, returnOrderId); return; }
   const unresolved = summary.payments.filter(needsReconcile);
   if (unresolved.length) {
     for (const payment of unresolved) {
@@ -71,7 +79,7 @@ export async function openSellerCheckout(sellerOrderId: number) {
     obligation = dueObligation(summary.payments);
     if (!obligation) throw new Error('Đơn này đã được thanh toán đủ.');
     url = usableCheckout(obligation);
-    if (url) { redirectSeller(obligation, url); return; }
+    if (url) { redirectSeller(obligation, url, returnOrderId); return; }
     const unresolvedAttempt = summary.payments.some(needsReconcile);
     if (unresolvedAttempt) throw new Error('Giao dịch đang được xác minh với PayOS. Vui lòng đối soát lại sau.');
   }
@@ -81,5 +89,5 @@ export async function openSellerCheckout(sellerOrderId: number) {
   const payment = await paymentApi.initiate(obligation.paymentId, sellerInitiationKey(obligation));
   url = usableCheckout(payment);
   if (!url) throw new Error('Chưa có link thanh toán hợp lệ. Vui lòng đối soát PayOS trước khi thử lại.');
-  redirectSeller(payment, url);
+  redirectSeller(payment, url, returnOrderId);
 }

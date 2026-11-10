@@ -1,3 +1,4 @@
+import { STORE_STATUS } from '../../utils/status';
 import { useEffect, useMemo, useState } from 'react';
 import { categoryApi, storeApi } from '../../services/api';
 import { adminCatalogApi } from '../../services/api/adminCatalogApi';
@@ -64,7 +65,7 @@ export default function AdminCatalog({ kind }: { kind: 'stores' | 'categories' }
   const parentOptions = rows.filter(r => r.category.status === 'ACTIVE');
 
   const updateStore = async (store: StoreResponse, status: StoreStatus) => {
-    if (!window.confirm(`Chuyển ${store.name} sang ${status}?`)) return;
+    if (!window.confirm(`Chuyển ${store.name} sang trạng thái “${STORE_STATUS[status].label}”?`)) return;
     setBusy(true); setError('');
     try { await storeApi.update(store.storeId, { status }); setReload(n => n + 1); }
     catch (e) { setError(e instanceof Error ? e.message : 'Không cập nhật được gian hàng.'); }
@@ -94,7 +95,7 @@ export default function AdminCatalog({ kind }: { kind: 'stores' | 'categories' }
     <h2 className="text-2xl font-bold text-blue-950 mb-1">{kind === 'stores' ? 'Quản lý gian hàng' : 'Quản lý danh mục'}</h2>
     <p className="text-slate-500 mb-6">{kind === 'stores' ? 'Xem mọi gian hàng và kiểm soát trạng thái công bố.' : 'Danh mục dùng chung trên sàn, gồm cả danh mục đang ẩn.'}</p>
     {error && <p role="alert" className="text-red-700 mb-4">{error}</p>}
-    {kind === 'stores' ? <div className="overflow-x-auto bg-white rounded-2xl border border-blue-100"><table className="w-full text-left text-sm"><thead className="bg-blue-50 text-blue-950"><tr><th className="p-4">Gian hàng</th><th className="p-4">Nhà cung cấp</th><th className="p-4">Trạng thái</th><th className="p-4">Thao tác</th></tr></thead><tbody>{stores?.map(store => <tr key={store.storeId} className="border-t border-blue-50"><td className="p-4 font-medium">{store.name}<span className="block text-slate-500">#{store.storeId}</span></td><td className="p-4">#{store.supplierIdRef}</td><td className="p-4">{store.status}</td><td className="p-4"><div className="flex flex-wrap gap-2">{transitions[store.status].map(next => <button key={next} disabled={busy} onClick={() => void updateStore(store, next)} className="text-blue-700 border border-blue-200 rounded-lg px-3 py-1 hover:bg-blue-50 disabled:opacity-40">{next}</button>)}</div></td></tr>)}</tbody></table>{stores?.length === 0 && <p className="p-4">Chưa có gian hàng.</p>}{!stores && !error && <p className="p-4">Đang tải…</p>}</div>
+    {kind === 'stores' ? <div className="overflow-x-auto bg-white rounded-2xl border border-blue-100"><table className="w-full text-left text-sm"><thead className="bg-blue-50 text-blue-950"><tr><th className="p-4">Gian hàng</th><th className="p-4">Nhà cung cấp</th><th className="p-4">Trạng thái</th><th className="p-4">Thao tác</th></tr></thead><tbody>{stores?.map(store => <tr key={store.storeId} className="border-t border-blue-50"><td className="p-4 font-medium">{store.name}<span className="block text-slate-500">#{store.storeId}</span></td><td className="p-4">#{store.supplierIdRef}</td><td className="p-4">{STORE_STATUS[store.status]?.label ?? "Chưa xác định"}</td><td className="p-4"><div className="flex flex-wrap gap-2">{transitions[store.status].map(next => <button key={next} disabled={busy} onClick={() => void updateStore(store, next)} className="text-blue-700 border border-blue-200 rounded-lg px-3 py-1 hover:bg-blue-50 disabled:opacity-40">{{ ACTIVE: "Công bố", INACTIVE: "Ẩn gian hàng", SUSPENDED: "Tạm đình chỉ", DRAFT: "Đưa về nháp" }[next]}</button>)}</div></td></tr>)}</tbody></table>{stores?.length === 0 && <p className="p-4">Chưa có gian hàng.</p>}{!stores && !error && <p className="p-4">Đang tải…</p>}</div>
       : <>
         <form onSubmit={e => void createCategory(e)} className="flex flex-wrap gap-3 bg-white rounded-2xl border border-blue-100 p-4 mb-5">
           <input required maxLength={255} value={name} onChange={e => setName(e.target.value)} placeholder="Tên danh mục" aria-label="Tên danh mục" className="border rounded-lg px-3 py-2"/>

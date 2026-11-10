@@ -109,6 +109,8 @@ export const productApi = {
 };
 
 export const variantApi = {
+  getOwned: async (storeId: string, variantId: string, signal?: AbortSignal) =>
+    (await http.get<VariantResponse>(`/api/stores/${storeId}/variants/${variantId}`, { signal })).data,
   /** CA11 — sort fields: basePrice, variantName, id. */
   list: async (productId: number, query: PageQuery = {}) =>
     (await http.get<PageResponse<VariantResponse>>(`/api/products/${productId}/variants`,

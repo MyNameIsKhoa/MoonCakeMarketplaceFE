@@ -174,8 +174,9 @@ export interface ProductSummaryResponse {
   productCode: string;
   name: string;
   status: ProductStatus;
-  /** Lowest price among ACTIVE variants; null when the product has no ACTIVE variant. */
+  /** Lowest price among purchasable variants; null when none is available. */
   minPrice: Money | null;
+  purchasable?: boolean;
   /** First ACTIVE variant image; null when none. */
   imageUrl: string | null;
 }
@@ -234,6 +235,7 @@ export interface VariantResponse {
   imageUrl: string | null;
   basePrice: Money;
   stockQuantity: number;
+  availableQuantity?: number;
   status: ProductStatus;
 }
 

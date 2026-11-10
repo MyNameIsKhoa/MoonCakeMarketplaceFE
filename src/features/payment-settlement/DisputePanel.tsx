@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { paymentApi, type FinanceSummary } from './paymentApi';
 import { ApiError } from '../../services/api/http';
 import { formatVnd } from '../../utils/format';
-import { PAYMENT_TYPE } from '../../utils/status';
+import RefundRequestForm from './RefundRequestForm';
+import RefundTransfer from './RefundTransfer';
 
 type Role = 'buyer' | 'seller' | 'admin';
 const statusText: Record<string, string> = {
@@ -41,15 +42,13 @@ export default function DisputePanel({ sellerOrderId, role, initialSummary }: {
   const [additionalEvidence, setAdditionalEvidence] = useState('');
   const [decision, setDecision] = useState('REJECT');
   const [amount, setAmount] = useState('');
-  const [paymentId, setPaymentId] = useState('');
-  const [reference, setReference] = useState('');
   const keys = useRef<Record<string, string>>({});
   const load = useCallback(() => paymentApi.summary(sellerOrderId).then(setSummary).catch(e => setError(message(e))), [sellerOrderId]);
   useEffect(() => { if (!initialSummary) void load(); }, [initialSummary, load]);
   useEffect(() => { if (initialSummary) setSummary(initialSummary); }, [initialSummary]);
 
   async function act(command: string, body?: unknown) {
-    if (busy) return;
+    if (busy) return false;
     setBusy(true); setError(''); setNotice('');
     const signature = `${command}:${JSON.stringify(body)}`;
     keys.current[signature] ||= crypto.randomUUID();
@@ -57,24 +56,28 @@ export default function DisputePanel({ sellerOrderId, role, initialSummary }: {
       const result = await paymentApi.command(sellerOrderId, command, body, keys.current[signature]);
       setSummary(result);
       delete keys.current[signature];
-      setReason(''); setEvidence(''); setAmount(''); setReference('');
+      setReason(''); setEvidence(''); setAmount('');
       setAdditionalEvidence('');
       setNotice('Đã cập nhật hồ sơ khiếu nại.');
-    } catch (e) { setError(message(e)); }
+      return true;
+    } catch (e) { setError(message(e)); return false; }
     finally { setBusy(false); }
   }
 
   if (!summary) return <div className="rounded-xl border p-4 text-sm">{error || 'Đang tải khiếu nại…'}</div>;
   const active = summary.disputes.find(d => d.status !== 'RESOLVED');
-  const allocatedRefund = active ? summary.refunds.filter(r => r.disputeId === active.id && r.status !== 'REJECTED')
-    .reduce((total, r) => total + (r.amount ?? 0), 0) : 0;
-  const awardToAllocate = Math.max(0, (active?.amount ?? 0) - allocatedRefund);
   return <section className="rounded-xl border border-blue-100 bg-white p-4 space-y-4 text-sm">
     <div className="flex justify-between gap-3"><h4 className="font-bold text-blue-950">Khiếu nại đơn nhà bán #{sellerOrderId}</h4>
       <button type="button" className="text-blue-700 underline" onClick={() => void load()}>Tải lại</button></div>
     {error && <p role="alert" className="text-red-700">{error}</p>}
     {notice && <p role="status" className="text-green-700">{notice}</p>}
-    {summary.disputes.map(d => <div key={d.id} className="border-t pt-3 space-y-2">
+    {summary.disputes.map(d => {
+      const refunds = summary.refunds.filter(r => r.disputeId === d.id);
+      const allocated = refunds.filter(r => r.status !== "REJECTED").reduce((sum, r) => sum + (r.amount ?? 0), 0);
+      const paid = refunds.filter(r => r.status === "SUCCESS").reduce((sum, r) => sum + (r.amount ?? 0), 0);
+      const award = d.amount ?? 0;
+      const toAllocate = Math.max(0, award - allocated);
+      return <div key={d.id} className="border-t pt-3 space-y-2">
       <p><strong>Hồ sơ #{d.id}</strong> · {statusText[d.status] || d.status}</p>
       <p>Lý do: {d.reason}</p>
       {evidenceUrl(d.evidenceUrl) && <a className="text-blue-700 underline" href={evidenceUrl(d.evidenceUrl) || undefined} target="_blank" rel="noreferrer">Bằng chứng người mua</a>}
@@ -101,42 +104,19 @@ export default function DisputePanel({ sellerOrderId, role, initialSummary }: {
         <label className="block">Lý do quyết định<textarea className="mss-textarea" required maxLength={1000} value={reason} onChange={e => setReason(e.target.value)} /></label>
         <button disabled={busy || !reason.trim()} className="mss-button mss-button--primary mss-button--sm">Ghi quyết định</button>
       </form>}
-      {d.status === 'REFUND_PENDING' && role === 'admin' && <div className="space-y-3">
-        <p>Đã duyệt hoàn {formatVnd(d.amount ?? 0)} · Chưa tạo khoản hoàn cho {formatVnd(awardToAllocate)}.</p>
-        <p>Chọn một giao dịch đã thu để ghi nhận tiền hoàn. Không cần chia đều; chỉ dùng giao dịch khác nếu giao dịch đã chọn không đủ tiền.</p>
-        {summary.refunds.filter(r => r.disputeId === d.id).map(r => <div key={r.id} className="border rounded p-2 space-y-2">
-          <p>Khoản hoàn #{r.id}: {formatVnd(r.amount ?? 0)} · {r.status}</p>
-          {r.status === 'MANUAL_REVIEW' && <form className="space-y-2" onSubmit={e => { e.preventDefault(); void act(`refunds/${r.id}/confirm`, { reference, evidenceUrl: evidence }); }}>
-            <input className="mss-input" required maxLength={255} placeholder="Mã chuyển khoản thành công" value={reference} onChange={e => setReference(e.target.value)} />
-            <input className="mss-input" required type="url" pattern="https://.*" placeholder="Link HTTPS chứng từ chuyển khoản" value={evidence} onChange={e => setEvidence(e.target.value)} />
-            <button disabled={busy} className="mss-button mss-button--primary mss-button--sm">Xác nhận đã hoàn tiền</button>
-          </form>}
-        </div>)}
-        {awardToAllocate > 0 ? <form className="space-y-2" onSubmit={e => { e.preventDefault(); void act('refunds', {
-          paymentId: Number(paymentId), amount: Number(amount), disputeId: d.id,
-          reason: reason.trim(), policySnapshot: `DISPUTE-${d.id}: ${d.resolution || reason.trim()}`,
-        }); }}>
-          <fieldset className="space-y-2"><legend className="font-medium">Giao dịch dùng để ghi nhận khoản hoàn</legend>
-            {summary.payments.filter(p => p.status === 'SUCCESS' && p.holdStatus === 'HELD').map(p =>
-              <label key={p.paymentId} className="flex cursor-pointer items-center gap-3 rounded-lg border border-blue-200 p-3">
-                <input type="radio" name={`refund-payment-${d.id}`} required disabled={busy}
-                  checked={paymentId === String(p.paymentId)} onChange={() => {
-                    setPaymentId(String(p.paymentId)); setAmount(String(Math.min(awardToAllocate, p.amount)));
-                  }} />
-                <span>#{p.paymentId} · {PAYMENT_TYPE[p.paymentType]?.label || p.paymentType} · {formatVnd(p.amount)}</span>
-              </label>
-            )}
-          </fieldset>
-          <label className="block">Số tiền ghi nhận từ giao dịch đã chọn
-            <input className="mss-input" type="number" min="1" max={Math.min(awardToAllocate,
-              summary.payments.find(p => String(p.paymentId) === paymentId)?.amount ?? awardToAllocate)}
-              required value={amount} onChange={e => setAmount(e.target.value)} />
-          </label>
-          <textarea className="mss-textarea" required maxLength={500} placeholder="Lý do hoàn tiền" value={reason} onChange={e => setReason(e.target.value)} />
-          <button disabled={busy || !paymentId || !reason.trim()} className="mss-button mss-button--secondary mss-button--sm">Tạo khoản hoàn thủ công</button>
-        </form> : <p>Đã tạo đủ khoản hoàn được duyệt. Chờ xác nhận các khoản hoàn sau khi chuyển tiền thực tế.</p>}
+      {role === 'admin' && (d.status === 'REFUND_PENDING' || refunds.length > 0) && <div className="space-y-3">
+        <p>Đã duyệt {formatVnd(award)} · Đã chuyển {formatVnd(paid)} · Còn phải chuyển {formatVnd(Math.max(0, award - paid))}.</p>
+        {refunds.map(refund => <RefundTransfer key={refund.id} orderId={sellerOrderId} refund={refund} busy={busy}
+          onUpdated={setSummary} onReject={reason => act("refunds/" + refund.id + "/reject", { reason })} />)}
+        {d.status === 'REFUND_PENDING' && toAllocate > 0 && <>
+          <p>Còn {formatVnd(toAllocate)} chưa được gắn vào giao dịch để hoàn.</p>
+          <RefundRequestForm payments={summary.payments} maximum={toAllocate} busy={busy}
+            decision={"Khiếu nại #" + d.id + " · " + (d.resolution ?? "Quyết định hoàn tiền")}
+            onSubmit={body => act("refunds", { ...body, disputeId: d.id })} />
+        </>}
       </div>}
-    </div>)}
+    </div>;
+    })}
     {role === 'buyer' && !active && (!summary.context.disputeDeadlineAt || Date.now() <= Date.parse(summary.context.disputeDeadlineAt))
       && !summary.settlements.some(s => ['PROCESSING', 'SUCCESS'].includes(s.status)) && <form className="space-y-2" onSubmit={e => { e.preventDefault(); void act('disputes', { reason: reason.trim(), evidenceUrl: evidence || null }); }}>
       <p className="text-gray-600">Đã thanh toán: có thể báo thiếu, sai, hỏng hàng trong 7 ngày từ khi giao; hoặc báo chưa nhận khi quá ngày giao hẹn. Trước khi thanh toán, dùng yêu cầu hủy đơn.</p>

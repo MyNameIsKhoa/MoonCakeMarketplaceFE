@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, Zap, ChevronRight, Store as StoreIcon } from 'lucide-react';
+import { ChevronRight, Store as StoreIcon } from 'lucide-react';
 import { Store, Product } from '../../types';
 
 interface StoreCardProps {
@@ -32,18 +32,6 @@ export const StoreCard: React.FC<StoreCardProps> = ({
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent"></div>
 
-        {/* Top Badges */}
-        <div className="absolute top-3 right-3 flex items-center gap-1.5 flex-wrap justify-end">
-          <span className="bg-accent-400 text-primary-950 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1 backdrop-blur-sm">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Chính hãng</span>
-          </span>
-          <span className="bg-primary-900/90 text-accent-200 border border-accent-400/30 text-xs font-medium px-2 py-1 rounded-full shadow-sm flex items-center gap-1">
-            <Zap className="w-3 h-3 text-accent-400" />
-            <span>Giao hỏa tốc</span>
-          </span>
-        </div>
-
         {/* Store Logo overlapping bottom */}
         <div className="absolute -bottom-6 left-5 z-10">
           <div className="relative">
@@ -52,7 +40,6 @@ export const StoreCard: React.FC<StoreCardProps> = ({
               alt={store.name} 
               className="w-16 h-16 rounded-2xl object-contain p-1 border-2 border-white shadow-lg bg-white ring-2 ring-primary-100" 
             />
-            <span className="absolute -bottom-1 -right-1 bg-green-500 w-3.5 h-3.5 rounded-full border-2 border-white" title="Gian hàng đang mở"></span>
           </div>
         </div>
       </div>
@@ -112,7 +99,7 @@ export const StoreCard: React.FC<StoreCardProps> = ({
                     {p.name.replace(` - ${store.name.split(' ')[0]}`, '')}
                   </p>
                   <p className="text-[11px] font-bold text-primary-700">
-                    {p.price.toLocaleString()}đ
+                    {p.inStock === false ? "Hết hàng" : "Từ " + p.price.toLocaleString("vi-VN") + " đ"}
                   </p>
                 </div>
               ))}
@@ -124,7 +111,7 @@ export const StoreCard: React.FC<StoreCardProps> = ({
         <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-xs text-gray-500">
             <StoreIcon className="w-3.5 h-3.5 text-primary-700" />
-            <span className="text-gray-600 font-medium">Gian hàng chính hãng</span>
+            <span className="text-gray-600 font-medium">Gian hàng</span>
           </div>
 
           <button 
