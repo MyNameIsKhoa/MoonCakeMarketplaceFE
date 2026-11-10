@@ -942,10 +942,10 @@ class _ForgotPasswordSheetState extends ConsumerState<ForgotPasswordSheet> {
   }
 
   Future<void> _confirmReset() async {
-    final token = Formatters.extractTokenFromInput(_tokenCtrl.text);
+    final code = _tokenCtrl.text.trim();
     final newPassword = _newPasswordCtrl.text;
-    if (token.isEmpty) {
-      setState(() => _error = 'Vui lòng dán mã hoặc liên kết đặt lại mật khẩu.');
+    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
+      setState(() => _error = 'Vui lòng nhập mã gồm 6 chữ số trong email.');
       return;
     }
     if (newPassword.length < 6) {
@@ -959,7 +959,8 @@ class _ForgotPasswordSheetState extends ConsumerState<ForgotPasswordSheet> {
     });
     try {
       final msg = await ref.read(identityApiProvider).resetPassword(
-            token: token,
+            email: _emailCtrl.text.trim(),
+            code: code,
             newPassword: newPassword,
           );
       if (!mounted) return;
@@ -1000,8 +1001,8 @@ class _ForgotPasswordSheetState extends ConsumerState<ForgotPasswordSheet> {
             const SizedBox(height: 6),
             Text(
               _stepReset
-                  ? 'Dán liên kết /reset-password?token=... từ email và nhập mật khẩu mới.'
-                  : 'Nhập email đăng ký để nhận liên kết khôi phục mật khẩu.',
+                  ? 'Nhập email tài khoản, mã 6 chữ số đã nhận và mật khẩu mới.'
+                  : 'Nhập email đăng ký để nhận mã khôi phục mật khẩu.',
               style: const TextStyle(fontSize: 13, color: MssColors.textMuted),
             ),
             const SizedBox(height: 14),
@@ -1039,18 +1040,26 @@ class _ForgotPasswordSheetState extends ConsumerState<ForgotPasswordSheet> {
               const SizedBox(height: 14),
               ElevatedButton(
                 onPressed: _loading ? null : _requestLink,
-                child: const Text('Gửi liên kết đặt lại mật khẩu'),
+                child: const Text('Gửi mã đặt lại mật khẩu'),
               ),
               TextButton(
                 onPressed: () => setState(() => _stepReset = true),
-                child: const Text('Tôi đã có mã / liên kết đặt lại mật khẩu'),
+                child: const Text('Tôi đã có mã đặt lại mật khẩu'),
               ),
             ] else ...[
               TextField(
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'Email tài khoản *'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
                 controller: _tokenCtrl,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
                 decoration: const InputDecoration(
-                  labelText: 'Mã hoặc liên kết đặt lại mật khẩu *',
-                  hintText: 'Dán liên kết hoặc token tại đây',
+                  labelText: 'Mã đặt lại mật khẩu *',
+                  hintText: 'Nhập 6 chữ số trong email',
                 ),
               ),
               const SizedBox(height: 12),

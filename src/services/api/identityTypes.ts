@@ -29,9 +29,10 @@ export interface GoogleLoginRequest {
   idToken: string;
 }
 
-/** POST /api/auth/password-resets: `token` from the email link /reset-password?token=…; password 6–100 chars. */
+/** POST /api/auth/password-resets: six-digit email code plus a new password. */
 export interface PasswordResetRequest {
-  token: string;
+  email: string;
+  code: string;
   newPassword: string;
 }
 

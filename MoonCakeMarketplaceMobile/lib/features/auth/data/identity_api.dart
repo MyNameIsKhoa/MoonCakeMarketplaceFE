@@ -85,17 +85,19 @@ class IdentityApi {
     if (res is Map && res['message'] != null) {
       return res['message'].toString();
     }
-    return 'Nếu tài khoản tồn tại, liên kết đặt lại mật khẩu đã được gửi qua email.';
+    return 'Nếu tài khoản đủ điều kiện, mã đặt lại mật khẩu đã được gửi qua email.';
   }
 
   Future<String> resetPassword({
-    required String token,
+    required String email,
+    required String code,
     required String newPassword,
   }) async {
     final res = await _client.post(
       '/api/auth/password-resets',
       data: {
-        'token': token.trim(),
+        'email': email.trim(),
+        'code': code.trim(),
         'newPassword': newPassword,
       },
       skipAuth: true,
