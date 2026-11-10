@@ -40,6 +40,77 @@ test('retrieval gets actual Catalog variants including available stock', async (
   assert.equal(JSON.parse(product.content).variants[0].priceVnd, 90000);
   assert.equal(JSON.parse(product.content).variants[0].availableQuantity, 7);
 });
+
+function rankingCatalog({ failSecondPage = false, expensiveNinthVariant = false } = {}) {
+  const requests = [];
+  const product = (id, storeId = 8) => ({ productId: id, storeId, name: 'Bánh ' + id, status: 'ACTIVE' });
+  const fetcher = async url => {
+    requests.push(url);
+    const parsed = new URL(url);
+    if (parsed.pathname === '/api/stores') return { ok: true, json: async () => [
+      { storeId: 8, name: 'Tiệm Sen', status: 'ACTIVE' }, { storeId: 9, name: 'Kinh Đô', status: 'ACTIVE' }
+    ] };
+    if (parsed.pathname === '/api/products') {
+      assert.equal(parsed.searchParams.has('q'), false, 'ranking words must not become a product-name search');
+      if (parsed.searchParams.get('page') === '1' && failSecondPage) return { ok: false };
+      return { ok: true, json: async () => ({ items: parsed.searchParams.get('page') === '0'
+        ? [product(1), product(2), product(3), product(4), product(5), product(6)] : [product(7, 9)], totalPages: 2, totalElements: 7 }) };
+    }
+    const id = Number(parsed.pathname.split('/').at(-1));
+    const variants = [{ variantId: id * 10, variantName: 'Hộp 4 bánh', status: 'ACTIVE', basePrice: id === 7 ? 1200000 : id * 10000, availableQuantity: id === 7 ? 0 : 10 }];
+    if (id === 1 && expensiveNinthVariant) for (let i = 1; i <= 8; i++) variants.push({ variantId: i, variantName: 'Biến thể ' + i,
+      status: 'ACTIVE', basePrice: i === 8 ? 2000000 : 20000, availableQuantity: 5 });
+    variants.push({ variantId: 9999, variantName: 'Bản nháp', status: 'DRAFT', basePrice: 1, availableQuantity: 10 });
+    return { ok: true, json: async () => ({ status: 'ACTIVE', variants }) };
+  };
+  return { fetcher, requests };
+}
+const noGeminiForRanking = { models: { generateContent: () => { throw Error('price ranking must come from Catalog, not Gemini guesses'); } } };
+
+test('most expensive cake reads all pages and returns exact variant price, store and source', async () => {
+  const { fetcher, requests } = rankingCatalog();
+  const reply = await answerMarketplace(input('bánh nào đắt nhất'), noGeminiForRanking, 'http://gateway', 'test', fetcher);
+  assert.match(reply.answer, /Bánh 7.*Hộp 4 bánh: 1\.200\.000 đ/);
+  assert.match(reply.answer, /Kinh Đô/);
+  assert.match(reply.answer, /hiện hết hàng/);
+  assert.match(reply.answer, /chưa trừ khuyến mãi/);
+  assert.equal(reply.sources[0].url, '/products/7');
+  assert.ok(requests.some(url => url.includes('page=1')));
+});
+test('ranking includes every variant instead of the first eight', async () => {
+  const { fetcher } = rankingCatalog({ expensiveNinthVariant: true });
+  const reply = await answerMarketplace(input('bánh nào mắc nhất'), noGeminiForRanking, 'http://gateway', 'test', fetcher);
+  assert.match(reply.answer, /Biến thể 8: 2\.000\.000 đ/);
+  assert.equal(reply.sources[0].url, '/products/1');
+});
+test('cheapest, store-scoped and in-stock price rankings respect actual scope', async () => {
+  const { fetcher } = rankingCatalog();
+  const cheap = await answerMarketplace(input('bánh nào rẻ nhất'), noGeminiForRanking, 'http://gateway', 'test', fetcher);
+  assert.match(cheap.answer, /Bánh 1.*10\.000 đ/);
+  const scoped = await answerMarketplace(input('bánh nào đắt nhất tại Tiệm Sen'), noGeminiForRanking, 'http://gateway', 'test', fetcher);
+  assert.match(scoped.answer, /Bánh 6.*60\.000 đ/);
+  assert.doesNotMatch(scoped.answer, /Kinh Đô/);
+  const available = await answerMarketplace(input('bánh đắt nhất còn hàng'), noGeminiForRanking, 'http://gateway', 'test', fetcher);
+  assert.match(available.answer, /Bánh 6.*60\.000 đ/);
+  assert.equal(available.sources[0].url, '/products/6');
+});
+test('ranking never claims a global maximum after a partial Catalog failure', async () => {
+  const { fetcher } = rankingCatalog({ failSecondPage: true });
+  await assert.rejects(() => answerMarketplace(input('bánh nào đắt nhất'), noGeminiForRanking, 'http://gateway', 'test', fetcher), /CATALOG_UNAVAILABLE/);
+});
+test('top results and both price extremes use actual ordered values', async () => {
+  const { fetcher } = rankingCatalog();
+  const top = await answerMarketplace(input('top 3 bánh đắt nhất'), noGeminiForRanking, 'http://gateway', 'test', fetcher);
+  assert.deepEqual(top.sources.map(source => source.url), ['/products/7', '/products/6', '/products/5']);
+  const both = await answerMarketplace(input('bánh đắt nhất và rẻ nhất'), noGeminiForRanking, 'http://gateway', 'test', fetcher);
+  assert.match(both.answer, /cao nhất/); assert.match(both.answer, /thấp nhất/);
+  assert.deepEqual(both.sources.map(source => source.url), ['/products/7', '/products/1']);
+});
+test('oversized catalogs fail explicitly instead of ranking only a sample', async () => {
+  const fetcher = async url => ({ ok: true, json: async () => url.endsWith('/api/stores')
+    ? [] : { items: [], totalPages: 11, totalElements: 1001 } });
+  await assert.rejects(() => answerMarketplace(input('bánh nào đắt nhất'), noGeminiForRanking, 'http://gateway', 'test', fetcher), /CATALOG_RANKING_TOO_LARGE/);
+});
 test('Catalog failure does not invent a price or call Gemini', async () => {
   await assert.rejects(() => answerMarketplace(input('Bánh matcha'), model({}), 'http://gateway', 'test', async () => { throw Error('down'); }), /CATALOG_UNAVAILABLE/);
 });
