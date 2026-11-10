@@ -308,6 +308,83 @@ void main() {
       expect(quote.depositPercent, 30);
       expect(quote.items.first.unitPrice, 285000);
     });
+
+    test('TV6 Fulfillment models: Shipment, Review, Dispute and Cancellation parse accurately', () {
+      final shipment = ShipmentModel.fromJson({
+        'shipmentId': 501,
+        'sellerOrderId': 12,
+        'carrierName': 'Giao Hàng Nhanh (GHN)',
+        'trackingNumber': 'GHN-987654321',
+        'status': 'SHIPPED',
+        'shippedAt': '2026-09-10T14:30:00',
+        'deliveredAt': null,
+        'note': 'Giao giờ hành chính',
+        'createdAt': '2026-09-10T10:00:00',
+        'lines': [
+          {
+            'shipmentLineId': 1001,
+            'orderItemId': 201,
+            'variantId': 15,
+            'productNameSnapshot': 'Bánh Nướng Thập Cẩm',
+            'variantNameSnapshot': 'Hộp 4 bánh',
+            'skuSnapshot': 'KD-TC-4',
+            'quantity': 2,
+          }
+        ],
+      });
+      expect(shipment.shipmentId, 501);
+      expect(shipment.carrierName, 'Giao Hàng Nhanh (GHN)');
+      expect(ShipmentModel.statusLabelVi(shipment.status), 'Đang vận chuyển');
+      expect(shipment.lines.length, 1);
+      expect(shipment.lines.first.quantity, 2);
+
+      final review = ReviewModel.fromJson({
+        'reviewId': 88,
+        'orderItemId': 201,
+        'customerId': 9,
+        'storeId': 1,
+        'variantId': 15,
+        'rating': 5,
+        'comment': 'Bánh rất ngon, đóng gói đẹp và giao đúng hẹn!',
+        'createdAt': '2026-09-12T16:00:00',
+      });
+      expect(review.rating, 5);
+      expect(review.comment, contains('đóng gói đẹp'));
+
+      final dispute = DisputeRecordModel.fromJson({
+        'disputeId': 33,
+        'sellerOrderId': 12,
+        'reason': 'Bánh bị móp nắp hộp',
+        'description': 'Hộp quà bị móp góc nắp trong lúc vận chuyển',
+        'status': 'OPEN',
+        'sellerResponse': 'Gian hàng xin đổi hộp mới cho quý khách',
+        'canCustomerEscalate': true,
+        'createdAt': '2026-09-13T09:00:00',
+        'evidences': [
+          {
+            'evidenceId': 7,
+            'uploadedByRole': 'CUSTOMER',
+            'evidenceUrl': 'https://storage.example.com/evidence/box-damage.jpg',
+            'note': 'Ảnh chụp nắp hộp',
+            'createdAt': '2026-09-13T09:05:00',
+          }
+        ],
+      });
+      expect(dispute.disputeId, 33);
+      expect(dispute.canCustomerEscalate, isTrue);
+      expect(dispute.evidences.first.evidenceUrl, contains('box-damage.jpg'));
+
+      final cancellation = CancellationRecordModel.fromJson({
+        'cancellationId': 19,
+        'sellerOrderId': 12,
+        'reason': 'Đặt nhầm địa chỉ giao hàng',
+        'status': 'PENDING',
+        'decisionReason': null,
+        'createdAt': '2026-09-10T11:00:00',
+      });
+      expect(cancellation.cancellationId, 19);
+      expect(cancellation.status, 'PENDING');
+    });
   });
 
   group('3. Widget & Screen Navigation Tests', () {
