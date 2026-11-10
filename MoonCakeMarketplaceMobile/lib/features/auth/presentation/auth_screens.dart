@@ -80,7 +80,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final email = _emailCtrl.text.trim();
     if (email.isEmpty) {
       setState(() {
-        _errorMessage = 'Vui lòng nhập địa chỉ email để gửi lại liên kết xác minh.';
+        _errorMessage = 'Vui lòng nhập địa chỉ email để nhận mã xác minh.';
       });
       return;
     }
@@ -140,7 +140,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() {
         _emailCtrl.text = registeredEmail;
         _infoMessage =
-            'Đăng ký thành công! Vui lòng kiểm tra email để lấy liên kết/mã xác minh tài khoản trước khi đăng nhập.';
+            'Đăng ký thành công! Vui lòng kiểm tra email để lấy mã xác minh trước khi đăng nhập.';
         _needsEmailVerification = true;
       });
     }
@@ -572,7 +572,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                     const SizedBox(height: 6),
                     const Text(
-                      'Sau khi đăng ký, hệ thống sẽ gửi liên kết xác minh tới email của bạn.',
+                      'Sau khi đăng ký, hệ thống sẽ gửi mã xác minh tới email của bạn.',
                       style: TextStyle(
                         fontSize: 13,
                         color: MssColors.textMuted,
@@ -754,7 +754,7 @@ class _VerifyEmailSheetState extends ConsumerState<VerifyEmailSheet> {
   Future<void> _verify() async {
     final token = Formatters.extractTokenFromInput(_tokenCtrl.text);
     if (token.isEmpty) {
-      setState(() => _error = 'Vui lòng dán mã token hoặc liên kết từ email.');
+      setState(() => _error = 'Vui lòng nhập mã xác minh gồm 6 chữ số.');
       return;
     }
     setState(() {
@@ -778,7 +778,7 @@ class _VerifyEmailSheetState extends ConsumerState<VerifyEmailSheet> {
   Future<void> _resend() async {
     final email = _emailCtrl.text.trim();
     if (email.isEmpty) {
-      setState(() => _error = 'Vui lòng nhập email để gửi lại liên kết.');
+      setState(() => _error = 'Vui lòng nhập email để nhận mã xác minh.');
       return;
     }
     setState(() {
@@ -822,7 +822,7 @@ class _VerifyEmailSheetState extends ConsumerState<VerifyEmailSheet> {
           ),
           const SizedBox(height: 6),
           const Text(
-            'Dán mã xác minh hoặc toàn bộ liên kết /verify-email?token=... từ hộp thư của bạn.',
+            'Nhập mã xác minh gồm 6 chữ số được gửi tới hộp thư của bạn.',
             style: TextStyle(fontSize: 13, color: MssColors.textMuted),
           ),
           const SizedBox(height: 14),
@@ -850,9 +850,11 @@ class _VerifyEmailSheetState extends ConsumerState<VerifyEmailSheet> {
           ],
           TextField(
             controller: _tokenCtrl,
+            keyboardType: TextInputType.number,
+            maxLength: 6,
             decoration: const InputDecoration(
-              labelText: 'Mã hoặc liên kết xác minh *',
-              hintText: 'Dán liên kết hoặc token tại đây',
+              labelText: 'Mã xác minh *',
+              hintText: '6 chữ số',
             ),
           ),
           const SizedBox(height: 12),
@@ -865,14 +867,14 @@ class _VerifyEmailSheetState extends ConsumerState<VerifyEmailSheet> {
             controller: _emailCtrl,
             keyboardType: TextInputType.emailAddress,
             decoration: const InputDecoration(
-              labelText: 'Email nhận lại liên kết',
+              labelText: 'Email nhận mã xác minh',
               hintText: 'ban@example.com',
             ),
           ),
           const SizedBox(height: 10),
           OutlinedButton(
             onPressed: _loading ? null : _resend,
-            child: const Text('Gửi lại email xác minh'),
+            child: const Text('Gửi mã xác minh'),
           ),
         ],
       ),
@@ -914,7 +916,7 @@ class _ForgotPasswordSheetState extends ConsumerState<ForgotPasswordSheet> {
     super.dispose();
   }
 
-  Future<void> _requestLink() async {
+  Future<void> _requestCode() async {
     final email = _emailCtrl.text.trim();
     if (email.isEmpty || !email.contains('@')) {
       setState(() => _error = 'Vui lòng nhập địa chỉ email hợp lệ.');
@@ -942,10 +944,10 @@ class _ForgotPasswordSheetState extends ConsumerState<ForgotPasswordSheet> {
   }
 
   Future<void> _confirmReset() async {
-    final token = Formatters.extractTokenFromInput(_tokenCtrl.text);
+    final code = _tokenCtrl.text.trim();
     final newPassword = _newPasswordCtrl.text;
-    if (token.isEmpty) {
-      setState(() => _error = 'Vui lòng dán mã hoặc liên kết đặt lại mật khẩu.');
+    if (!RegExp(r'^\d{6}$').hasMatch(code)) {
+      setState(() => _error = 'Vui lòng nhập mã gồm 6 chữ số.');
       return;
     }
     if (newPassword.length < 6) {
@@ -959,7 +961,7 @@ class _ForgotPasswordSheetState extends ConsumerState<ForgotPasswordSheet> {
     });
     try {
       final msg = await ref.read(identityApiProvider).resetPassword(
-            token: token,
+            code: code,
             newPassword: newPassword,
           );
       if (!mounted) return;
@@ -1000,8 +1002,8 @@ class _ForgotPasswordSheetState extends ConsumerState<ForgotPasswordSheet> {
             const SizedBox(height: 6),
             Text(
               _stepReset
-                  ? 'Dán liên kết /reset-password?token=... từ email và nhập mật khẩu mới.'
-                  : 'Nhập email đăng ký để nhận liên kết khôi phục mật khẩu.',
+                  ? 'Nhập mã 6 chữ số trong email và mật khẩu mới.'
+                  : 'Nhập email đăng ký để nhận mã đặt lại mật khẩu.',
               style: const TextStyle(fontSize: 13, color: MssColors.textMuted),
             ),
             const SizedBox(height: 14),
@@ -1038,19 +1040,21 @@ class _ForgotPasswordSheetState extends ConsumerState<ForgotPasswordSheet> {
               ),
               const SizedBox(height: 14),
               ElevatedButton(
-                onPressed: _loading ? null : _requestLink,
-                child: const Text('Gửi liên kết đặt lại mật khẩu'),
+                onPressed: _loading ? null : _requestCode,
+                child: const Text('Gửi mã đặt lại mật khẩu'),
               ),
               TextButton(
                 onPressed: () => setState(() => _stepReset = true),
-                child: const Text('Tôi đã có mã / liên kết đặt lại mật khẩu'),
+                child: const Text('Tôi đã nhận được mã'),
               ),
             ] else ...[
               TextField(
                 controller: _tokenCtrl,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
                 decoration: const InputDecoration(
-                  labelText: 'Mã hoặc liên kết đặt lại mật khẩu *',
-                  hintText: 'Dán liên kết hoặc token tại đây',
+                  labelText: 'Mã đặt lại mật khẩu *',
+                  hintText: '6 chữ số',
                 ),
               ),
               const SizedBox(height: 12),

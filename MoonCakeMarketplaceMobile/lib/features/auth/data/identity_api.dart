@@ -61,7 +61,7 @@ class IdentityApi {
     if (res is Map && res['message'] != null) {
       return res['message'].toString();
     }
-    return 'Đã gửi lại liên kết xác minh vào hộp thư của bạn.';
+    return 'Nếu tài khoản chưa xác minh, mã xác minh đã được gửi tới email.';
   }
 
   Future<String> verifyEmail(String token) async {
@@ -85,17 +85,17 @@ class IdentityApi {
     if (res is Map && res['message'] != null) {
       return res['message'].toString();
     }
-    return 'Nếu tài khoản tồn tại, liên kết đặt lại mật khẩu đã được gửi qua email.';
+    return 'Nếu tài khoản đủ điều kiện, mã đặt lại mật khẩu đã được gửi qua email.';
   }
 
   Future<String> resetPassword({
-    required String token,
+    required String code,
     required String newPassword,
   }) async {
     final res = await _client.post(
       '/api/auth/password-resets',
       data: {
-        'token': token.trim(),
+        'code': code.trim(),
         'newPassword': newPassword,
       },
       skipAuth: true,

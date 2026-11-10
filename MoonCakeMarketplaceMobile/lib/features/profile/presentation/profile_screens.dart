@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/config/app_env.dart';
 import '../../../core/network/api_exception.dart';
 import '../../../core/theme/mss_theme.dart';
 import '../../../core/utils/formatters.dart';
@@ -103,44 +102,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             backgroundColor: MssColors.danger),
       );
     }
-  }
-
-  void _openServerDialog() {
-    final urlCtrl = TextEditingController(text: AppEnv.apiBaseUrl);
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Địa chỉ máy chủ API Gateway'),
-        content: TextField(
-          controller: urlCtrl,
-          decoration: const InputDecoration(
-            labelText: 'API Base URL',
-            hintText: 'http://10.0.2.2:8080',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              AppEnv.setBaseUrlOverride(null);
-              await ref.read(appStorageProvider).writeCustomApiBaseUrl(null);
-              if (ctx.mounted) Navigator.of(ctx).pop();
-              if (mounted) setState(() {});
-            },
-            child: const Text('Mặc định'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final next = urlCtrl.text.trim();
-              AppEnv.setBaseUrlOverride(next);
-              await ref.read(appStorageProvider).writeCustomApiBaseUrl(next);
-              if (ctx.mounted) Navigator.of(ctx).pop();
-              if (mounted) setState(() {});
-            },
-            child: const Text('Lưu'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -307,18 +268,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       .read(authControllerProvider.notifier)
                       .refreshUnreadNotifications();
                 },
-              ),
-              const Divider(),
-              ListTile(
-                leading:
-                    const Icon(Icons.dns_outlined, color: MssColors.textMuted),
-                title: const Text(
-                  'Cấu hình máy chủ API Gateway',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-                subtitle: Text(AppEnv.apiBaseUrl),
-                trailing: const Icon(Icons.settings_outlined),
-                onTap: _openServerDialog,
               ),
             ],
           ),
