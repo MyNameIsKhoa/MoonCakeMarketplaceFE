@@ -160,15 +160,34 @@ class DioClient {
     final status = e.response?.statusCode ?? 0;
     final data = e.response?.data;
 
-    if (data is Map<String, dynamic>) {
-      final code = (data['code'] ?? data['error'] ?? 'HTTP_$status').toString();
-      final message =
-          (data['message'] ?? data['error'] ?? 'Yêu cầu không thành công').toString();
-      final rawDetails = data['details'];
+    if (data is Map) {
+      final rawCode = data['code'] ?? data['errorCode'] ?? data['error'];
+      final fallbackCode = switch (status) {
+        400 => 'BAD_REQUEST',
+        401 => 'UNAUTHORIZED',
+        403 => 'FORBIDDEN',
+        404 => 'NOT_FOUND',
+        409 => 'CONFLICT',
+        _ => 'HTTP_$status',
+      };
+      final rawMessage =
+          data['message'] ?? data['detail'] ?? data['errorDescription'];
+      final message = rawMessage is String && rawMessage.trim().isNotEmpty
+          ? rawMessage.trim()
+          : (rawCode is String && rawCode.trim().isNotEmpty
+              ? rawCode.trim()
+              : 'Yêu cầu không thành công');
+      final code = rawCode is String && rawCode.trim().isNotEmpty
+          ? rawCode.trim()
+          : fallbackCode;
       final details = <String, String>{};
+      final rawDetails = data['details'] ?? data['errors'];
       if (rawDetails is Map) {
         rawDetails.forEach((k, v) {
-          if (k != null && v != null) {
+          if (k == null || v == null) return;
+          if (v is List) {
+            details[k.toString()] = v.map((item) => item.toString()).join(', ');
+          } else {
             details[k.toString()] = v.toString();
           }
         });
@@ -180,7 +199,49 @@ class DioClient {
         details: details,
       );
     }
+    if (data is String && data.trim().isNotEmpty) {
+      return ApiException(
+        status: status,
+        code: 'HTTP_$status',
+        message: data.trim(),
+      );
+    }
 
+    if (status == 403) {
+      return ApiException(
+        status: status,
+        code: 'FORBIDDEN',
+        message: 'Bạn không có quyền thực hiện thao tác này.',
+      );
+    }
+    if (status == 409) {
+      return ApiException(
+        status: status,
+        code: 'CONFLICT',
+        message: 'Trạng thái dữ liệu vừa thay đổi. Hãy tải lại rồi thử lại.',
+      );
+    }
+    if (status == 400) {
+      return ApiException(
+        status: status,
+        code: 'BAD_REQUEST',
+        message: 'Yêu cầu không hợp lệ. Vui lòng kiểm tra thông tin đã nhập.',
+      );
+    }
+    if (status == 404) {
+      return ApiException(
+        status: status,
+        code: 'NOT_FOUND',
+        message: 'Không tìm thấy dữ liệu yêu cầu hoặc bạn không có quyền xem.',
+      );
+    }
+    if (status == 401) {
+      return ApiException(
+        status: status,
+        code: 'UNAUTHORIZED',
+        message: 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+      );
+    }
     if (e.type == DioExceptionType.connectionTimeout ||
         e.type == DioExceptionType.receiveTimeout ||
         e.type == DioExceptionType.connectionError) {

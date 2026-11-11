@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mooncake_marketplace_mobile/app.dart';
 import 'package:mooncake_marketplace_mobile/core/network/api_exception.dart';
+import 'package:mooncake_marketplace_mobile/core/network/dio_client.dart';
 import 'package:mooncake_marketplace_mobile/core/utils/formatters.dart';
 import 'package:mooncake_marketplace_mobile/core/widgets/mss_widgets.dart';
 import 'package:mooncake_marketplace_mobile/features/auth/data/auth_models.dart';
@@ -14,7 +15,6 @@ import 'package:mooncake_marketplace_mobile/features/catalog/data/catalog_api.da
 import 'package:mooncake_marketplace_mobile/features/catalog/data/catalog_models.dart';
 import 'package:mooncake_marketplace_mobile/features/catalog/presentation/catalog_controller.dart';
 import 'package:mooncake_marketplace_mobile/features/commerce/data/commerce_models.dart';
-import 'package:mooncake_marketplace_mobile/core/network/dio_client.dart';
 import 'package:mooncake_marketplace_mobile/core/storage/token_storage.dart';
 
 class _FakeCatalogApi extends CatalogApi {
@@ -175,6 +175,28 @@ void main() {
         message: 'Insufficient stock',
       );
       expect(err3.localizedMessage, contains('tồn kho không đủ'));
+
+      const forbidden = ApiException(
+        status: 403,
+        code: 'FORBIDDEN',
+        message: 'No permission',
+      );
+      expect(forbidden.localizedMessage, contains('không có quyền'));
+
+      const notDelivered = ApiException(
+        status: 400,
+        code: 'ORDER_NOT_DELIVERED',
+        message: 'Only delivered order can be accepted',
+      );
+      expect(notDelivered.localizedMessage,
+          contains('tất cả kiện hàng đã được giao'));
+
+      const insufficientPayment = ApiException(
+        status: 400,
+        code: 'UNPAID_ORDER_CANNOT_SHIP',
+        message: 'Order must be fully paid',
+      );
+      expect(insufficientPayment.localizedMessage, contains('thanh toán đủ'));
     });
   });
 
@@ -309,7 +331,9 @@ void main() {
       expect(quote.items.first.unitPrice, 285000);
     });
 
-    test('TV6 Fulfillment models: Shipment, Review, Dispute and Cancellation parse accurately', () {
+    test(
+        'TV6 Fulfillment models: Shipment, Review, Dispute and Cancellation parse accurately',
+        () {
       final shipment = ShipmentModel.fromJson({
         'shipmentId': 501,
         'sellerOrderId': 12,
@@ -364,7 +388,8 @@ void main() {
           {
             'evidenceId': 7,
             'uploadedByRole': 'CUSTOMER',
-            'evidenceUrl': 'https://storage.example.com/evidence/box-damage.jpg',
+            'evidenceUrl':
+                'https://storage.example.com/evidence/box-damage.jpg',
             'note': 'Ảnh chụp nắp hộp',
             'createdAt': '2026-09-13T09:05:00',
           }

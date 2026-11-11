@@ -51,8 +51,40 @@ class ApiException implements Exception {
         return 'Không tìm thấy địa chỉ nhận hàng đã chọn.';
       case 'REVIEW_ALREADY_EXISTS':
         return 'Bạn đã đánh giá sản phẩm này trong đơn hàng rồi.';
+      case 'FORBIDDEN':
+        return 'Bạn không có quyền thực hiện thao tác này trên đơn hàng.';
+      case 'BAD_REQUEST':
+        return message.isNotEmpty ? message : 'Yêu cầu không hợp lệ.';
+      case 'CONFLICT':
+        return message.isNotEmpty
+            ? message
+            : 'Trạng thái đơn hàng vừa thay đổi. Hãy tải lại rồi thử lại.';
+      case 'CANCELLATION_IN_PROGRESS':
+        return 'Yêu cầu hủy đơn đang được xử lý. Hãy tải lại trạng thái trước khi thử lại.';
+      case 'CANCELLATION_ALREADY_EXISTS':
+        return 'Đơn hàng đã có yêu cầu hủy đang chờ xử lý.';
+      case 'CANCELLATION_NOT_PENDING':
+        return 'Yêu cầu hủy này đã được xử lý. Hãy tải lại chi tiết đơn hàng.';
+      case 'ORDER_CANNOT_BE_CANCELLED':
+        return 'Đơn hàng đã giao hoặc không còn ở trạng thái được phép hủy.';
+      case 'CANNOT_REVIEW_ORDER':
       case 'ORDER_NOT_ELIGIBLE_FOR_REVIEW':
-        return 'Chỉ có thể đánh giá sản phẩm sau khi đơn hàng đã được giao thành công.';
+        return 'Chỉ có thể đánh giá sản phẩm sau khi đơn hàng đã được giao.';
+      case 'CANNOT_ACCEPT_ORDER':
+      case 'ORDER_NOT_DELIVERED':
+        return 'Chỉ có thể nghiệm thu sau khi tất cả kiện hàng đã được giao.';
+      case 'NOTHING_LEFT_TO_SHIP':
+        return 'Tất cả sản phẩm đã được xếp vào kiện hàng; không còn số lượng để tạo kiện mới.';
+      case 'INSUFFICIENT_REMAINING_QUANTITY':
+        return 'Số lượng vượt quá phần sản phẩm chưa được xếp vào kiện hàng.';
+      case 'SHIPMENT_NOT_READY':
+        return 'Kiện hàng chưa ở trạng thái sẵn sàng để gửi.';
+      case 'SHIPMENT_NOT_SHIPPED':
+        return 'Chỉ xác nhận giao được kiện đang vận chuyển.';
+      case 'UNPAID_ORDER_CANNOT_SHIP':
+        return 'Đơn phải được thanh toán đủ trước khi xuất kho.';
+      case 'CANCELLATION_OR_DISPUTE_PENDING':
+        return 'Đơn đang có yêu cầu hủy hoặc khiếu nại chưa xử lý; tạm dừng vận chuyển.';
       case 'QUOTATION_EXPIRED':
         return 'Báo giá này đã hết thời hạn hiệu lực.';
       case 'NETWORK_ERROR':
@@ -63,7 +95,9 @@ class ApiException implements Exception {
         if (details.isNotEmpty) {
           return details.values.first;
         }
-        return message.isNotEmpty ? message : 'Đã xảy ra lỗi không xác định ($status).';
+        return message.isNotEmpty
+            ? message
+            : 'Đã xảy ra lỗi không xác định ($status).';
     }
   }
 
