@@ -40,13 +40,14 @@ function hooks() {
   };
 }
 
-async function load(file, { mock = false, api = {}, catalog = {}, auth = {}, router = {} } = {}) {
+async function load(file, { mock = false, api = {}, catalog = {}, auth = {}, router = {}, http = null } = {}) {
   const h = hooks();
   globalThis.__hooks = h.api;
   globalThis.__api = api;
   globalThis.__catalog = catalog;
   globalThis.__auth = auth;
   globalThis.__router = router;
+  globalThis.__http = http;
   const result = await build({
     entryPoints: [file], bundle: true, write: false, platform: 'node', format: 'cjs', jsx: 'automatic',
     define: { 'import.meta.env': JSON.stringify({ VITE_USE_MOCK_CATALOG: String(mock) }) },
@@ -57,8 +58,13 @@ async function load(file, { mock = false, api = {}, catalog = {}, auth = {}, rou
       b.onResolve({ filter: /(?:paymentApi|api\/fulfillmentApi)$/ }, () => ({ path: 'payments', namespace: 'test' }));
       if (!file.endsWith('CatalogContext.tsx')) b.onResolve({ filter: /context\/CatalogContext$/ }, () => ({ path: 'catalog', namespace: 'test' }));
       b.onResolve({ filter: /context\/AuthContext$/ }, () => ({ path: 'auth', namespace: 'test' }));
+      b.onResolve({ filter: /^\.\.\/api$/ }, args => (/[\\/]features[\\/]rfq[\\/]/.test(args.importer) ? { path: 'rfq', namespace: 'test' } : undefined));
+      // Only pages calling the axios client directly opt in; services/api keeps the real one.
+      if (http) b.onResolve({ filter: /services\/api\/http$/ }, () => ({ path: 'http', namespace: 'test' }));
       b.onLoad({ filter: /.*/, namespace: 'test' }, args => ({ contents: {
         react: `module.exports = globalThis.__hooks`,
+        http: `export const http = globalThis.__http;
+          export class ApiError extends Error { constructor(status, message, fieldErrors = {}, code) { super(message); this.status = status; this.code = code; } }`,
         router: `export const useLocation = () => globalThis.__router.location ?? { pathname: "/", search: "", key: "default", state: null };
           export const useNavigate = () => globalThis.__router.navigate ?? (() => {});
           export const useNavigationType = () => globalThis.__router.action ?? "POP";`,
@@ -68,6 +74,8 @@ async function load(file, { mock = false, api = {}, catalog = {}, auth = {}, rou
           export { isApiId, toStore, toProduct, toCategoryOption, toPromotion, withProductDetail } from ${JSON.stringify(fileURLToPath(new URL('../src/services/api/catalogMappers.ts', import.meta.url)))};
           export class ApiError extends Error {}`,
         payments: `export const paymentApi = globalThis.__api; export const fulfillmentApi = globalThis.__api;`,
+        rfq: `export * from ${JSON.stringify(fileURLToPath(new URL('../src/features/rfq/api.ts', import.meta.url)))};
+          export const quotationApi = globalThis.__api.quotationApi;`,
         catalog: `export const useCatalog = () => globalThis.__catalog`,
         auth: `export const useAuth = () => globalThis.__auth`,
       }[args.path], loader: 'js', resolveDir: process.cwd() }));
@@ -461,6 +469,55 @@ test('PayOS redirects clear stale order context and bind supplier return to the 
   assert.equal(sessionStorage.getItem('financeDetailPaymentId'), '40');
   await h.exports.openSellerCheckout(9);
   assert.equal(sessionStorage.getItem('financeOrderDetailId'), null);
+});
+
+test('quotation detail shows the quoted item image and hides it when it fails to load', async () => {
+  const item = (id, extra) => ({ quotationItemId: id, variantId: null, itemNameSnapshot: `Mục ${id}`, skuSnapshot: null,
+    imageUrlSnapshot: null, quantity: 1, unitPrice: '100', discountAmount: '0', subtotal: '100', customizationNote: null, ...extra });
+  const quotation = { quotationId: '7', rfqId: '1', storeId: '16', version: 1, status: 'SUBMITTED', totalAmount: '200',
+    shippingFee: '0', depositPercent: '30', items: [item('1', { variantId: '35', imageUrlSnapshot: '/images/demo/hop-4.webp' }), item('2')] };
+  const h = await load('src/features/rfq/components/QuotationDetail.tsx', { api: { quotationApi: {
+    get: async () => quotation, orderLink: async () => { throw new Error('404'); },
+  } } });
+  const props = { quotationId: '7', viewer: 'buyer', storeName: 'Kinh Đô', isLatest: true, onChanged() {}, onOpenChat: async () => {} };
+  h.render(h.exports.default, props); await tick();
+  const rows = nodes(h.render(h.exports.default, props)).filter(n => n.type === 'tr' && n.key);
+  const images = rows.map(row => nodes(row).filter(n => n.type === 'img'));
+  assert.deepEqual(images.map(list => list.map(img => img.props.src)), [['/images/demo/hop-4.webp'], []]);
+  const broken = { hidden: false };
+  images[0][0].props.onError({ currentTarget: broken });
+  assert.equal(broken.hidden, true);
+});
+
+test('admin cancellation is approved once everything but a kept deposit is refunded, and a refunded one cannot be rejected', async () => {
+  const base = { customerOrderNo: 'RFQ-1', sourceType: 'RFQ', activePaymentId: null, reason: 'Đổi ý', requestedAt: null, retainedAmount: 0 };
+  const cases = [
+    { ...base, cancellationId: 1, sellerOrderId: 11, sellerOrderNo: 'S-1', paidAmount: 9990, refundedAmount: 0, pendingRefundAmount: 0 },
+    { ...base, cancellationId: 2, sellerOrderId: 12, sellerOrderNo: 'S-2', paidAmount: 9990, refundedAmount: 9990, pendingRefundAmount: 0 },
+    { ...base, cancellationId: 3, sellerOrderId: 13, sellerOrderNo: 'S-3', paidAmount: 0, refundedAmount: 0, pendingRefundAmount: 0 },
+    { ...base, cancellationId: 4, sellerOrderId: 14, sellerOrderNo: 'S-4', paidAmount: 9990, refundedAmount: 0, pendingRefundAmount: 9990 },
+    // Buyer cancelled after preparation started: the deposit stays with the supplier.
+    { ...base, cancellationId: 5, sellerOrderId: 15, sellerOrderNo: 'S-5', paidAmount: 3000, refundedAmount: 0, pendingRefundAmount: 0, retainedAmount: 3000 },
+    { ...base, cancellationId: 6, sellerOrderId: 16, sellerOrderNo: 'S-6', paidAmount: 10001, refundedAmount: 0, pendingRefundAmount: 0, retainedAmount: 3000 },
+  ];
+  const h = await load('src/pages/admin/AdminCancellations.tsx', { http: { get: async () => ({ data: cases }) } });
+  h.render(h.exports.default, {}); await tick();
+  let tree = h.render(h.exports.default, {});
+  const actions = no => nodes(nodes(tree).find(n => n.type === 'tr' && textOf(n).includes(no)))
+    .filter(n => n.type === 'button').map(textOf);
+  assert.deepEqual(actions('S-1'), ['Hoàn tiền', 'Từ chối']);
+  assert.deepEqual(actions('S-2'), ['Chấp nhận hủy']);
+  assert.deepEqual(actions('S-3'), ['Chấp nhận hủy', 'Từ chối']);
+  assert.deepEqual(actions('S-4'), ['Hoàn tiền']);
+  // Nothing beyond the kept deposit was paid: approve at once, or refund the deposit too if the supplier was at fault.
+  assert.deepEqual(actions('S-5'), ['Hoàn cả tiền cọc', 'Chấp nhận hủy', 'Từ chối']);
+  assert.deepEqual(actions('S-6'), ['Hoàn tiền', 'Từ chối']);
+  assert.match(textOf(nodes(tree).find(n => n.type === 'tr' && textOf(n).includes('S-6'))), /giữ cọc 3\.000/);
+  nodes(tree).find(n => n.type === 'button' && textOf(n) === 'Hoàn tiền').props.onClick();
+  tree = h.render(h.exports.default, {});
+  assert.equal(nodes(tree).find(n => n.props?.item && n.props?.onChanged).props.item.cancellationId, 1);
+  assert.deepEqual(actions('S-1'), ['Đóng hoàn tiền', 'Từ chối']);
+  h.dispose();
 });
 
 let failed = 0;

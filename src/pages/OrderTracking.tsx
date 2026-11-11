@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useNavigationType } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CheckCircle2, MapPin, Star, Store, Truck, Wallet } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, MapPin, RefreshCw, Star, Store, Truck, Wallet } from 'lucide-react';
 import { useStorefrontScroll } from '../utils/storefrontRoutes';
 import type { CustomerOrderSummary } from '../services/api/commerceApi';
 import { CustomerOrder, OrderItem, SellerOrder } from '../types';
@@ -330,6 +330,22 @@ export default function OrderTracking({ orderId, setActiveTab, paymentReturnOrde
 
 // ---------------------------------------------------------------------------
 
+const PAY_LABEL: Record<string, string> = {
+  FULL: 'Thanh toán',
+  DEPOSIT: 'Thanh toán tiền cọc',
+  REMAINING: 'Thanh toán phần còn lại'
+};
+
+/** First unpaid obligation of a seller order, in the order PayOS checkout takes them (see openSellerCheckout). */
+function nextDuePayment(so: SellerOrder) {
+  if (so.cancellation) return undefined;
+  for (const type of ['FULL', 'DEPOSIT', 'REMAINING']) {
+    const rows = so.payments.filter((p) => p.paymentType === type);
+    if (rows.length > 0 && !rows.some((p) => p.status === 'SUCCESS')) return rows[0];
+  }
+  return undefined;
+}
+
 interface OrderCardProps {
   order: CustomerOrder;
   onUpdated: (order: CustomerOrder) => void;
@@ -353,6 +369,10 @@ function OrderCard({ order, onUpdated, reviewedItemMap, onOpenReview }: OrderCar
       unpaidStatuses.includes(so.status) &&
       so.payments.every((payment) => !['SUCCESS', 'PAID'].includes(payment.status)));
   const awaitingRfqDeposit = order.sourceType === 'RFQ' && canCancelUnpaid;
+  // RFQ orders are paid per seller order; surface the next due payment on the card, not only inside the details.
+  const rfqDue = order.sourceType === 'RFQ' && !['CANCEL_REQUESTED', 'CANCELLED'].includes(order.status)
+    ? order.sellerOrders.map((so) => ({ so, payment: nextDuePayment(so) })).find((entry) => entry.payment)
+    : undefined;
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelError, setCancelError] = useState('');
   const [paymentBusy, setPaymentBusy] = useState(false);
@@ -362,6 +382,14 @@ function OrderCard({ order, onUpdated, reviewedItemMap, onOpenReview }: OrderCar
     setPaymentBusy(true);
     setPaymentError('');
     try { await openCustomerCheckout(Number(order.orderId)); }
+    catch (error) { setPaymentError(error instanceof Error ? error.message : 'Không mở được PayOS.'); }
+    finally { setPaymentBusy(false); }
+  };
+
+  const payRfq = async (sellerOrderId: string) => {
+    setPaymentBusy(true);
+    setPaymentError('');
+    try { await openSellerCheckout(Number(sellerOrderId)); }
     catch (error) { setPaymentError(error instanceof Error ? error.message : 'Không mở được PayOS.'); }
     finally { setPaymentBusy(false); }
   };
@@ -401,14 +429,26 @@ function OrderCard({ order, onUpdated, reviewedItemMap, onOpenReview }: OrderCar
         <div className="text-right">
           <p className="text-sm text-gray-500">Tổng thanh toán</p>
           <p className="mss-price text-lg">{formatVnd(order.grandTotal)}</p>
-          {canCancelUnpaid && <button
-            type="button"
-            disabled={isCancelling}
-            className="mss-button mss-button--danger mss-button--sm mt-2"
-            onClick={() => void cancelUnpaidOrder()}
-          >
-            {isCancelling ? 'Đang hủy…' : 'Hủy ngay (chưa thanh toán)'}
-          </button>}
+          <div className="flex flex-wrap justify-end gap-2">
+            {rfqDue?.payment && <button
+              type="button"
+              disabled={paymentBusy}
+              className="mss-button mss-button--primary mt-2"
+              onClick={() => void payRfq(rfqDue.so.sellerOrderId)}
+            >
+              <Wallet className="w-4 h-4" />
+              {paymentBusy ? 'Đang mở PayOS…'
+                : `${PAY_LABEL[rfqDue.payment.paymentType] ?? 'Thanh toán'} ${formatVnd(rfqDue.payment.amount)}`}
+            </button>}
+            {canCancelUnpaid && <button
+              type="button"
+              disabled={isCancelling}
+              className="mss-button mss-button--danger mss-button--sm mt-2"
+              onClick={() => void cancelUnpaidOrder()}
+            >
+              {isCancelling ? 'Đang hủy…' : 'Hủy ngay (chưa thanh toán)'}
+            </button>}
+          </div>
           {awaitingRfqDeposit && (
             <p className="m-0 mt-2 text-xs text-gray-600">Đơn từ báo giá chưa thanh toán sẽ tự hủy sau 48 giờ kể từ lúc đặt.</p>
           )}
@@ -537,6 +577,7 @@ function SellerOrderSection({
     && (!so.cancellation || so.cancellation.status === 'REJECTED') && !isRemainingOverdue(so)
     && !isFullyPaid(so) && so.payments.some(p => !['SUCCESS', 'PAID', 'REFUNDED'].includes(p.status));
   const canCancel = so.allowedActions.includes('CANCEL');
+  const duePayment = nextDuePayment(so);
   const displayStatus = so.status === 'AWAITING_PAYMENT' && isFullyPaid(so) ? 'PAYMENT_COMPLETED' : so.status;
 
   const run = async (action: () => Promise<CustomerOrder>) => {
@@ -567,7 +608,17 @@ function SellerOrderSection({
         <div className="flex flex-wrap items-center gap-3">
           <StatusBadge map={ORDER_STATUS} status={displayStatus} />
           {canPayRfq &&
-            <button type="button" disabled={paymentBusy} className="mss-button mss-button--primary mss-button--sm" onClick={() => void paySeller()}>{paymentBusy ? 'Đang mở PayOS…' : 'Thanh toán PayOS'}</button>}
+            <button type="button" disabled={paymentBusy} className="mss-button mss-button--primary mss-button--sm" onClick={() => void paySeller()}>
+              <Wallet className="w-4 h-4" />
+              {paymentBusy ? 'Đang mở PayOS…' : duePayment
+                ? `${PAY_LABEL[duePayment.paymentType] ?? 'Thanh toán'} ${formatVnd(duePayment.amount)}`
+                : 'Thanh toán PayOS'}
+            </button>}
+          {canPayRfq &&
+            <button type="button" disabled={paymentBusy} className="mss-button mss-button--secondary mss-button--sm" onClick={() => void reconcileSeller()}>
+              <RefreshCw className="w-4 h-4" />
+              Đối soát PayOS
+            </button>}
           {canCancel && !immediateCancellationAvailable && !showCancel &&
             <button type="button" className="mss-button mss-button--danger mss-button--sm"
               onClick={() => { setActionError(''); setCancelReason('Tôi thay đổi ý định mua hàng.'); setShowCancel(true); }}>
@@ -595,6 +646,12 @@ function SellerOrderSection({
             value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}
           />
+          {['PREPARING', 'SHIPPING'].includes(so.status) && (so.depositAmount ?? 0) > 0 && (
+            <p role="alert" className="mss-alert mss-alert--danger m-0 text-sm">
+              Nhà bán đã bắt đầu chuẩn bị hàng: nếu hủy, tiền cọc {formatVnd(so.depositAmount ?? 0)} thuộc về nhà bán,
+              bạn chỉ được hoàn phần đã trả thêm.
+            </p>
+          )}
           <p className="text-sm text-gray-600">Yêu cầu sẽ được xét duyệt; đơn chưa hủy ngay khi gửi.</p>
           <div className="flex flex-wrap gap-2">
             <button type="submit" disabled={busy || !cancelReason.trim()} className="mss-button mss-button--danger mss-button--sm">
@@ -726,9 +783,15 @@ function SellerOrderSection({
           </>
         )}
       </dl>
+      {(so.depositAmount ?? 0) > 0 && so.status !== 'CANCELLED' && (
+        <p className="m-0 text-xs text-gray-500">
+          Quá hạn mà chưa trả phần còn lại thì đơn tự hủy và tiền cọc thuộc về nhà bán.
+          Nếu bạn hủy sau khi nhà bán đã bắt đầu chuẩn bị hàng, tiền cọc cũng thuộc về nhà bán.
+        </p>
+      )}
       {isRemainingOverdue(so) && (
         <p role="alert" className="mss-alert mss-alert--danger m-0 text-sm">
-          Đã quá hạn thanh toán phần còn lại. Nhà bán chưa thể giao hàng cho tới khi đơn được thanh toán đủ.
+          Đã quá hạn thanh toán phần còn lại. Đơn sẽ được hệ thống tự hủy và tiền cọc thuộc về nhà bán.
         </p>
       )}
 

@@ -144,7 +144,7 @@ export default function ProductDetail({
           <p className="text-sm md:text-sm text-gray-600 leading-relaxed">
             {isLive && !detail && !loadError ? 'Đang tải thông tin sản phẩm...' : view.description}
           </p>
-          {loadError && <p role="alert" className="text-sm text-red-600">{loadError} <button className="underline" onClick={() => setReloadKey(k => k + 1)}>Thử lại</button></p>}
+          {loadError && <p role="alert" className="text-sm text-red-600">{loadError} <button className="mss-button mss-button--secondary mss-button--sm ml-2" onClick={() => setReloadKey(k => k + 1)}>Thử lại</button></p>}
 
           <div className="space-y-4 pt-2 border-t border-gray-200">
             {variants.length > 0 && (

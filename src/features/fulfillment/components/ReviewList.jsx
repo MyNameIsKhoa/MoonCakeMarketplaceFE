@@ -52,7 +52,7 @@ export const ReviewList = ({ variantId, storeId }) => {
   }
 
   if (error) {
-    return <div role="alert" style={{ padding: '20px', color: '#ef4444' }}>{error} <button onClick={() => setReloadKey(k => k + 1)}>Thử lại</button></div>;
+    return <div role="alert" style={{ padding: '20px', color: '#ef4444' }}>{error} <button className="mss-button mss-button--secondary mss-button--sm ml-2" onClick={() => setReloadKey(k => k + 1)}>Thử lại</button></div>;
   }
 
   const avgRating = calculateAverageRating();

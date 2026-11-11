@@ -65,7 +65,7 @@ export const OrderAcceptanceCard = ({ sellerOrder, onAccepted }) => {
       <div style={styles.actionRow}>
         <button
           type="button"
-          style={styles.primaryBtn}
+          className="mss-button mss-button--primary"
           onClick={() => setShowConfirm(true)}
           disabled={loading}
         >
@@ -89,7 +89,7 @@ export const OrderAcceptanceCard = ({ sellerOrder, onAccepted }) => {
             <div style={styles.modalActions}>
               <button
                 type="button"
-                style={styles.cancelBtn}
+                className="mss-button mss-button--secondary"
                 onClick={() => setShowConfirm(false)}
                 disabled={loading}
               >
@@ -97,7 +97,7 @@ export const OrderAcceptanceCard = ({ sellerOrder, onAccepted }) => {
               </button>
               <button
                 type="button"
-                style={styles.confirmBtn}
+                className="mss-button mss-button--primary"
                 onClick={handleAccept}
                 disabled={loading}
               >
@@ -158,17 +158,6 @@ const styles = {
     display: 'flex',
     justifyContent: 'flex-end',
   },
-  primaryBtn: {
-    backgroundColor: '#d97706',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '8px',
-    padding: '10px 20px',
-    fontSize: '14px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    transition: 'background-color 0.2s',
-  },
   modalOverlay: {
     position: 'fixed',
     top: 0,
@@ -215,23 +204,5 @@ const styles = {
     display: 'flex',
     justifyContent: 'flex-end',
     gap: '10px',
-  },
-  cancelBtn: {
-    padding: '8px 16px',
-    borderRadius: '6px',
-    border: '1px solid #d1d5db',
-    backgroundColor: '#ffffff',
-    color: '#374151',
-    fontWeight: '600',
-    cursor: 'pointer',
-  },
-  confirmBtn: {
-    padding: '8px 18px',
-    borderRadius: '6px',
-    border: 'none',
-    backgroundColor: '#16a34a',
-    color: '#ffffff',
-    fontWeight: '600',
-    cursor: 'pointer',
   },
 };

@@ -1,4 +1,5 @@
 import { request } from '../../services/api/http';
+import type { SellerPayoutRow } from '../../services/api/sellerPayoutApi';
 
 export interface Payment {
   paymentId: number; sellerOrderId: number; paymentType: string; amount: number;
@@ -39,12 +40,17 @@ export interface CustomerPaymentSummary {
   };
   allocations: { paymentId: number; sellerOrderId: number; amount: number; sellerOrderNo: string }[];
 }
+/** Admin finance list (GET /api/payments/settlements): every seller order, newest first; rows as in the seller view. */
+export interface AdminPayoutPage {
+  content: SellerPayoutRow[]; page: number; size: number; totalElements: number; totalPages: number;
+}
 // Calls that reach PayOS: a create may be followed by a reconcile and a cancel, each up to the
 // backend's 30 s PayOS timeout, so these wait longer than the default 20 s.
 const PAYOS_CALL = { timeoutMs: 100000 };
 
 export const paymentApi = {
-  summaryByNumber: (sellerOrderNo: string) => request<FinanceSummary>(`/api/payments/orders/by-number?sellerOrderNo=${encodeURIComponent(sellerOrderNo)}`),
+  adminPayouts: (q: string, page: number, size: number) => request<AdminPayoutPage>(
+    `/api/payments/settlements?${new URLSearchParams({ ...(q ? { q } : {}), page: String(page), size: String(size) })}`),
   summary: (orderId: number) => request<FinanceSummary>(`/api/payments/orders/${orderId}`),
   transfers: (orderId: number) => request<{ transfers: TransferInstruction[] }>(`/api/payments/orders/${orderId}/transfer-instructions`),
   prepareTransfer: (orderId: number, kind: TransferInstruction['kind'], id: number, key: string) =>

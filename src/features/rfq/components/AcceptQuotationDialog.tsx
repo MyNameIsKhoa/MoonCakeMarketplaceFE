@@ -20,6 +20,13 @@ interface AcceptQuotationDialogProps {
 const STALE_CODES = new Set(['QUOTATION_VERSION_CONFLICT', 'QUOTATION_NOT_ACCEPTABLE', 'RFQ_NOT_ACCEPTABLE']);
 const POLL_ATTEMPTS = 10;
 
+/** The balance falls due at 00:00 Vietnam time three days before delivery (YYYY-MM-DD in and out). */
+function threeDaysBefore(day: string) {
+  const date = new Date(`${day.slice(0, 10)}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() - 3);
+  return date.toISOString().slice(0, 10);
+}
+
 export default function AcceptQuotationDialog({ quotation, storeName, onClose, onChanged }: AcceptQuotationDialogProps) {
   const [addresses, setAddresses] = useState<BuyerAddress[] | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -156,6 +163,12 @@ export default function AcceptQuotationDialog({ quotation, storeName, onClose, o
             Báo giá còn hiệu lực đến {formatDateTime(quotation.validUntil)}. Sau khi chấp nhận, đơn hàng được tạo theo đúng giá và điều khoản
             của phiên bản này.
           </div>
+          {Number(quotation.depositPercent) > 0 && Number(quotation.depositPercent) < 100 && (
+            <div className="sm:col-span-2 text-xs text-amber-800">
+              Chính sách tiền cọc: nếu bạn hủy sau khi nhà bán đã bắt đầu chuẩn bị hàng, hoặc không trả phần còn lại trước
+              00:00 ngày {formatDate(threeDaysBefore(quotation.proposedDeliveryDate))}, đơn bị hủy và tiền cọc thuộc về nhà bán.
+            </div>
+          )}
         </dl>
 
         <fieldset className="m-0 mss-stack border-0 p-0">

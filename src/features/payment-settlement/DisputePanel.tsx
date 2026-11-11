@@ -67,8 +67,8 @@ export default function DisputePanel({ sellerOrderId, role, initialSummary }: {
   if (!summary) return <div className="rounded-xl border p-4 text-sm">{error || 'Đang tải khiếu nại…'}</div>;
   const active = summary.disputes.find(d => d.status !== 'RESOLVED');
   return <section className="rounded-xl border border-blue-100 bg-white p-4 space-y-4 text-sm">
-    <div className="flex justify-between gap-3"><h4 className="font-bold text-blue-950">Khiếu nại đơn nhà bán #{sellerOrderId}</h4>
-      <button type="button" className="text-blue-700 underline" onClick={() => void load()}>Tải lại</button></div>
+    <div className="flex items-center justify-between gap-3"><h4 className="font-bold text-blue-950">Khiếu nại đơn nhà bán #{sellerOrderId}</h4>
+      <button type="button" className="mss-button mss-button--secondary mss-button--sm" onClick={() => void load()}>Tải lại</button></div>
     {error && <p role="alert" className="text-red-700">{error}</p>}
     {notice && <p role="status" className="text-green-700">{notice}</p>}
     {summary.disputes.map(d => {

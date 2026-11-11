@@ -469,23 +469,23 @@ export default function UserProfile({
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
                       {!addr.isDefault && (
-                        <button onClick={() => handleSetDefault(addr.addressId)} className="text-sm font-semibold text-primary-700 hover:underline">
+                        <button onClick={() => handleSetDefault(addr.addressId)} className="mss-button mss-button--secondary mss-button--sm">
                           Đặt làm mặc định
                         </button>
                       )}
                       <button
                         type="button"
                         onClick={() => { setEditingAddressId(addr.addressId); setConfirmDeleteId(null); setCardError(null); }}
-                        className="inline-flex items-center gap-1 text-sm font-semibold text-primary-700 hover:underline"
+                        className="mss-button mss-button--secondary mss-button--sm"
                       >
                         <Pencil className="w-3.5 h-3.5" /> Sửa
                       </button>
                       <button
                         type="button"
                         onClick={() => { setConfirmDeleteId(addr.addressId); setCardError(null); }}
-                        className="inline-flex items-center gap-1 text-sm font-semibold text-red-700 hover:underline"
+                        className="mss-button mss-button--danger mss-button--sm"
                       >
                         <Trash2 className="w-3.5 h-3.5" /> Xóa
                       </button>
@@ -514,7 +514,7 @@ export default function UserProfile({
             </p>
           </div>
           {promotionLoading && <p role="status" className="text-sm text-gray-500">Đang tải danh sách ưu đãi…</p>}
-          {promotionError && <p role="alert" className="text-sm text-red-600">{promotionError} <button className="underline" onClick={() => setPromotionReload(k => k + 1)}>Thử lại</button></p>}
+          {promotionError && <p role="alert" className="text-sm text-red-600">{promotionError} <button className="mss-button mss-button--secondary mss-button--sm ml-2" onClick={() => setPromotionReload(k => k + 1)}>Thử lại</button></p>}
           {!promotionLoading && !promotionError && activePromotions.length === 0 && (
             <p className="text-sm text-gray-500">Hiện chưa có chương trình khuyến mãi nào đang diễn ra.</p>
           )}

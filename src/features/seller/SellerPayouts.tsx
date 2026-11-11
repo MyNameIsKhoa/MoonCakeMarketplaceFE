@@ -3,17 +3,11 @@ import { Banknote, ChevronLeft, ChevronRight, Clock, Wallet } from 'lucide-react
 import { ApiError, errorMessage } from '../../services/api/http';
 import { sellerPayoutApi, type SellerPayoutPage, type SellerPayoutRow } from '../../services/api/sellerPayoutApi';
 import { formatDateTime, formatVnd } from '../../utils/format';
-import { FINANCE_STATUS, ORDER_STATUS } from '../../utils/status';
+import { ORDER_STATUS, PAYOUT_STATUS } from '../../utils/status';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { ErrorAlert, LoadingText } from './SellerUi';
 
 const PAGE_SIZE = 20;
-
-/** FINANCE_STATUS has every payout state except a seller order with nothing to pay out. */
-const PAYOUT_STATUS = {
-  ...FINANCE_STATUS,
-  NO_PAYOUT: { label: 'Không có khoản giải ngân', variant: 'neutral' as const }
-};
 
 const BLOCKING_REASONS: Record<string, string> = {
   OPEN_DISPUTE: 'Có khiếu nại đang mở',

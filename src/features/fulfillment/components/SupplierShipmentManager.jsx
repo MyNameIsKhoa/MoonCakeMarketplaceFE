@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { PackageCheck, Pencil, Plus, Truck, X } from 'lucide-react';
 import { fulfillmentApi } from '../api/fulfillmentApi';
 import { formatDateTime, toLocalDateTimeInput } from '../../../utils/format';
 
@@ -230,10 +231,11 @@ export const SupplierShipmentManager = ({ sellerOrderId, sellerOrder, onShipment
         {canCreateShipment && !showCreateForm && (
           <button
             type="button"
-            style={styles.addBtn}
+            className="mss-button mss-button--primary mss-button--sm"
             onClick={openCreateForm}
           >
-            {shipments.length === 0 ? '+ Tạo vận đơn' : '+ Thêm kiện hàng / đợt giao'}
+            <Plus className="w-4 h-4" />
+            {shipments.length === 0 ? 'Tạo vận đơn' : 'Thêm kiện hàng / đợt giao'}
           </button>
         )}
       </div>
@@ -394,7 +396,7 @@ export const SupplierShipmentManager = ({ sellerOrderId, sellerOrder, onShipment
           <div style={styles.formActions}>
             <button
               type="button"
-              style={styles.cancelBtn}
+              className="mss-button mss-button--secondary mss-button--sm"
               onClick={() => {
                 setShowCreateForm(false);
                 setEditingShipmentId(null);
@@ -404,7 +406,7 @@ export const SupplierShipmentManager = ({ sellerOrderId, sellerOrder, onShipment
             </button>
             <button
               type="submit"
-              style={styles.submitBtn}
+              className="mss-button mss-button--primary mss-button--sm"
               disabled={submitting}
             >
               {submitting ? 'Đang lưu...' : editingShipmentId ? 'Lưu cập nhật' : 'Tạo vận đơn'}
@@ -465,37 +467,37 @@ export const SupplierShipmentManager = ({ sellerOrderId, sellerOrder, onShipment
                   {s.status !== 'DELIVERED' && s.status !== 'CANCELLED' && (
                     <button
                       type="button"
-                      style={styles.actionBtnSecondary}
+                      className="mss-button mss-button--secondary mss-button--sm"
                       onClick={() => openEditForm(s)}
                     >
-                      ✏️ Cập nhật mã vận đơn
+                      <Pencil className="w-4 h-4" /> Cập nhật mã vận đơn
                     </button>
                   )}
                   {(s.status === 'PLANNED' || s.status === 'READY_TO_SHIP') && (
                     <button
                       type="button"
-                      style={styles.actionBtnPrimary}
+                      className="mss-button mss-button--primary mss-button--sm"
                       onClick={() => handleMarkShipped(s.shipmentId)}
                     >
-                      🚀 Xuất kho / Bàn giao Shipper
+                      <Truck className="w-4 h-4" /> Xuất kho / Bàn giao Shipper
                     </button>
                   )}
                   {s.status === 'PLANNED' && (
                     <button
                       type="button"
-                      style={styles.actionBtnSecondary}
+                      className="mss-button mss-button--danger mss-button--sm"
                       onClick={() => handleCancelShipment(s.shipmentId)}
                     >
-                      ✖ Hủy kiện chưa gửi
+                      <X className="w-4 h-4" /> Hủy kiện chưa gửi
                     </button>
                   )}
                   {s.status === 'SHIPPED' && (
                     <button
                       type="button"
-                      style={styles.actionBtnSuccess}
+                      className="mss-button mss-button--primary mss-button--sm"
                       onClick={() => handleMarkDelivered(s.shipmentId)}
                     >
-                      📦 Xác nhận Đã giao đến khách
+                      <PackageCheck className="w-4 h-4" /> Xác nhận Đã giao đến khách
                     </button>
                   )}
                 </div>
@@ -534,16 +536,6 @@ const styles = {
     margin: '2px 0 0 0',
     fontSize: '13px',
     color: '#6b7280',
-  },
-  addBtn: {
-    backgroundColor: '#d97706',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '6px',
-    padding: '7px 14px',
-    fontSize: '13px',
-    fontWeight: '600',
-    cursor: 'pointer',
   },
   infoBox: {
     padding: '10px 12px',
@@ -593,25 +585,6 @@ const styles = {
     display: 'flex',
     justifyContent: 'flex-end',
     gap: '8px',
-  },
-  cancelBtn: {
-    padding: '6px 14px',
-    borderRadius: '6px',
-    border: '1px solid #d1d5db',
-    backgroundColor: '#ffffff',
-    color: '#374151',
-    cursor: 'pointer',
-    fontSize: '13px',
-  },
-  submitBtn: {
-    padding: '6px 16px',
-    borderRadius: '6px',
-    border: 'none',
-    backgroundColor: '#d97706',
-    color: '#ffffff',
-    fontWeight: '600',
-    cursor: 'pointer',
-    fontSize: '13px',
   },
   shipmentList: {
     display: 'flex',
@@ -734,35 +707,5 @@ const styles = {
     border: '1px solid #d1d5db',
     fontSize: '12px',
     textAlign: 'right',
-  },
-  actionBtnSecondary: {
-    backgroundColor: '#f3f4f6',
-    color: '#374151',
-    border: '1px solid #d1d5db',
-    borderRadius: '6px',
-    padding: '7px 12px',
-    fontSize: '12px',
-    fontWeight: '600',
-    cursor: 'pointer',
-  },
-  actionBtnPrimary: {
-    backgroundColor: '#2563eb',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '6px',
-    padding: '7px 14px',
-    fontSize: '12px',
-    fontWeight: '600',
-    cursor: 'pointer',
-  },
-  actionBtnSuccess: {
-    backgroundColor: '#16a34a',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '6px',
-    padding: '7px 14px',
-    fontSize: '12px',
-    fontWeight: '600',
-    cursor: 'pointer',
   },
 };

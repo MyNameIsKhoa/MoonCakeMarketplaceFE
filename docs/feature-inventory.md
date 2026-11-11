@@ -91,7 +91,7 @@ Danh mục đầy đủ toàn bộ tính năng hiện có trên hệ thống Web
 
 | Mã | Tính năng | Mô tả chi tiết & Quy tắc nghiệp vụ | Role |
 |---|---|---|---|
-| **F-ADM-01** | Tổng quan Quản trị (Admin Dashboard) | Thống kê tổng số người dùng (`/api/admin/identity/metrics`), tổng số đơn hàng & doanh thu đã thu trong tháng (`/api/admin/commerce/metrics`), tổng số RFQ (`/api/admin/rfq/metrics`). | Admin |
+| **F-ADM-01** | Tổng quan Quản trị (Admin Dashboard) | Thẻ tổng: người dùng, đơn hàng, RFQ, tiền thu trong tháng. Hiện trạng: đơn theo trạng thái, người dùng theo vai trò + hồ sơ NCC theo trạng thái duyệt, RFQ và báo giá theo trạng thái. Xu hướng (bộ lọc 7/30/90 ngày, theo ngày UTC): tiền thu, đơn mới (mua lẻ/RFQ), người dùng mới, RFQ mới. Nguồn: `/api/admin/identity/metrics`, `/api/admin/commerce/metrics`, `/api/admin/rfq/metrics` (tham số `days`). | Admin |
 | **F-ADM-02** | Quản lý Người dùng (`AdminCenter` — tab `users`) | Tra cứu danh sách người dùng theo email và lọc theo trạng thái (`PENDING`, `ACTIVE`, `INACTIVE`, `SUSPENDED`) có phân trang (`GET /api/admin/identity/users`). | Admin |
 | **F-ADM-03** | Xét duyệt Hồ sơ Nhà cung cấp (`AdminSupplierReview`) | Xem danh sách hồ sơ theo trạng thái (`PENDING`, `VERIFIED`, `REJECTED`, `SUSPENDED`), thực hiện Duyệt (`VERIFIED`), Từ chối (`REJECTED`), Tạm khóa (`SUSPENDED`) hoặc Mở khóa (`VERIFIED`) kèm lý do bắt buộc (`POST /api/suppliers/{id}/verification`). | Admin |
 | **F-ADM-04** | Quản lý Gian hàng toàn sàn (`AdminCatalog kind="stores"`) | Xem tất cả gian hàng ở mọi trạng thái (`GET /api/admin/catalog/stores`) và chuyển trạng thái (`ACTIVE`, `INACTIVE`, `SUSPENDED`) qua `PATCH /api/stores/{id}`. | Admin |

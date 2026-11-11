@@ -95,7 +95,7 @@ export const StoreSection: React.FC<StoreSectionProps> = ({
         {onViewAllStores && (
           <button
             onClick={onViewAllStores}
-            className="text-primary-700 hover:text-primary-800 text-sm font-bold flex items-center gap-1 hover:underline shrink-0"
+            className="mss-button mss-button--secondary mss-button--sm shrink-0"
           >
             <span>Tất cả thương hiệu</span>
             <ArrowRight className="w-4 h-4" />

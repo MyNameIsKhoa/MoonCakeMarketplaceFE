@@ -35,6 +35,12 @@ export const FINANCE_STATUS: StatusMap = {
   PAID: { label: 'Đã giải ngân', variant: 'success' },
 };
 
+/** Payout state of a seller order: FINANCE_STATUS plus a seller order with nothing to pay out. */
+export const PAYOUT_STATUS: StatusMap = {
+  ...FINANCE_STATUS,
+  NO_PAYOUT: { label: 'Không có khoản giải ngân', variant: 'neutral' },
+};
+
 export const ORDER_STATUS: StatusMap = {
   PENDING_STOCK: { label: 'Đang xác nhận giữ kho', variant: 'warning' },
   AWAITING_PAYMENT: { label: 'Chờ thanh toán', variant: 'warning' },

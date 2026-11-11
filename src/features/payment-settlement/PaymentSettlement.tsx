@@ -1,7 +1,9 @@
-import { type FormEvent, useRef, useState } from 'react';
-import { Wallet } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { ArrowLeft, Wallet } from 'lucide-react';
 import { ApiError } from '../../services/api/http';
+import type { SellerPayoutRow } from '../../services/api/sellerPayoutApi';
 import { paymentApi, type FinanceSummary } from './paymentApi';
+import AdminPayoutList from './AdminPayoutList';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { FINANCE_STATUS, PAYMENT_STATUS, PAYMENT_TYPE } from '../../utils/status';
 import { formatDate, formatDateTime, formatVnd } from '../../utils/format';
@@ -47,24 +49,29 @@ export default function PaymentSettlement({ onOrders }: { onOrders: () => void }
 }
 
 export function AdminPaymentSettlement() {
-  const [input, setInput] = useState('');
-  const [orderNumber, setOrderNumber] = useState('');
+  const [order, setOrder] = useState<SellerPayoutRow | null>(null);
+  const [listVersion, setListVersion] = useState(0);
   const [data, setData] = useState<FinanceSummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [showRefundForm, setShowRefundForm] = useState(false);
   const keys = useRef(new Map<string, string>());
+  const opening = useRef(0);
 
-  async function load(event: FormEvent) {
-    event.preventDefault();
-    const number = input.trim();
-    if (busy || !number) return;
-    setBusy(true); setError(''); setData(null); setShowRefundForm(false);
+  async function open(row: SellerPayoutRow) {
+    const attempt = ++opening.current;
+    setOrder(row); setBusy(true); setError(''); setData(null); setShowRefundForm(false);
     try {
-      setData(await paymentApi.summaryByNumber(number));
-      setOrderNumber(number);
-    } catch (e) { setError(message(e)); }
-    finally { setBusy(false); }
+      const summary = await paymentApi.summary(row.sellerOrderId);
+      if (opening.current === attempt) setData(summary);
+    } catch (e) { if (opening.current === attempt) setError(message(e)); }
+    finally { if (opening.current === attempt) setBusy(false); }
+  }
+
+  function backToList() {
+    opening.current++;
+    setOrder(null); setData(null); setError(''); setBusy(false); setShowRefundForm(false);
+    setListVersion(n => n + 1);
   }
 
   async function run(command: string, body?: unknown) {
@@ -102,20 +109,18 @@ export function AdminPaymentSettlement() {
   return <div className='mss-container mss-page mss-stack'>
     <header className='mss-page-header'><div>
       <h1 className='mss-page-title flex items-center gap-3'><Wallet /> Đối soát và giải ngân</h1>
-      <p className='mt-2 text-gray-600'>Tra cứu thanh toán, khoản hoàn và chi trả theo đơn nhà bán.</p>
+      <p className='mt-2 text-gray-600'>Thanh toán, khoản hoàn và chi trả của mọi đơn nhà bán. Chọn một đơn để xử lý.</p>
     </div></header>
-    <form onSubmit={load} className='mss-card flex flex-wrap items-end gap-3'>
-      <label className='mss-field flex-1'>Mã đơn nhà bán
-        <input className='mss-input' value={input} onChange={e => setInput(e.target.value)} required
-          maxLength={100} placeholder='Nhập mã hiển thị trên đơn' />
-      </label>
-      <button className='mss-button mss-button--primary' disabled={busy || !input.trim()}>Tải giao dịch</button>
-    </form>
-    {error && <p role='alert' className='mss-card text-red-800'>{error}</p>}
-    {busy && !data && <p role='status'>Đang tải giao dịch…</p>}
-    {data && <>
+    <div className={order ? 'hidden' : 'mss-stack'}>
+      <AdminPayoutList refresh={listVersion} blockingReasons={blockingReasons} onOpen={row => void open(row)} />
+    </div>
+    {order && <button type='button' className='mss-button mss-button--secondary self-start' onClick={backToList}>
+      <ArrowLeft size={16} aria-hidden /> Quay lại danh sách</button>}
+    {order && error && <p role='alert' className='mss-card text-red-800'>{error}</p>}
+    {order && busy && !data && <p role='status'>Đang tải giao dịch…</p>}
+    {order && data && <>
       <section className='mss-card mss-stack'>
-        <h2 className='mss-section-title'>Đơn {orderNumber}</h2>
+        <h2 className='mss-section-title'>Đơn {order.sellerOrderNo} · {order.storeName}</h2>
         <div className='mss-grid mss-grid-3'>
           <p>Tổng giá trị<br /><strong>{formatVnd(data.context.totalAmount)}</strong></p>
           <p>Đã thu<br /><strong>{formatVnd(data.context.paidAmount)}</strong></p>

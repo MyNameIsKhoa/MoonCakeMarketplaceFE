@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, Loader2, MessageSquare, PenLine, Undo2, XCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, MessageSquare, Package, PenLine, Undo2, XCircle } from 'lucide-react';
 import StatusBadge from '../../../components/ui/StatusBadge';
 import { errorMessage } from '../../../services/api/http';
 import { formatDate, formatDateTime } from '../../../utils/format';
@@ -105,10 +105,27 @@ export default function QuotationDetail({ quotationId, viewer, storeName, isLate
           <tbody>
             {quotation.items.map((item) => (
               <tr key={item.quotationItemId}>
-                <td className="min-w-[180px]">
-                  <span className="font-semibold">{item.itemNameSnapshot}</span>
-                  {item.customizationNote && <span className="block text-gray-500">{item.customizationNote}</span>}
-                  {item.variantId && <span className="mss-badge mt-1">Sản phẩm catalog</span>}
+                <td className="min-w-[240px]">
+                  <div className="flex items-start gap-3">
+                    {/* The placeholder icon stays behind the image and shows when there is none or it fails to load. */}
+                    <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 text-gray-400">
+                      <Package className="h-5 w-5" aria-hidden />
+                      {item.imageUrlSnapshot && (
+                        <img
+                          src={item.imageUrlSnapshot}
+                          alt=""
+                          loading="lazy"
+                          className="absolute inset-0 h-full w-full object-cover"
+                          onError={(e) => { e.currentTarget.hidden = true; }}
+                        />
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <span className="font-semibold">{item.itemNameSnapshot}</span>
+                      {item.customizationNote && <span className="block text-gray-500">{item.customizationNote}</span>}
+                      {item.variantId && <span className="mss-badge mt-1">Sản phẩm catalog</span>}
+                    </div>
+                  </div>
                 </td>
                 <td>{item.skuSnapshot ?? '—'}</td>
                 <td className="text-right tabular-nums">{item.quantity.toLocaleString('vi-VN')}</td>

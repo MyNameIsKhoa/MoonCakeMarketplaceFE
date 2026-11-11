@@ -20,7 +20,7 @@ export default function AdminDisputes() {
   return <div className="max-w-5xl mx-auto space-y-4">
     <div className="flex justify-between"><div><h2 className="text-2xl font-bold text-blue-950">Khiếu nại đơn hàng</h2>
       <p className="text-slate-500">Phân xử, ghi lý do và theo dõi khoản hoàn thủ công.</p></div>
-      <button type="button" className="text-blue-700 underline" onClick={() => { setRows(null); setError(''); setVersion(v => v + 1); }}>Tải lại</button></div>
+      <button type="button" className="mss-button mss-button--secondary mss-button--sm" onClick={() => { setRows(null); setError(''); setVersion(v => v + 1); }}>Tải lại</button></div>
     {error && <p role="alert" className="text-red-700">{error}</p>}
     {!rows && !error && <p>Đang tải…</p>}
     {rows?.length === 0 && <p>Không có khiếu nại đang xử lý.</p>}

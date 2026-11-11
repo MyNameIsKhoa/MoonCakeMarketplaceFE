@@ -191,7 +191,7 @@ export default function Checkout({ userId, selection, onOrderPlaced, setActiveTa
             ) : addresses.length === 0 ? (
               <div className="mss-alert mss-alert--warning">
                 Bạn chưa có địa chỉ nào.{' '}
-                <button type="button" className="underline font-semibold" onClick={() => setActiveTab('profile')}>
+                <button type="button" className="mss-button mss-button--secondary mss-button--sm ml-2" onClick={() => setActiveTab('profile')}>
                   Thêm địa chỉ trong tài khoản
                 </button>
               </div>
@@ -221,7 +221,7 @@ export default function Checkout({ userId, selection, onOrderPlaced, setActiveTa
                     </div>
                   </label>
                 ))}
-                <button type="button" className="self-start text-sm font-semibold text-primary-700 hover:underline" onClick={() => setActiveTab('profile')}>
+                <button type="button" className="mss-button mss-button--secondary mss-button--sm self-start" onClick={() => setActiveTab('profile')}>
                   Quản lý sổ địa chỉ
                 </button>
               </div>

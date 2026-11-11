@@ -74,7 +74,7 @@ export default function Home({
 
           <button
             onClick={() => setActiveTab('products')}
-            className="text-xs sm:text-sm font-bold text-primary-700 hover:underline flex items-center gap-1"
+            className="mss-button mss-button--secondary mss-button--sm shrink-0"
           >
             <span>Xem tất cả ({products.length})</span>
             <ChevronRight className="w-4 h-4" />

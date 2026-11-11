@@ -149,10 +149,10 @@ export default function ChatPanel({ conversationId, conversationStatus, title, s
               ) : (
                 <span className="mt-1 flex items-center gap-2 px-1 text-xs text-[var(--mss-danger)]" role="alert">
                   Chưa gửi được.
-                  <button type="button" className="inline-flex items-center gap-1 font-semibold underline" onClick={() => thread.retry(p.clientMessageId)}>
+                  <button type="button" className="mss-button mss-button--secondary mss-button--sm" onClick={() => thread.retry(p.clientMessageId)}>
                     <RotateCw className="h-3 w-3" aria-hidden /> Gửi lại
                   </button>
-                  <button type="button" className="inline-flex items-center gap-1 font-semibold underline" onClick={() => thread.discard(p.clientMessageId)}>
+                  <button type="button" className="mss-button mss-button--danger mss-button--sm" onClick={() => thread.discard(p.clientMessageId)}>
                     <X className="h-3 w-3" aria-hidden /> Bỏ
                   </button>
                 </span>

@@ -5,7 +5,8 @@ import { productApi, variantApi } from '../../../services/api';
 import { errorMessage } from '../../../services/api/http';
 import { idempotencyKeyFor, quotationApi } from '../api';
 import {
-  centsToVnd, isMoney, isoToLocalDateTime, isWholeVnd, localDateTimeToIso, MIN_DELIVERY_DAYS_WITH_REMAINING, toCents,
+  centsToVnd, isMoney, isoToLocalDateTime, isWholeVnd, localDateTimeToIso, MIN_DELIVERY_DAYS_FULL_PAYMENT,
+  MIN_DELIVERY_DAYS_WITH_REMAINING, toCents,
   todayIsoDate, vietnamIsoDate
 } from '../format';
 import type { Quotation, QuotationItemInput, QuotationTermsInput, Rfq, StoreInfo } from '../types';
@@ -137,11 +138,13 @@ export default function QuotationForm({ rfq, mode, onSaved, onCancel }: Quotatio
   const validIso = localDateTimeToIso(validUntil);
   if (!validIso || new Date(validIso).getTime() <= Date.now()) termErrors.push('Hiệu lực báo giá phải ở tương lai.');
   const hasRemaining = isMoney(depositPercent) && Number(depositPercent) > 0 && Number(depositPercent) < 100;
-  const earliestDelivery = hasRemaining ? vietnamIsoDate(MIN_DELIVERY_DAYS_WITH_REMAINING) : todayIsoDate();
+  const earliestDelivery = vietnamIsoDate(hasRemaining ? MIN_DELIVERY_DAYS_WITH_REMAINING : MIN_DELIVERY_DAYS_FULL_PAYMENT);
   if (!deliveryDate || deliveryDate < todayIsoDate()) termErrors.push('Ngày giao dự kiến không được ở quá khứ.');
-  else if (hasRemaining && deliveryDate < earliestDelivery) {
-    termErrors.push(`Báo giá có tiền cọc cần ngày giao từ ${earliestDelivery.split('-').reverse().join('/')} trở đi: ` +
-      `phần còn lại phải thanh toán trước ngày giao 3 ngày.`);
+  else if (deliveryDate < earliestDelivery) {
+    const from = earliestDelivery.split('-').reverse().join('/');
+    termErrors.push(hasRemaining
+      ? `Báo giá có tiền cọc cần ngày giao từ ${from} trở đi: người mua có 48 giờ để đặt cọc và phần còn lại đến hạn 3 ngày trước ngày giao.`
+      : `Báo giá thanh toán một lần cần ngày giao từ ${from} trở đi: người mua có 48 giờ để thanh toán và hàng chỉ được chuẩn bị sau khi đã thu đủ tiền.`);
   }
   if (leadTimeDays && !INT.test(leadTimeDays)) termErrors.push('Thời gian chuẩn bị là số ngày (số nguyên).');
   if (!isWholeVnd(shippingFee)) termErrors.push('Phí vận chuyển là số tiền nguyên đồng (VND).');

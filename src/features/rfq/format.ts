@@ -39,10 +39,12 @@ export function vietnamIsoDate(offsetDays = 0): string {
 }
 
 /**
- * A deposit between 0% and 100% leaves a remaining balance due 3 days before delivery (TV5), and an unpaid RFQ
- * order is cancelled 48 hours after it is placed — same rule as RFQService DeliveryDateRule.
+ * An unpaid RFQ order is cancelled 48 hours after it is placed — same rule as RFQService DeliveryDateRule.
+ * A deposit between 0% and 100% leaves a remaining balance due 3 days before delivery (TV5): today + 6 days.
+ * One FULL payment (0% or 100%) must be paid before goods are prepared: today + 3 days.
  */
 export const MIN_DELIVERY_DAYS_WITH_REMAINING = 6;
+export const MIN_DELIVERY_DAYS_FULL_PAYMENT = 3;
 
 const MONEY_PATTERN = /^\d{1,16}(\.\d{1,2})?$/;
 

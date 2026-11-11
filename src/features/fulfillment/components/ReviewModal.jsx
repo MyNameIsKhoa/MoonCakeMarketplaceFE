@@ -105,7 +105,7 @@ export const ReviewModal = ({ orderItem, isOpen, onClose, onReviewed }) => {
           <div style={styles.actions}>
             <button
               type="button"
-              style={styles.cancelBtn}
+              className="mss-button mss-button--secondary"
               onClick={onClose}
               disabled={loading}
             >
@@ -113,7 +113,7 @@ export const ReviewModal = ({ orderItem, isOpen, onClose, onReviewed }) => {
             </button>
             <button
               type="submit"
-              style={styles.submitBtn}
+              className="mss-button mss-button--primary"
               disabled={loading}
             >
               {loading ? 'Đang gửi...' : 'Gửi đánh giá'}
@@ -242,23 +242,5 @@ const styles = {
     display: 'flex',
     justifyContent: 'flex-end',
     gap: '10px',
-  },
-  cancelBtn: {
-    padding: '8px 16px',
-    borderRadius: '6px',
-    border: '1px solid #d1d5db',
-    backgroundColor: '#ffffff',
-    color: '#374151',
-    fontWeight: '600',
-    cursor: 'pointer',
-  },
-  submitBtn: {
-    padding: '8px 20px',
-    borderRadius: '6px',
-    border: 'none',
-    backgroundColor: '#d97706',
-    color: '#ffffff',
-    fontWeight: '600',
-    cursor: 'pointer',
   },
 };
